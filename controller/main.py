@@ -405,6 +405,27 @@ def _no_cache_headers() -> dict:
     return {"Cache-Control": "no-store, no-cache, must-revalidate", "Pragma": "no-cache"}
 
 
+def _asset_response(path: Path, media_type: str, request: Request):
+    """
+    Serve a static asset (JS/CSS) with ETag-based conditional caching.
+    Returns 304 Not Modified when the client already has the current version.
+    HTML files should still use _no_cache_headers() to ensure fresh markup.
+    """
+    try:
+        mtime = int(path.stat().st_mtime * 1000)
+    except OSError:
+        return FileResponse(path, media_type=media_type, headers=_no_cache_headers())
+    etag = f'"{mtime}"'
+    if_none_match = request.headers.get("if-none-match", "")
+    if if_none_match and if_none_match == etag:
+        return Response(status_code=304, headers={"ETag": etag, "Cache-Control": "no-cache"})
+    return FileResponse(
+        path,
+        media_type=media_type,
+        headers={"Cache-Control": "no-cache, must-revalidate", "ETag": etag},
+    )
+
+
 @app.get("/")
 async def index():
     """Serve the main GUI (RIG CONTROL CENTER)."""
@@ -426,43 +447,43 @@ async def legacy_status():
 
 
 @app.get("/app.js")
-async def serve_app_js():
+async def serve_app_js(request: Request):
     """Serve main GUI script."""
     path = STATIC_DIR / "app.js"
     if not path.exists():
         from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="app.js not found")
-    return FileResponse(path, media_type="application/javascript", headers=_no_cache_headers())
+    return _asset_response(path, "application/javascript", request)
 
 
 @app.get("/styles.css")
-async def serve_styles():
+async def serve_styles(request: Request):
     """Serve main stylesheet."""
     path = STATIC_DIR / "styles.css"
     if not path.exists():
         from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="styles.css not found")
-    return FileResponse(path, media_type="text/css", headers=_no_cache_headers())
+    return _asset_response(path, "text/css", request)
 
 
 @app.get("/booking-admin.css")
-async def serve_booking_admin_css():
+async def serve_booking_admin_css(request: Request):
     """Serve native PitBox booking admin stylesheet."""
     path = STATIC_DIR / "booking-admin.css"
     if not path.exists():
         from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="booking-admin.css not found")
-    return FileResponse(path, media_type="text/css", headers=_no_cache_headers())
+    return _asset_response(path, "text/css", request)
 
 
 @app.get("/booking-admin.js")
-async def serve_booking_admin_js():
+async def serve_booking_admin_js(request: Request):
     """Serve native PitBox booking admin script."""
     path = STATIC_DIR / "booking-admin.js"
     if not path.exists():
         from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="booking-admin.js not found")
-    return FileResponse(path, media_type="application/javascript", headers=_no_cache_headers())
+    return _asset_response(path, "application/javascript", request)
 
 
 def _get_sidebar_logo_path() -> Path | None:
@@ -542,21 +563,21 @@ async def employee_dashboard(request: Request):
 
 
 @app.get("/employee.js")
-async def serve_employee_js():
+async def serve_employee_js(request: Request):
     """Serve Employee Control script."""
     path = STATIC_DIR / "employee.js"
     if not path.exists():
         raise HTTPException(status_code=404, detail="employee.js not found")
-    return FileResponse(path, media_type="application/javascript", headers=_no_cache_headers())
+    return _asset_response(path, "application/javascript", request)
 
 
 @app.get("/kiosk-copy.js")
-async def serve_kiosk_copy():
+async def serve_kiosk_copy(request: Request):
     """Serve kiosk customer-facing copy (single source for wording)."""
     path = STATIC_DIR / "kiosk-copy.js"
     if not path.exists():
         raise HTTPException(status_code=404, detail="kiosk-copy.js not found")
-    return FileResponse(path, media_type="application/javascript", headers=_no_cache_headers())
+    return _asset_response(path, "application/javascript", request)
 
 
 # SPA routes: serve index.html so path-based routing works (bookmarkable, refresh-safe).

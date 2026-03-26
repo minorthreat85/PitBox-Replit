@@ -318,6 +318,17 @@ _SESSION_OFF_NAMES = {"BOOK": "__CM_BOOK_OFF", "PRACTICE": "__CM_PRACTICE_OFF", 
 _PRESET_LIST_CACHE_TTL = 15.0
 _preset_list_cache: Optional[tuple[float, list[str], dict[str, str]]] = None
 
+_SERVER_CONFIG_FULL_CACHE_TTL_SEC = 10.0
+_server_config_full_cache: dict[str, tuple[float, dict]] = {}
+
+
+def _invalidate_server_config_full_cache(server_id: Optional[str] = None) -> None:
+    global _server_config_full_cache
+    if server_id:
+        _server_config_full_cache.pop(server_id, None)
+    else:
+        _server_config_full_cache.clear()
+
 
 def _section_key_match(data: dict, name: str) -> Optional[str]:
     u = name.upper()
@@ -444,6 +455,7 @@ async def patch_server_config(body: ServerConfigPatchBody, _: None = Depends(req
     _apply_ini_updates(data, body.updates)
     write_ini_atomic(sc_path, data)
     _invalidate_preset_disk_state_cache(body.server_id)
+    _invalidate_server_config_full_cache(body.server_id)
     return data
 
 
@@ -458,6 +470,10 @@ async def get_server_config(server_id: str = "default", _: None = Depends(requir
     server_root = _server_root()
     server_ids, preset_names = _ensure_preset_list_cache()
     effective_id = server_id if server_id != "default" else server_ids[0]
+    _now = time.time()
+    _cached = _server_config_full_cache.get(effective_id)
+    if _cached and (_now - _cached[0]) < _SERVER_CONFIG_FULL_CACHE_TTL_SEC:
+        return _cached[1]
     cfg_dir = _cfg_dir_for_server(effective_id)
     sc_path, el_path = _server_config_paths_for_read(cfg_dir)
     logger.debug("Read server_cfg.ini for server_id=%s effective_id=%s at %s", server_id, effective_id, sc_path)
@@ -487,7 +503,7 @@ async def get_server_config(server_id: str = "default", _: None = Depends(requir
     config_track = (srv.get("CONFIG_TRACK") or "").strip()
     track_id = _normalize_track_id_from_preset(track_raw) or track_raw
     race = {"track_raw": track_raw, "track_id": track_id, "config_track": config_track}
-    return {
+    _payload = {
         "server_id": effective_id,
         "server_ids": server_ids,
         "server_cfg": server_cfg,
@@ -502,6 +518,8 @@ async def get_server_config(server_id: str = "default", _: None = Depends(requir
         "logs_path": str(server_root / "logs"),
         "content_path": str(server_root / "content"),
     }
+    _server_config_full_cache[effective_id] = (time.time(), _payload)
+    return _payload
 
 
 class ServerConfigPutBody(BaseModel):
@@ -545,6 +563,7 @@ async def put_server_config(body: ServerConfigPutBody, _: None = Depends(require
         len(entry_list_ini),
     )
     _invalidate_preset_disk_state_cache(body.server_id)
+    _invalidate_server_config_full_cache(body.server_id)
     global _preset_list_cache
     _preset_list_cache = None
     try:
@@ -587,6 +606,7 @@ async def load_server_config_preset(body: LoadPresetBody, _: None = Depends(requ
         data = read_ini(el_src)
         write_ini_atomic(el_dst, data)
     _invalidate_preset_disk_state_cache(body.server_id)
+    _invalidate_server_config_full_cache(body.server_id)
     return {"success": True, "message": f"Loaded preset '{safe_src}'."}
 
 

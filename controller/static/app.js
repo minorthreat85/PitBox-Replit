@@ -113,7 +113,7 @@
 
   var dashboardServerConfigCache = { ts: 0, sid: null, data: null };
   var dashboardProcessStatusCache = { ts: 0, data: null };
-  var DASHBOARD_SUBFETCH_TTL_MS = 1500;
+  var DASHBOARD_SUBFETCH_TTL_MS = 5000;
 
   var SELECTED_SERVER_STORAGE_KEY = 'pitbox_selected_server_id';
 
@@ -683,6 +683,9 @@
   function loadDashboardPage() {
     var serverSelect = document.getElementById('cc-server-select');
     var selectedServerId = (serverSelect && serverSelect.value) || '';
+    if (window._commandCenterLastStatus && window._commandCenterLastStatus.agents) {
+      renderDashboard(window._commandCenterLastStatus.agents);
+    }
     Promise.all([
       pitboxFetch(API_BASE + '/status').then(function (r) { if (!r.ok) throw new Error('Status ' + r.status); return r.json(); }),
       getDashboardServerConfigCached(selectedServerId || 'default'),
@@ -1505,13 +1508,14 @@
     bindServerConfigSaveReload();
     var routeId = getSelectedServerId();
     setServerConfigLoadedPath('Loading…', false);
-    pitboxFetch(API_BASE + '/server-config/meta')
+    var initialId = routeId || 'default';
+    pitboxFetch(API_BASE + '/server-config?server_id=' + encodeURIComponent(initialId))
       .then(function (r) { return r.ok ? r.json() : Promise.reject({ status: r.status, message: r.status === 404 ? 'Server cfg path not configured' : 'Status ' + r.status }); })
-      .then(function (meta) {
-        var apiIds = meta.server_ids || [];
+      .then(function (configData) {
+        var apiIds = configData.server_ids || [];
         serverConfigData.server_ids = getOrderedServerIds(apiIds);
         serverConfigData.presets = serverConfigData.server_ids;
-        serverConfigData.preset_names = meta.preset_names || {};
+        serverConfigData.preset_names = configData.preset_names || {};
         var presetIds = (serverConfigData.server_ids || []).map(function (p) { return String(p); });
         var names = serverConfigData.preset_names || {};
         var byId = new Map(presetIds.map(function (id) { return [id, { id: id, name: names[id] || id }]; }));
@@ -1523,7 +1527,7 @@
           return;
         }
 
-        var chosenId = null;
+        var chosenId = configData.server_id || null;
         if (routeId && byId.has(routeId)) chosenId = routeId;
         if (!chosenId && routeId && byIdLower.has(routeId.toLowerCase())) chosenId = byIdLower.get(routeId.toLowerCase());
         if (!chosenId) {
@@ -1543,12 +1547,12 @@
           console.log('[PitBox] presets ids:', presetIds, 'routeId:', routeId, 'chosenId:', chosenId);
         }
 
-        function applyConfigAndShow(configData) {
-          serverConfigData.server_cfg = configData.server_cfg || {};
-          serverConfigData.entry_list = Array.isArray(configData.entry_list) ? configData.entry_list : [];
-          serverConfigData.server_root = configData.server_root || null;
-          serverConfigData.blacklist_path = configData.blacklist_path || null;
-          serverConfigData.server_cfg_path = configData.server_cfg_path || null;
+        function applyConfigAndShow(data) {
+          serverConfigData.server_cfg = data.server_cfg || {};
+          serverConfigData.entry_list = Array.isArray(data.entry_list) ? data.entry_list : [];
+          serverConfigData.server_root = data.server_root || null;
+          serverConfigData.blacklist_path = data.blacklist_path || null;
+          serverConfigData.server_cfg_path = data.server_cfg_path || null;
           var inst = document.getElementById('sc-instance');
           if (inst && serverConfigData.server_ids.length > 0) {
             var names = serverConfigData.preset_names || {};
@@ -1578,9 +1582,13 @@
           ]);
         }
 
-        return pitboxFetch(API_BASE + '/server-config?server_id=' + encodeURIComponent(chosenId))
-          .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('Status ' + r.status)); })
-          .then(applyConfigAndShow);
+        if (chosenId === configData.server_id) {
+          applyConfigAndShow(configData);
+        } else {
+          return pitboxFetch(API_BASE + '/server-config?server_id=' + encodeURIComponent(chosenId))
+            .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('Status ' + r.status)); })
+            .then(applyConfigAndShow);
+        }
       })
       .catch(function (err) {
         var msg = (err && err.message) ? err.message : 'Could not load server config';
