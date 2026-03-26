@@ -221,7 +221,15 @@
   function getVisiblePageId() {
     var el = document.querySelector('.content-page:not(.hidden)');
     if (!el) return null;
-    return el.getAttribute('data-page');
+    var pageId = el.getAttribute('data-page');
+    if (pageId === 'bookings') {
+      var sub = el.getAttribute('data-ba-active-sub') || 'list';
+      if (sub === 'schedule') return 'schedule';
+      if (sub === 'checkin') return 'checkin';
+      if (sub === 'analytics') return 'analytics';
+      return 'bookings';
+    }
+    return pageId;
   }
 
   async function refreshAfterBookingMutation() {

@@ -461,3 +461,38 @@
     border: 1px solid rgba(255,255,255,0.06);
 }
 
+
+/* ========== Booking sub-tab navigation ========== */
+.ba-sub-nav {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 20px;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    padding-bottom: 0;
+}
+.ba-sub-tab {
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: #888;
+    font-size: 0.85rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 8px 16px 10px;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+}
+.ba-sub-tab:hover {
+    color: #fff;
+}
+.ba-sub-tab.active {
+    color: #fff;
+    border-bottom-color: #FF0000;
+}
+.ba-sub-panel {
+    /* shown by default; .hidden hides it */
+}
+.ba-sub-panel.hidden {
+    display: none !important;
+}

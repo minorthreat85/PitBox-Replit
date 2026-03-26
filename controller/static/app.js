@@ -306,6 +306,45 @@
     if (typeof serverConfigData !== 'undefined') serverConfigData.server_id = id || null;
   }
 
+  var _baSubTabsBound = false;
+
+  function loadBookingSubPanel(sub) {
+    var pageEl = document.getElementById('page-bookings');
+    if (!pageEl) return;
+    sub = sub || 'list';
+    pageEl.setAttribute('data-ba-active-sub', sub);
+
+    // Show/hide panels
+    var panels = { list: 'ba-panel-list', schedule: 'ba-panel-schedule', checkin: 'ba-panel-checkin', analytics: 'ba-panel-analytics' };
+    Object.keys(panels).forEach(function (key) {
+      var el = document.getElementById(panels[key]);
+      if (el) el.classList.toggle('hidden', key !== sub);
+    });
+
+    // Update active tab class
+    pageEl.querySelectorAll('.ba-sub-tab').forEach(function (btn) {
+      btn.classList.toggle('active', btn.getAttribute('data-ba-sub') === sub);
+    });
+
+    // Load data for the active panel
+    if (sub === 'list' && window.loadBookingsListPage) window.loadBookingsListPage();
+    if (sub === 'schedule' && window.loadSchedulePage) window.loadSchedulePage();
+    if (sub === 'checkin' && window.loadCheckinPage) window.loadCheckinPage();
+    if (sub === 'analytics' && window.loadAnalyticsPage) window.loadAnalyticsPage();
+  }
+
+  function initBookingSubTabs() {
+    if (_baSubTabsBound) return;
+    _baSubTabsBound = true;
+    var pageEl = document.getElementById('page-bookings');
+    if (!pageEl) return;
+    pageEl.querySelectorAll('.ba-sub-tab').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        loadBookingSubPanel(btn.getAttribute('data-ba-sub'));
+      });
+    });
+  }
+
   function showPage(pageId) {
     document.querySelectorAll('.content-page').forEach(function (el) {
       el.classList.toggle('hidden', el.getAttribute('data-page') !== pageId);
@@ -344,10 +383,11 @@
     } else {
       if (window._logsPollTimer) { clearInterval(window._logsPollTimer); window._logsPollTimer = null; }
     }
-    if (pageId === 'bookings' && window.loadBookingsListPage) window.loadBookingsListPage();
-    if (pageId === 'checkin' && window.loadCheckinPage) window.loadCheckinPage();
-    if (pageId === 'schedule' && window.loadSchedulePage) window.loadSchedulePage();
-    if (pageId === 'analytics' && window.loadAnalyticsPage) window.loadAnalyticsPage();
+    if (pageId === 'bookings') {
+      initBookingSubTabs();
+      var activeSub = (document.getElementById('page-bookings') || {}).getAttribute && document.getElementById('page-bookings').getAttribute('data-ba-active-sub') || 'list';
+      loadBookingSubPanel(activeSub);
+    }
     if (pageId !== 'server-config' && sessionsRevisionPollTimer) {
       clearInterval(sessionsRevisionPollTimer);
       sessionsRevisionPollTimer = null;
@@ -363,9 +403,9 @@
     '/server-config': 'server-config',
     '/entry-list': 'entry-list',
     '/bookings': 'bookings',
-    '/schedule': 'schedule',
-    '/checkin': 'checkin',
-    '/analytics': 'analytics',
+    '/schedule': 'bookings',
+    '/checkin': 'bookings',
+    '/analytics': 'bookings',
     '/live-timing': 'live-timing',
     '/content': 'content',
     '/system-logs': 'system-logs',
