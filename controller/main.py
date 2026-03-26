@@ -38,6 +38,7 @@ try:
     from controller.enrollment_broadcast import set_controller_url_provider, start as start_enrollment_broadcast, stop as stop_enrollment_broadcast
     from controller.api_routes import router as api_router, load_sim_assignments, BUILD_ID, discover_presets, PRESETS_DIR_DEBUG
     from controller.operator_auth import EMPLOYEE_COOKIE
+    from controller.api_booking_routes import router as booking_router
     from controller.service.event_store import ensure_events_dir, append_event as event_store_append
     from controller.common.event_log import make_event, LogCategory, LogLevel
 except Exception as _e:
@@ -380,6 +381,7 @@ async def add_pitbox_build_header(request, call_next):
     return response
 
 app.include_router(api_router)
+app.include_router(booking_router)
 
 
 # Static files: serve GUI at / and /app.js, /styles.css, etc.

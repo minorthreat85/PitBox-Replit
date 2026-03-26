@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  var BOOKING_API = 'http://localhost:3000/api';
+  var BOOKING_API = '/api';
 
   var $ = function (id) { return document.getElementById(id); };
   var $$ = function (sel, root) { return (root || document).querySelectorAll(sel); };
@@ -680,7 +680,7 @@
         container.innerHTML =
           '<div style="padding:40px;text-align:center;color:#888;">' +
           '<div style="font-size:1.5rem;font-weight:900;color:#fff;margin-bottom:10px;">Closed</div>' +
-          '<div>' + escapeHtml(data.closedReason || 'Fastest Lap is closed.') + '</div>' +
+          '<div>' + escapeHtml(data.closedReason || 'Closed.') + '</div>' +
           '</div>';
         return;
       }
