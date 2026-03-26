@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Employee Login – PitBox</title>
+    <style>
+        :root { --bg: #0d0d0d; --card: #1a1a1a; --border: #333; --accent: #FF0000; --text: #fff; --muted: #888; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            padding-top: env(safe-area-inset-top);
+            padding-bottom: env(safe-area-inset-bottom);
+            padding-left: env(safe-area-inset-left);
+            padding-right: env(safe-area-inset-right);
+        }
+        .container { max-width: 400px; margin: 0 auto; padding: 24px 20px; }
+        h1 { font-size: 1.5rem; margin-bottom: 8px; color: var(--accent); }
+        .sub { font-size: 0.9rem; color: var(--muted); margin-bottom: 32px; }
+        label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 8px; }
+        input[type="password"] {
+            width: 100%;
+            padding: 16px 14px;
+            font-size: 1rem;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            background: var(--card);
+            color: var(--text);
+            min-height: 48px;
+        }
+        .btn {
+            display: block;
+            width: 100%;
+            padding: 16px;
+            font-size: 1rem;
+            font-weight: 600;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            min-height: 48px;
+            margin-top: 24px;
+        }
+        .btn-primary { background: var(--accent); color: #fff; }
+        .btn-primary:active { opacity: 0.9; }
+        .btn-secondary { background: var(--card); color: var(--text); border: 1px solid var(--border); margin-top: 12px; }
+        .back-link { display: inline-block; margin-top: 24px; font-size: 0.9rem; color: var(--muted); text-decoration: none; }
+        .back-link:hover { color: var(--text); }
+        #error { color: #e66; font-size: 0.9rem; margin-top: 12px; display: none; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Employee Control</h1>
+        <p class="sub">Sign in to manage sims</p>
+        <form id="login-form">
+            <label for="password">Password</label>
+            <input type="password" id="password" name="password" autocomplete="current-password" placeholder="Enter password" required minlength="1">
+            <button type="submit" class="btn btn-primary" id="submit-btn">Sign in</button>
+        </form>
+        <p id="error" role="alert"></p>
+        <a href="/" class="back-link">← Back to Pit</a>
+    </div>
+    <script>
+        (function () {
+            var form = document.getElementById('login-form');
+            var password = document.getElementById('password');
+            var submitBtn = document.getElementById('submit-btn');
+            var errEl = document.getElementById('error');
+            var params = new URLSearchParams(window.location.search || '');
+            var nextRaw = params.get('next') || '';
+            function showErr(msg) { errEl.textContent = msg || ''; errEl.style.display = msg ? 'block' : 'none'; }
+            form.addEventListener('submit', function (e) {
+                e.preventDefault();
+                showErr('');
+                submitBtn.disabled = true;
+                submitBtn.textContent = 'Signing in…';
+                fetch('/api/employee/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password: password.value, next: nextRaw || null }),
+                    credentials: 'same-origin'
+                })
+                    .then(function (r) {
+                        if (!r.ok) {
+                            return r.json().then(function (b) { throw new Error(b.detail || 'Login failed'); });
+                        }
+                        return r.json().then(function (body) {
+                            var path = (body && body.redirect) ? String(body.redirect) : '/';
+                            if (!path.startsWith('/') || path.startsWith('//')) path = '/';
+                            window.location.href = path;
+                        });
+                    })
+                    .catch(function (err) {
+                        showErr(err.message || 'Login failed');
+                        submitBtn.disabled = false;
+                        submitBtn.textContent = 'Sign in';
+                    });
+            });
+        })();
+    </script>
+</body>
+</html>

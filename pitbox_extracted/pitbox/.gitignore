@@ -1,0 +1,20 @@
+# Aider
+.aider*
+
+# Runtime
+logs/
+.pitbox_pids/
+
+# Build (build cache only; dist/ is kept for installer outputs)
+build/
+# dist/ – not ignored; keep packaged executables and installer outputs
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+
+# Local config (if ever added)
+.env
+.env.local

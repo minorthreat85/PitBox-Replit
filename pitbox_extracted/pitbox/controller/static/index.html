@@ -1,0 +1,943 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PitBox</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Oxanium:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/styles.css">
+    <link rel="stylesheet" href="/booking-admin.css">
+</head>
+<body>
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <span class="sidebar-logo">PitBox</span>
+        </div>
+        <nav class="sidebar-nav">
+            <a href="/garage" class="nav-link" data-route="/garage"><span class="nav-icon" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 21V7l10-4 10 4v14"/><path d="M4 21V9"/><path d="M20 21V9"/><path d="M4 15h4"/><path d="M10 15h4"/><path d="M16 15h4"/></svg></span><span class="nav-label">Garage</span></a>
+            <a href="/sims" class="nav-link" data-route="/sims"><span class="nav-icon" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="3" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/></svg></span><span class="nav-label">Sim Rigs</span></a>
+            <a href="/server-config" class="nav-link" data-route="/server-config"><span class="nav-icon" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="8" x="2" y="2" rx="2"/><rect width="20" height="8" x="2" y="14" rx="2"/></svg></span><span class="nav-label">Server Config</span></a>
+            <a href="/bookings" class="nav-link" data-route="/bookings"><span class="nav-icon" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="m9 16 2 2 4-4"/></svg></span><span class="nav-label">Bookings</span></a>
+            <a href="/schedule" class="nav-link" data-route="/schedule"><span class="nav-icon" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="18" x="5" y="3" rx="2"/><path d="M9 7h6"/><path d="M9 11h6"/><path d="M9 15h3"/></svg></span><span class="nav-label">Schedule</span></a>
+            <a href="/checkin" class="nav-link" data-route="/checkin"><span class="nav-icon" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/><circle cx="12" cy="12" r="10"/></svg></span><span class="nav-label">Check-In</span></a>
+            <a href="/analytics" class="nav-link" data-route="/analytics"><span class="nav-icon" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5"/><path d="M10 19V9"/><path d="M16 19V12"/><path d="M22 19V7"/></svg></span><span class="nav-label">Analytics</span></a>
+            <a href="/entry-list" class="nav-link" data-route="/entry-list"><span class="nav-icon" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="8" height="4" x="8" y="2" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/></svg></span><span class="nav-label">Entry List</span></a>
+            <a href="/live-timing" class="nav-link" data-route="/live-timing"><span class="nav-icon" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span><span class="nav-label">Live Timing</span></a>
+            <a href="/system-logs" class="nav-link" data-route="/system-logs"><span class="nav-icon" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" x2="20" y1="19" y2="19"/></svg></span><span class="nav-label">System Logs</span></a>
+            <a href="/settings" class="nav-link" data-route="/settings"><span class="nav-icon" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span><span class="nav-label">Settings</span></a>
+        </nav>
+        <div class="sidebar-footer">
+            <span id="update-available-badge" class="update-available-badge hidden" aria-live="polite">Update available</span>
+        </div>
+    </aside>
+
+    <!-- Main content -->
+    <main class="main-content">
+        <!-- Page: Garage -->
+        <div id="page-dashboard" class="content-page hidden" data-page="dashboard">
+            <div id="command-center-dashboard" class="command-center-dashboard">
+                <header class="cc-header">
+                    <div class="cc-header-left">
+                        <h1 class="cc-title">GARAGE</h1>
+                        <p class="cc-subtitle">Server config and control — track, capacity, sims</p>
+                    </div>
+                    <div class="cc-header-right">
+                        <label class="cc-server-label" for="cc-server-select">Server</label>
+                        <select id="cc-server-select" class="cc-select" aria-label="Select server preset">
+                            <option value="">—</option>
+                        </select>
+                        <div class="cc-status-pills" aria-live="polite">
+                            <span id="cc-pill-server" class="cc-pill cc-pill-muted">Server: —</span>
+                            <span id="cc-pill-agents" class="cc-pill cc-pill-muted">Sims: —</span>
+                            <a href="/settings" id="cc-pill-update" class="cc-pill cc-pill-update hidden" aria-label="Update available">Update available</a>
+                        </div>
+                        <span id="dashboard-last-update" class="status-text">Last update: --</span>
+                        <button type="button" id="dashboard-refresh" class="btn-secondary">Refresh</button>
+                    </div>
+                </header>
+                <div class="cc-kpi-row">
+                    <div class="cc-glass-card cc-kpi-tile">
+                        <span class="cc-kpi-heading">TRACK</span>
+                        <span id="cc-kpi-track" class="cc-kpi-value cc-muted">—</span>
+                    </div>
+                    <div class="cc-glass-card cc-kpi-tile">
+                        <span class="cc-kpi-heading">LAYOUT</span>
+                        <span id="cc-kpi-layout" class="cc-kpi-value cc-muted">—</span>
+                    </div>
+                    <div class="cc-glass-card cc-kpi-tile">
+                        <span class="cc-kpi-heading">MAX CLIENTS</span>
+                        <span id="cc-kpi-max-clients" class="cc-kpi-value cc-muted">—</span>
+                    </div>
+                    <div class="cc-glass-card cc-kpi-tile">
+                        <span class="cc-kpi-heading">SIMS ONLINE</span>
+                        <span id="cc-kpi-agents" class="cc-kpi-value cc-muted">—</span>
+                    </div>
+                </div>
+                <div class="cc-main-row">
+                    <div class="cc-glass-card cc-hero-telemetry">
+                        <h2 class="cc-card-heading">TELEMETRY</h2>
+                        <div class="cc-hero-content">
+                            <div class="cc-hero-track">
+                                <span class="cc-label">Track</span>
+                                <span id="cc-hero-track" class="cc-hero-value cc-muted">—</span>
+                            </div>
+                            <div class="cc-hero-layout">
+                                <span class="cc-label">Layout</span>
+                                <span id="cc-hero-layout" class="cc-hero-value cc-muted">—</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="cc-glass-card cc-server-control">
+                        <h2 class="cc-card-heading">SERVER CONTROL</h2>
+                        <div id="cc-agent-offline-callout" class="cc-callout cc-callout-warning hidden" role="alert">
+                            Sim offline — Start/Restart/Stop require an online sim.
+                        </div>
+                        <div class="cc-control-buttons">
+                            <button type="button" id="cc-btn-start" class="cc-btn cc-btn-primary" title="Start AC server">Start</button>
+                            <button type="button" id="cc-btn-restart" class="cc-btn cc-btn-secondary" title="Restart AC server">Restart</button>
+                            <button type="button" id="cc-btn-stop" class="cc-btn cc-btn-danger-outline" title="Stop AC server">Stop</button>
+                        </div>
+                        <p id="cc-server-status" class="cc-server-status cc-muted">Server status: —</p>
+                    </div>
+                </div>
+            </div>
+            <div id="dashboard-sim-list" class="dashboard-sim-list hidden" aria-hidden="true"></div>
+        </div>
+
+        <!-- Page: Sims (Pit Lane) -->
+        <div id="page-rigs" class="content-page" data-page="rigs">
+        <div class="page-header">
+            <h1 class="page-title">PIT LANE</h1>
+            <p class="page-subtitle">Manage sim rigs on your LAN network</p>
+        </div>
+
+        <!-- Summary stats -->
+        <div class="stats-row">
+            <div class="stat-card">
+                <span class="stat-icon stat-icon-monitor">◫</span>
+                <div class="stat-content">
+                    <span class="stat-label">TOTAL RIGS</span>
+                    <span class="stat-value" id="stat-total">0</span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <span class="stat-icon stat-icon-online">▣</span>
+                <div class="stat-content">
+                    <span class="stat-label">ONLINE</span>
+                    <span class="stat-value"><span class="stat-online" id="stat-online">0</span><span id="stat-online-total"> / 0</span></span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <span class="stat-icon stat-icon-running">▶</span>
+                <div class="stat-content">
+                    <span class="stat-label">RUNNING</span>
+                    <span class="stat-value stat-value-running" id="stat-running">0</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Enrollment Mode: toggle + countdown -->
+        <div id="enrollment-section" class="enrollment-section">
+            <div class="enrollment-header">
+                <label class="enrollment-toggle-wrap">
+                    <span class="enrollment-label">Enrollment Mode</span>
+                    <input type="checkbox" id="enrollment-toggle" class="enrollment-toggle" autocomplete="off">
+                    <span class="enrollment-switch"></span>
+                </label>
+                <span id="enrollment-countdown" class="enrollment-countdown hidden">10:00</span>
+            </div>
+            <p class="enrollment-hint">When ON, unpaired sims can auto-enroll for 10 minutes. Turn on, then start PitBox on each sim.</p>
+        </div>
+
+        <!-- Connection banner -->
+        <div id="connection-banner" class="connection-banner hidden" role="alert">
+            No rigs reachable. Ensure PitBox is running on each sim PC and enrolled (Enrollment Mode).
+        </div>
+
+        <!-- Toolbar: select/launch/exit/refresh -->
+        <div class="toolbar-row">
+            <button type="button" id="select-all" class="btn-secondary">Select All</button>
+            <button type="button" id="select-none" class="btn-secondary">Select None</button>
+            <button type="button" id="launch-selected" class="btn-primary">Launch Selected</button>
+            <button type="button" id="exit-selected" class="btn-danger">Exit Selected</button>
+            <button type="button" id="refresh" class="btn-secondary">Refresh Now</button>
+            <span id="last-update" class="status-text">Last update: --</span>
+        </div>
+
+        <!-- Add Content Manager rig (no PitBox Agent on sim) -->
+        <details class="add-cm-rig-section" id="add-cm-rig-details">
+            <summary class="add-cm-rig-summary">Add Content Manager rig</summary>
+            <p class="add-cm-rig-hint">Use when the sim runs Content Manager with Remote Control enabled (no PitBox Agent). Sim control only.</p>
+            <form id="add-cm-rig-form" class="add-cm-rig-form">
+                <label>Sim ID <input type="text" id="cm-rig-agent-id" name="agent_id" placeholder="e.g. Sim5" required></label>
+                <label>Host <input type="text" id="cm-rig-host" name="host" placeholder="192.168.1.10" required></label>
+                <label>CM port <input type="number" id="cm-rig-port" name="cm_port" value="11777" min="1" max="65535"></label>
+                <label>Password <input type="password" id="cm-rig-password" name="cm_password" placeholder="optional"></label>
+                <label>Display name <input type="text" id="cm-rig-display-name" name="display_name" placeholder="e.g. Sim 5"></label>
+                <button type="submit" class="btn-primary">Add / Update</button>
+            </form>
+            <p id="add-cm-rig-result" class="add-cm-rig-result hidden"></p>
+        </details>
+
+        <!-- Sim rig cards -->
+        <section class="rig-cards-section">
+            <h2 class="section-title">SIMS</h2>
+            <div class="sim-grid" id="sim-grid"></div>
+        </section>
+        </div>
+
+        <!-- Page: Bookings (native admin) -->
+        <div id="page-bookings" class="content-page hidden" data-page="bookings">
+            <div class="page-header">
+                <h1 class="page-title">BOOKINGS</h1>
+                <p class="page-subtitle">Admin booking management — list, edit, assign simulators</p>
+            </div>
+
+            <div class="ba-glass-card">
+                <div class="ba-toolbar">
+                    <div class="ba-field">
+                        <div class="ba-label">Status</div>
+                        <select id="ba-filter-status" class="ba-select" aria-label="Filter by status">
+                            <option value="">All</option>
+                            <option value="pending_deposit">Pending Deposit</option>
+                            <option value="confirmed">Confirmed</option>
+                            <option value="checked_in">Checked In</option>
+                            <option value="completed">Completed</option>
+                            <option value="cancelled">Cancelled</option>
+                            <option value="no_show">No Show</option>
+                        </select>
+                    </div>
+                    <div class="ba-field">
+                        <div class="ba-label">Date</div>
+                        <input type="date" id="ba-filter-date" class="ba-input" aria-label="Filter by date">
+                    </div>
+                    <div class="ba-btn-row" style="margin-left:auto;">
+                        <button type="button" id="ba-walkin-open" class="btn-primary">Walk-In</button>
+                        <button type="button" id="ba-bookings-refresh" class="btn-secondary">Refresh</button>
+                    </div>
+                </div>
+
+                <div id="ba-bookings-error" class="ba-inline-error" role="alert"></div>
+
+                <div class="ba-table-wrap">
+                    <table class="ba-table" id="ba-bookings-table" aria-label="Bookings table">
+                        <thead>
+                            <tr>
+                                <th>Confirmation #</th>
+                                <th>Customer</th>
+                                <th>Date</th>
+                                <th>Time</th>
+                                <th>Duration</th>
+                                <th>Racers</th>
+                                <th>Status</th>
+                                <th>Deposit</th>
+                            </tr>
+                        </thead>
+                        <tbody id="ba-bookings-tbody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Page: Check-In (native admin) -->
+        <div id="page-checkin" class="content-page hidden" data-page="checkin">
+            <div class="page-header">
+                <h1 class="page-title">CHECK-IN</h1>
+                <p class="page-subtitle">Today’s arrivals — check in bookings</p>
+            </div>
+
+            <div class="ba-glass-card">
+                <div id="ba-checkin-error" class="ba-inline-error" role="alert"></div>
+                <div id="ba-checkin-list" class="ba-card-grid"></div>
+            </div>
+        </div>
+
+        <!-- Page: Schedule (native admin) -->
+        <div id="page-schedule" class="content-page hidden" data-page="schedule">
+            <div class="page-header">
+                <h1 class="page-title">SCHEDULE</h1>
+                <p class="page-subtitle">Simulator timeline — click a booking block for details</p>
+            </div>
+
+            <div class="ba-glass-card">
+                <div class="ba-toolbar" style="justify-content: space-between;">
+                    <div class="ba-btn-row">
+                        <button type="button" id="ba-schedule-prev" class="btn-secondary">Prev</button>
+                        <div class="ba-field" style="min-width: 210px;">
+                            <div class="ba-label">Date</div>
+                            <input type="date" id="ba-schedule-date" class="ba-input" aria-label="Schedule date">
+                        </div>
+                        <button type="button" id="ba-schedule-next" class="btn-secondary">Next</button>
+                    </div>
+                </div>
+
+                <div id="ba-schedule-error" class="ba-inline-error" role="alert"></div>
+                <div id="ba-schedule-container"></div>
+            </div>
+        </div>
+
+        <!-- Page: Analytics (native admin) -->
+        <div id="page-analytics" class="content-page hidden" data-page="analytics">
+            <div class="page-header">
+                <h1 class="page-title">ANALYTICS</h1>
+                <p class="page-subtitle">Bookings, revenue, duration & status breakdown</p>
+            </div>
+
+            <div class="ba-glass-card">
+                <div id="ba-analytics-error" class="ba-inline-error" role="alert"></div>
+                <div id="ba-analytics-container">
+                    <div id="ba-analytics-kpis" class="ba-analytics-kpis"></div>
+                    <div class="ba-analytics-grid">
+                        <div id="ba-analytics-bars"></div>
+                        <div id="ba-analytics-status"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Page: System Logs (event log with filters and expandable details) -->
+        <div id="page-system-logs" class="content-page hidden" data-page="system-logs">
+            <div class="page-header">
+                <h1 class="page-title">SYSTEM LOGS</h1>
+                <p class="page-subtitle">Structured event log from controller and sims</p>
+            </div>
+            <div class="logs-toolbar">
+                <label class="logs-filter-toggle"><input type="checkbox" id="logs-errors-only" autocomplete="off"> Errors only</label>
+                <label class="logs-filter-label">Sim</label>
+                <select id="logs-rig" class="logs-filter-select">
+                    <option value="">All</option>
+                </select>
+                <label class="logs-filter-label">Category</label>
+                <select id="logs-category" class="logs-filter-select">
+                    <option value="">All</option>
+                    <option value="SYSTEM">SYSTEM</option>
+                    <option value="RIG">RIG</option>
+                    <option value="SESSION">SESSION</option>
+                    <option value="PRESET">PRESET</option>
+                    <option value="BOOKING">BOOKING</option>
+                    <option value="SERVER">SERVER</option>
+                    <option value="ERROR">ERROR</option>
+                </select>
+                <label class="logs-filter-label">Time</label>
+                <select id="logs-since" class="logs-filter-select">
+                    <option value="10">Last 10m</option>
+                    <option value="60" selected>Last 1h</option>
+                    <option value="480">Today (8h)</option>
+                </select>
+                <input type="text" id="logs-search" class="logs-search-input" placeholder="Search message/details" aria-label="Search">
+                <button type="button" id="logs-refresh" class="btn-secondary">Refresh</button>
+            </div>
+            <div id="logs-pinned" class="logs-pinned hidden">
+                <h3 class="logs-pinned-title">Pinned (last 10 errors)</h3>
+                <div id="logs-pinned-list" class="logs-pinned-list"></div>
+            </div>
+            <div class="logs-table-wrap">
+                <table class="logs-table" id="logs-table">
+                    <thead>
+                        <tr>
+                            <th class="logs-th-time">Time</th>
+                            <th class="logs-th-rig">Sim</th>
+                            <th class="logs-th-cat">Category</th>
+                            <th class="logs-th-msg">Message</th>
+                            <th class="logs-th-level">Level</th>
+                        </tr>
+                    </thead>
+                    <tbody id="logs-tbody"></tbody>
+                </table>
+            </div>
+            <div id="logs-detail" class="logs-detail hidden" aria-live="polite">
+                <h4 class="logs-detail-title">Details</h4>
+                <div id="logs-detail-content" class="logs-detail-content"></div>
+            </div>
+        </div>
+
+        <!-- Page: Presets (manage server presets) -->
+        <div id="page-presets" class="content-page hidden" data-page="presets">
+            <div class="page-header">
+                <h1 class="page-title">PRESETS</h1>
+                <p class="page-subtitle">Server preset folders — select and reorder in Server Config</p>
+            </div>
+            <div class="server-scoped-empty server-scoped-empty--presets">
+                <p>Manage server presets (add, reorder, select) in <a href="/server-config" class="nav-link-inline">Server Config</a>.</p>
+            </div>
+        </div>
+
+        <!-- Page: Live Timing (fused from sim telemetry; demo when no data) -->
+        <div id="page-live-timing" class="content-page hidden" data-page="live-timing">
+            <div class="page-header">
+                <h1 class="page-title">LIVE TIMING</h1>
+                <p class="page-subtitle">Fused timing from sim rigs — polled from /api/timing/snapshot</p>
+            </div>
+            <div id="page-live-timing-server-empty" class="server-scoped-empty hidden" aria-live="polite">
+                <p>Select a server to view this page.</p>
+                <label class="server-scoped-select-label">Server</label>
+                <select id="live-timing-server-select" class="server-scoped-select" aria-label="Select server"><option value="">— Select server —</option></select>
+            </div>
+            <div id="page-live-timing-main">
+            <div class="live-timing-header">
+                <div class="live-timing-server">
+                    <span class="live-timing-label">Server</span>
+                    <span id="live-timing-server-name" class="live-timing-value">—</span>
+                    <span id="live-timing-server-addr" class="live-timing-muted"></span>
+                </div>
+                <div class="live-timing-meta">
+                    <span class="live-timing-label">Track</span>
+                    <span id="live-timing-track" class="live-timing-value">—</span>
+                    <span id="live-timing-layout" class="live-timing-muted"></span>
+                </div>
+                <div class="live-timing-meta">
+                    <span class="live-timing-label">Phase</span>
+                    <span id="live-timing-phase" class="live-timing-value">—</span>
+                </div>
+                <div class="live-timing-meta">
+                    <span class="live-timing-label">Time left</span>
+                    <span id="live-timing-time-left" class="live-timing-value">—</span>
+                </div>
+                <span id="live-timing-updated" class="live-timing-updated">—</span>
+            </div>
+            <div class="live-timing-track-map-wrap">
+                <p class="live-timing-track-map-label">Track map — dots show live position</p>
+                <div class="live-timing-track-map-inner">
+                    <img id="live-timing-track-outline" class="live-timing-track-outline" src="" alt="" aria-hidden="true" />
+                    <svg id="live-timing-track-svg" class="live-timing-track-svg" viewBox="0 0 200 100" preserveAspectRatio="xMidYMid meet" aria-label="Track map with car positions">
+                        <ellipse class="live-timing-track-oval" cx="100" cy="50" rx="88" ry="42" fill="none" stroke="currentColor" stroke-width="2" />
+                        <g id="live-timing-car-dots"></g>
+                    </svg>
+                </div>
+            </div>
+            <div class="live-timing-table-wrap">
+                <table class="live-timing-table" id="live-timing-table">
+                    <thead>
+                        <tr>
+                            <th class="lt-pos">Pos</th>
+                            <th class="lt-driver">Driver</th>
+                            <th class="lt-car">Car</th>
+                            <th class="lt-best">Best lap</th>
+                            <th class="lt-last">Last lap</th>
+                            <th class="lt-lap">Lap</th>
+                            <th class="lt-sector">Sector</th>
+                            <th class="lt-gap">Gap</th>
+                            <th class="lt-pit">Pit</th>
+                            <th class="lt-live">Live</th>
+                        </tr>
+                    </thead>
+                    <tbody id="live-timing-tbody"></tbody>
+                </table>
+            </div>
+            <p id="live-timing-hint" class="live-timing-hint hidden">Enable telemetry in config on each sim and run AC to see live data.</p>
+            </div>
+        </div>
+
+        <!-- Page: Entry List (server-scoped) -->
+        <div id="page-entry-list" class="content-page hidden" data-page="entry-list">
+            <div class="page-header">
+                <h1 class="page-title">ENTRY LIST</h1>
+                <p class="page-subtitle">Entry list for the selected server preset</p>
+            </div>
+            <div id="page-entry-list-server-empty" class="server-scoped-empty" aria-live="polite">
+                <p>Select a server to view this page.</p>
+                <label class="server-scoped-select-label">Server</label>
+                <select id="entry-list-server-select" class="server-scoped-select" aria-label="Select server"><option value="">— Select server —</option></select>
+            </div>
+            <div id="page-entry-list-content" class="hidden">
+                <p class="page-subtitle">Entry list content loads for the selected server. Use <a href="/server-config" class="nav-link-inline">Server Config</a> → Entry List tab to edit.</p>
+            </div>
+        </div>
+
+        <!-- Page: Content Mgr (server-scoped) -->
+        <div id="page-content" class="content-page hidden" data-page="content">
+            <div class="page-header">
+                <h1 class="page-title">CONTENT MGR</h1>
+                <p class="page-subtitle">Content and assets for the selected server</p>
+            </div>
+            <div id="page-content-server-empty" class="server-scoped-empty" aria-live="polite">
+                <p>Select a server to view this page.</p>
+                <label class="server-scoped-select-label">Server</label>
+                <select id="content-server-select" class="server-scoped-select" aria-label="Select server"><option value="">— Select server —</option></select>
+            </div>
+            <div id="page-content-loaded" class="hidden">
+                <p class="page-subtitle">Content manager for the selected server.</p>
+            </div>
+        </div>
+
+        <!-- Page: Settings (global: Controller config + Updates) -->
+        <div id="page-settings" class="content-page hidden" data-page="settings">
+            <div class="page-header">
+                <h1 class="page-title">SETTINGS</h1>
+                <p class="page-subtitle">Controller config and updates</p>
+            </div>
+            <nav class="settings-tabs" role="tablist">
+                <button type="button" class="settings-tab settings-tab-active" data-tab="config" role="tab">Controller config</button>
+                <button type="button" class="settings-tab" data-tab="updates" role="tab">Updates</button>
+            </nav>
+            <div id="settings-panel-config" class="settings-panel" data-tab="config">
+                <h3 class="sc-section-title">Controller config</h3>
+                <div class="settings-config-main">
+                    <div class="config-form-row">
+                        <label class="config-label">Access</label>
+                        <div class="settings-access-segmented" role="group" aria-label="Network access">
+                            <button type="button" class="settings-access-opt settings-access-opt-active" id="settings-access-local" data-value="local">Local only</button>
+                            <button type="button" class="settings-access-opt" id="settings-access-lan" data-value="lan">LAN</button>
+                        </div>
+                    </div>
+                    <div class="config-form-row">
+                        <label for="settings-config-ui-port" class="config-label">UI port</label>
+                        <input type="number" id="settings-config-ui-port" class="config-input config-input-num" min="1" max="65535" placeholder="9630" aria-label="UI port">
+                    </div>
+                    <button type="button" id="settings-config-save" class="btn-primary config-save-btn">Save</button>
+                    <p class="settings-config-hint">Restart required for access/port changes.</p>
+                </div>
+            </div>
+            <div id="settings-panel-updates" class="settings-panel hidden" data-tab="updates">
+                <h3 class="sc-section-title">Updates</h3>
+                <div id="updates-status-area" class="settings-updates-main">
+                    <div class="updates-status-row">
+                        <span id="updates-pill" class="pill-up-to-date" aria-live="polite">—</span>
+                        <span id="updates-versions-line" class="updates-versions">—</span>
+                    </div>
+                    <div class="updates-actions">
+                        <button type="button" id="updates-btn-apply" class="btn-primary updates-apply-btn" disabled>Download update &amp; restart</button>
+                        <p id="updates-no-update-hint" class="settings-updates-hint hidden" aria-live="polite"></p>
+                        <div id="updates-progress" class="updates-progress hidden" role="status">
+                            <p id="updates-progress-message"></p>
+                            <p id="updates-progress-percent" class="settings-updates-muted"></p>
+                        </div>
+                    </div>
+                    <div class="updates-check-info">
+                        <p class="settings-updates-meta"><span class="settings-updates-label">Last checked:</span> <span id="updates-last-checked">—</span></p>
+                        <p id="updates-last-success-row" class="settings-updates-meta hidden"><span class="settings-updates-label">Last successful check:</span> <span id="updates-last-success">—</span></p>
+                    </div>
+                    <div id="updates-error-box" class="updates-error-box hidden" role="alert">
+                        <p class="updates-error-box-title">Unable to check for updates</p>
+                        <p id="updates-error-body" class="updates-error-box-body"></p>
+                        <p class="updates-error-box-footer">Last checked: <span id="updates-error-footer-time">—</span></p>
+                    </div>
+                    <div id="updates-release-wrap" class="updates-release-wrap hidden">
+                        <p class="updates-release-meta"><span id="updates-release-link" class="updates-release-name"></span> · <span id="updates-published">—</span></p>
+                        <div id="updates-notes-wrap" class="updates-notes-wrap hidden">
+                            <h4 class="updates-notes-title">Release notes</h4>
+                            <pre id="updates-notes" class="updates-notes"></pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Page: Server Config (CM-style: left preset list, right editor) -->
+        <div id="page-server-config" class="content-page hidden" data-page="server-config">
+            <select id="sc-instance" class="sc-instance-select-hidden" aria-hidden="true" title="Current preset (synced from sidebar)"><option value="default">PitBox Test Server</option></select>
+            <div class="sc-server-config-wrap">
+                <aside class="sc-presets-sidebar" aria-label="Server presets">
+                    <h2 class="sc-presets-sidebar-title">Presets</h2>
+                    <div id="sc-presets-list" class="sc-presets-list" role="list" aria-live="polite">
+                        <p class="sc-placeholder">Loading…</p>
+                    </div>
+                </aside>
+                <div class="sc-server-config-main">
+                    <div class="sc-top-bar sc-toolbar-sticky">
+                        <h2 id="sc-server-name" class="sc-server-name">PitBox Test Server</h2>
+                        <div class="sc-top-bar-actions">
+                            <button type="button" id="sc-reload" class="sc-header-btn">Reload</button>
+                            <button type="button" id="sc-save" class="sc-header-btn sc-header-btn-primary">Save</button>
+                        </div>
+                        <nav class="sc-tabs sc-tabs-inline" role="tablist">
+                            <button type="button" class="sc-tab sc-tab-active" data-tab="status" role="tab">STATUS</button>
+                            <button type="button" class="sc-tab" data-tab="log" role="tab">LOG</button>
+                            <button type="button" class="sc-tab" data-tab="main" role="tab">MAIN</button>
+                            <button type="button" class="sc-tab" data-tab="entry-list" role="tab">ENTRY LIST</button>
+                            <button type="button" class="sc-tab" data-tab="rules" role="tab">RULES</button>
+                            <button type="button" class="sc-tab" data-tab="conditions" role="tab">CONDITIONS</button>
+                            <button type="button" class="sc-tab" data-tab="sessions" role="tab">SESSIONS</button>
+                            <button type="button" class="sc-tab" data-tab="blacklist" role="tab">BLACKLIST</button>
+                            <button type="button" class="sc-tab" data-tab="settings" role="tab">CONTROLLER</button>
+                            <button type="button" class="sc-tab" data-tab="advanced" role="tab">ADVANCED</button>
+                            <button type="button" class="sc-tab" data-tab="details" role="tab">DETAILS</button>
+                        </nav>
+                    </div>
+                    <p id="sc-loaded-path" class="sc-loaded-path" title="Current server_cfg.ini source">—</p>
+                    <div class="sc-manager-area">
+                        <div class="sc-watermark" aria-hidden="true">FASTEST LAP</div>
+                        <div class="sc-panels">
+                            <div id="sc-panel-status" class="sc-panel" data-tab="status">
+                                <p class="sc-status-intro">Dedicated server for the preset selected in the sidebar (same idea as <a href="https://github.com/jo3stevens/ACServerManager" target="_blank" rel="noopener noreferrer">ACServerManager</a> Server Status). You can also double-click a preset to start or stop.</p>
+                                <div class="sc-status-row">
+                                    <span id="sc-status-state" class="sc-status-badge sc-status-stopped" aria-live="polite">Stopped</span>
+                                    <span id="sc-status-detail" class="sc-status-detail"></span>
+                                </div>
+                                <div class="sc-status-actions">
+                                    <button type="button" id="sc-status-start" class="sc-header-btn sc-header-btn-primary">Start</button>
+                                    <button type="button" id="sc-status-restart" class="sc-header-btn">Restart</button>
+                                    <button type="button" id="sc-status-stop" class="sc-header-btn">Stop</button>
+                                </div>
+                            </div>
+                            <div id="sc-panel-log" class="sc-panel hidden" data-tab="log">
+                                <div class="sc-log-toolbar">
+                                    <span class="sc-log-caption">acServer console output (captured when started by PitBox)</span>
+                                    <button type="button" id="sc-log-refresh" class="sc-header-btn">Refresh</button>
+                                </div>
+                                <pre id="sc-log-content" class="sc-log-content" aria-label="Server console log"></pre>
+                            </div>
+                            <div id="sc-panel-main" class="sc-panel hidden" data-tab="main">
+                                <input type="hidden" id="sc-track" data-ini="SERVER" data-key="TRACK" value="">
+                                <input type="hidden" id="sc-config-track" data-ini="SERVER" data-key="CONFIG_TRACK" value="">
+                                <div class="sc-main-track-hero" id="sc-track-hero">
+                                    <div class="sc-track-hero-content">
+                                        <div class="sc-track-hero-left">
+                                            <button type="button" id="sc-track-hero-image-btn" class="sc-track-hero-image-btn" aria-label="Select track">
+                                                <span class="sc-track-hero-image-wrap">
+                                                    <img id="sc-track-hero-img" class="sc-track-hero-img" src="" alt="" />
+                                                    <div id="sc-track-hero-fallback" class="sc-track-hero-fallback">Click to select track</div>
+                                                    <img id="sc-track-hero-map" class="sc-track-hero-map" src="" alt="" />
+                                                </span>
+                                                <span class="sc-track-hero-image-overlay" aria-hidden="true">Change</span>
+                                            </button>
+                                            <div class="sc-track-hero-layouts" id="sc-track-hero-layouts"></div>
+                                            <h3 id="sc-track-hero-name" class="sc-track-hero-name">—</h3>
+                                        </div>
+                                        <div class="sc-track-hero-info" id="sc-track-hero-info">
+                                            <div class="sc-track-hero-info-section">
+                                                <h4 class="sc-track-hero-info-heading">Track</h4>
+                                                <div class="sc-track-hero-info-rows">
+                                                    <div class="sc-track-hero-info-row"><span class="sc-track-hero-info-label">Name</span><span id="sc-track-hero-info-name" class="sc-track-hero-info-value">—</span></div>
+                                                    <div class="sc-track-hero-info-row"><span class="sc-track-hero-info-label">Layout</span><span id="sc-track-hero-info-layout" class="sc-track-hero-info-value">—</span></div>
+                                                </div>
+                                            </div>
+                                            <div class="sc-track-hero-info-section" id="sc-track-hero-info-description-wrap">
+                                                <h4 class="sc-track-hero-info-heading">Description</h4>
+                                                <div id="sc-track-hero-info-description" class="sc-track-hero-info-description">—</div>
+                                            </div>
+                                            <div class="sc-track-hero-info-section">
+                                                <h4 class="sc-track-hero-info-heading">Details</h4>
+                                                <div class="sc-track-hero-info-rows" id="sc-track-hero-info-details"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div id="sc-track-hero-outline-wrap" class="sc-track-hero-outline-wrap">
+                                        <img id="sc-track-hero-outline" class="sc-track-hero-outline" src="" alt="Track outline" />
+                                    </div>
+                                </div>
+                                <section class="sc-main-section sc-main-section-compact">
+                                    <h3 class="sc-section-title">Server settings</h3>
+                                    <div class="sc-main-two-col">
+                                        <div class="sc-main-col">
+                                            <div class="sc-field"><label>Server name:</label><input type="text" id="sc-name" class="sc-input" data-ini="SERVER" data-key="NAME" placeholder="AC_Server"></div>
+                                            <div class="sc-field"><label>Password:</label><input type="text" id="sc-password" class="sc-input" data-ini="SERVER" data-key="PASSWORD" placeholder="None"></div>
+                                            <div class="sc-field"><label>Admin password:</label><input type="text" id="sc-admin-password" class="sc-input" data-ini="SERVER" data-key="ADMIN_PASSWORD" placeholder="None"></div>
+                                            <label class="sc-checkbox"><input type="checkbox" id="sc-register-lobby" data-ini="SERVER" data-key="REGISTER_TO_LOBBY"> Public server (show in lobby)</label>
+                                            <label class="sc-checkbox"><input type="checkbox" id="sc-integrity" data-ini="SERVER" data-key="DISABLE_INTEGRITY"> Disable integrity verification (not recommended)</label>
+                                            <div class="sc-field"><label>Welcome msg file:</label><input type="text" id="sc-welcome-file" class="sc-input" data-ini="SERVER" data-key="WELCOME_MESSAGE_FILE"></div>
+                                            <div class="sc-field"><label>Welcome message:</label><textarea id="sc-welcome-msg" class="sc-textarea" data-ini="SERVER" data-key="WELCOME_MESSAGE" rows="2"></textarea></div>
+                                        </div>
+                                        <div class="sc-main-col">
+                                            <div class="sc-field"><label>UDP port:</label><input type="number" id="sc-udp-port" class="sc-input sc-input-num" data-ini="SERVER" data-key="UDP_PORT" min="1" max="65535"></div>
+                                            <div class="sc-field"><label>TCP port:</label><input type="number" id="sc-tcp-port" class="sc-input sc-input-num" data-ini="SERVER" data-key="TCP_PORT" min="1" max="65535"></div>
+                                            <div class="sc-field"><label>HTTP port:</label><input type="number" id="sc-http-port" class="sc-input sc-input-num" data-ini="SERVER" data-key="HTTP_PORT" min="1" max="65535"></div>
+                                            <div class="sc-field sc-field-slider"><label>Packets: <span id="sc-packets-val">18</span> Hz</label><input type="range" id="sc-packets" class="sc-slider" data-ini="SERVER" data-key="CLIENT_SEND_INTERVAL_HZ" min="1" max="30" value="18"></div>
+                                            <div class="sc-field"><label>Manager description:</label><input type="text" id="sc-manager-desc" class="sc-input" data-ini="SERVER" data-key="MANAGER_DESCRIPTION" placeholder="None"></div>
+                                        </div>
+                                    </div>
+                                </section>
+                            </div>
+                    <div id="sc-panel-entry-list" class="sc-panel hidden" data-tab="entry-list">
+                        <div class="sc-field sc-field-cars sc-cars-on-entry-list">
+                            <div class="sc-cars-label-row">
+                                <label>Add cars to entry list:</label>
+                                <button type="button" id="sc-cars-open-picker" class="sc-cars-add-btn" aria-label="Add car" title="Add car">+</button>
+                            </div>
+                            <input type="hidden" id="sc-cars" data-ini="SERVER" data-key="CARS" value="">
+                            <div id="sc-cars-selected" class="sc-cars-selected sc-cars-selected-hidden" aria-live="polite" aria-hidden="true"></div>
+                        </div>
+                        <div class="sc-entry-meta">
+                            <span id="sc-entry-count">0 entries</span> (24 clients)
+                            <button type="button" id="sc-entry-randomize-skins" class="sc-header-btn">Randomize skins</button>
+                            <button type="button" id="sc-entry-export" class="sc-header-btn">Export</button>
+                            <button type="button" id="sc-entry-import" class="sc-header-btn">Import</button>
+                            <input type="file" id="sc-entry-import-file" accept=".json,application/json" style="display:none" aria-label="Import entry list JSON">
+                            <button type="button" id="sc-entry-delete-all" class="sc-header-btn">Delete all</button>
+                        </div>
+                        <div class="sc-entry-table-wrap">
+                            <table class="sc-entry-table" id="sc-entry-table">
+                                <thead><tr><th>Car</th><th>Skin</th><th>GUID</th><th>Name</th><th>Team</th><th>Ballast</th><th>Restrictor</th><th></th></tr></thead>
+                                <tbody id="sc-entry-tbody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div id="sc-panel-rules" class="sc-panel hidden" data-tab="rules">
+                        <div class="sc-rules-grid">
+                            <div class="sc-rules-section">
+                                <h3 class="sc-section-title">Assists</h3>
+                                <div class="sc-field"><label>ABS:</label><select id="sc-abs" class="sc-select" data-ini="SERVER" data-key="ABS_ALLOWED"><option value="0">Off</option><option value="1">Factory</option><option value="2">On</option></select></div>
+                                <div class="sc-field"><label>TC:</label><select id="sc-tc" class="sc-select" data-ini="SERVER" data-key="TC_ALLOWED"><option value="0">Off</option><option value="1">Factory</option><option value="2">On</option></select></div>
+                                <label class="sc-checkbox"><input type="checkbox" id="sc-stability" data-ini="SERVER" data-key="STABILITY_ALLOWED"> Stability control</label>
+                                <label class="sc-checkbox"><input type="checkbox" id="sc-autoclutch" data-ini="SERVER" data-key="AUTOCLUTCH_ALLOWED"> Automatic clutch</label>
+                                <label class="sc-checkbox"><input type="checkbox" id="sc-tyre-blankets" data-ini="SERVER" data-key="TYRE_BLANKETS_ALLOWED"> Tyre blankets</label>
+                                <label class="sc-checkbox"><input type="checkbox" id="sc-virtual-mirror" data-ini="SERVER" data-key="FORCE_VIRTUAL_MIRROR"> Virtual mirror</label>
+                            </div>
+                            <div class="sc-rules-section">
+                                <h3 class="sc-section-title">Voting and banning</h3>
+                                <div class="sc-field sc-field-slider"><label>Kick vote quorum: <span id="sc-kick-quorum-val">85</span>%</label><input type="range" id="sc-kick-quorum" class="sc-slider" data-ini="SERVER" data-key="KICK_QUORUM" min="0" max="100" value="85"></div>
+                                <div class="sc-field sc-field-slider"><label>Session vote quorum: <span id="sc-vote-quorum-val">80</span>%</label><input type="range" id="sc-vote-quorum" class="sc-slider" data-ini="SERVER" data-key="VOTING_QUORUM" min="0" max="100" value="80"></div>
+                                <div class="sc-field sc-field-slider"><label>Vote duration: <span id="sc-vote-duration-val">20</span>s</label><input type="range" id="sc-vote-duration" class="sc-slider" data-ini="SERVER" data-key="VOTE_DURATION" min="0" max="120" value="20"></div>
+                                <div class="sc-field"><label for="sc-blacklist-mode">Blacklist mode:</label><select id="sc-blacklist-mode" class="sc-select" data-ini="SERVER" data-key="BLACKLIST_MODE"><option value="0">Kick player</option><option value="1">Ban until restart</option><option value="2">Ban and forget</option></select></div>
+                            </div>
+                            <div class="sc-rules-section">
+                                <h3 class="sc-section-title">Realism</h3>
+                                <div class="sc-field sc-field-slider"><label>Fuel rate: <span id="sc-fuel-val">100</span>%</label><input type="range" id="sc-fuel" class="sc-slider" data-ini="SERVER" data-key="FUEL_RATE" min="0" max="200" value="100"></div>
+                                <div class="sc-field sc-field-slider"><label>Damage rate: <span id="sc-damage-val">100</span>%</label><input type="range" id="sc-damage" class="sc-slider" data-ini="SERVER" data-key="DAMAGE_MULTIPLIER" min="0" max="200" value="100"></div>
+                                <div class="sc-field sc-field-slider"><label>Tyres wear rate: <span id="sc-tyre-wear-val">100</span>%</label><input type="range" id="sc-tyre-wear" class="sc-slider" data-ini="SERVER" data-key="TYRE_WEAR_RATE" min="0" max="200" value="100"></div>
+                                <div class="sc-field sc-field-slider"><label>Allowed tyres out: <span id="sc-tyres-out-val">2</span></label><input type="range" id="sc-tyres-out" class="sc-slider" data-ini="SERVER" data-key="ALLOWED_TYRES_OUT" min="0" max="4" value="2"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="sc-panel-conditions" class="sc-panel hidden" data-tab="conditions">
+                        <div class="sc-conditions-grid">
+                            <div class="sc-field sc-field-slider"><label>Time multiplier: <span id="sc-time-mult-val">1</span>x</label><input type="range" id="sc-time-mult" class="sc-slider" min="0" max="24" step="0.1" value="1"></div>
+                            <h3 class="sc-section-title">Dynamic track</h3>
+                            <div class="sc-field sc-field-slider"><label>Start value: <span id="sc-dyn-start-val">95</span>%</label><input type="range" id="sc-dyn-start" class="sc-slider" data-ini="DYNAMIC_TRACK" data-key="SESSION_START" min="0" max="100" value="95"></div>
+                            <div class="sc-field sc-field-slider"><label>Transferred: <span id="sc-dyn-transfer-val">90</span>%</label><input type="range" id="sc-dyn-transfer" class="sc-slider" data-ini="DYNAMIC_TRACK" data-key="SESSION_TRANSFER" min="0" max="100" value="90"></div>
+                            <div class="sc-field sc-field-slider"><label>Randomness: <span id="sc-dyn-rand-val">2</span>%</label><input type="range" id="sc-dyn-rand" class="sc-slider" data-ini="DYNAMIC_TRACK" data-key="RANDOMNESS" min="0" max="100" value="2"></div>
+                            <div class="sc-field sc-field-slider"><label>Laps to improve: <span id="sc-dyn-laps-val">10</span> laps</label><input type="range" id="sc-dyn-laps" class="sc-slider" data-ini="DYNAMIC_TRACK" data-key="LAP_GAIN" min="0" max="100" value="50"></div>
+                        </div>
+                    </div>
+                    <div id="sc-panel-sessions" class="sc-panel hidden" data-tab="sessions">
+                        <div class="sc-sessions-two-col">
+                            <div class="sc-sessions-left">
+                                <h3 class="sc-section-title">PitBox Test Server</h3>
+                                <label class="sc-checkbox"><input type="checkbox" id="sc-pickup-mode" data-ini="SERVER" data-key="PICKUP_MODE_ENABLED"> Pickup mode</label>
+                                <label class="sc-checkbox sc-checkbox-muted"><input type="checkbox" id="sc-locked-entry-list" data-ini="SERVER" data-key="LOCKED_ENTRY_LIST"> Locked entry list in pickup mode</label>
+                                <label class="sc-checkbox"><input type="checkbox" id="sc-loop-mode" data-ini="SERVER" data-key="LOOP_MODE"> Loop mode</label>
+                                <h3 class="sc-section-title">Booking</h3>
+                                <label class="sc-checkbox sc-checkbox-muted"><input type="checkbox" id="sc-booking-enabled" data-ini="BOOK" data-key="IS_OPEN"> Booking</label>
+                                <div class="sc-field sc-field-slider"><label>Time: <span id="sc-booking-time-val">00:10:00</span></label><input type="range" id="sc-booking-time" class="sc-slider" data-ini="BOOK" data-key="TIME" min="0" max="60" value="10"></div>
+                                <h3 class="sc-section-title">Practice</h3>
+                                <label class="sc-checkbox"><input type="checkbox" id="sc-practice-enabled"> Practice</label>
+                                <div class="sc-field sc-field-slider"><label>Time: <span id="sc-practice-time-val">00:10:00</span></label><input type="range" id="sc-practice-time" class="sc-slider" data-ini="PRACTICE" data-key="TIME" min="0" max="120" value="10"></div>
+                                <label class="sc-checkbox"><input type="checkbox" id="sc-practice-open" data-ini="PRACTICE" data-key="IS_OPEN"> Can Join</label>
+                                <h3 class="sc-section-title">Qualification</h3>
+                                <label class="sc-checkbox"><input type="checkbox" id="sc-qualify-enabled"> Qualification</label>
+                                <div class="sc-field sc-field-slider"><label>Time: <span id="sc-qualify-time-val">00:05:00</span></label><input type="range" id="sc-qualify-time" class="sc-slider" data-ini="QUALIFY" data-key="TIME" min="0" max="120" value="5"></div>
+                                <label class="sc-checkbox"><input type="checkbox" id="sc-qualify-open" data-ini="QUALIFY" data-key="IS_OPEN"> Can Join</label>
+                                <div class="sc-field sc-field-slider"><label>Qualify limit: <span id="sc-qualify-limit-val">120</span>%</label><input type="range" id="sc-qualify-limit" class="sc-slider" data-ini="SERVER" data-key="QUALIFY_MAX_WAIT_PERC" min="100" max="150" value="120"></div>
+                            </div>
+                            <div class="sc-sessions-right">
+                                <h3 class="sc-section-title">Race</h3>
+                                <label class="sc-checkbox"><input type="checkbox" id="sc-race-enabled"> Race</label>
+                                <div class="sc-field"><label>Limit by:</label><select id="sc-race-limit-by" class="sc-select"><option value="laps">Laps</option><option value="time">Time</option></select></div>
+                                <div class="sc-field sc-field-slider sc-race-duration-laps"><label>Race duration: <span id="sc-race-laps-val">5</span> laps</label><input type="range" id="sc-race-laps" class="sc-slider" data-ini="RACE" data-key="LAPS" min="0" max="100" value="5"></div>
+                                <div class="sc-field sc-field-slider sc-race-duration-time hidden"><label>Race duration: <span id="sc-race-time-val">00:05:00</span></label><input type="range" id="sc-race-time" class="sc-slider" data-ini="RACE" data-key="TIME" min="0" max="120" value="5"></div>
+                                <div class="sc-field sc-field-slider"><label>Initial delay: <span id="sc-race-wait-val">00:00</span></label><input type="range" id="sc-race-wait" class="sc-slider" data-ini="RACE" data-key="WAIT_TIME" min="0" max="300" value="0"></div>
+                                <div class="sc-field sc-field-slider"><label>Race over: <span id="sc-race-over-val">00:01:00</span></label><input type="range" id="sc-race-over" class="sc-slider" data-ini="SERVER" data-key="RACE_OVER_TIME" min="0" max="120" value="60"></div>
+                                <div class="sc-field sc-field-slider"><label>Result screen: <span id="sc-race-result-val">00:01:00</span></label><input type="range" id="sc-race-result" class="sc-slider" data-ini="SERVER" data-key="RESULT_SCREEN_TIME" min="0" max="120" value="60"></div>
+                                <div class="sc-field"><label>Join type:</label><select id="sc-race-open" class="sc-select" data-ini="RACE" data-key="IS_OPEN"><option value="0">Closed</option><option value="1">Fixed</option><option value="2">Open</option></select></div>
+                                <label class="sc-checkbox"><input type="checkbox" id="sc-race-mandatory-pit" data-ini="SERVER" data-key="RACE_EXTRA_LAP"> Extra lap after leader</label>
+                                <div class="sc-field-inline"><label>Pit window from: <input type="number" id="sc-race-from-lap" class="sc-input sc-input-num" data-ini="SERVER" data-key="RACE_PIT_WINDOW_START" min="0" value="0"> lap</label></div>
+                                <div class="sc-field-inline"><label>Reversed grid: <input type="number" id="sc-race-reversed" class="sc-input sc-input-num" data-ini="SERVER" data-key="REVERSED_GRID_RACE_POSITIONS" min="-1" value="0" title="-1 = all reversed, 0 = none"></label></div>
+                                <div class="sc-field-inline"><label>Pit window to: <input type="number" id="sc-race-to-lap" class="sc-input sc-input-num" data-ini="SERVER" data-key="RACE_PIT_WINDOW_END" min="0" value="0"> lap</label></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="sc-panel-blacklist" class="sc-panel hidden" data-tab="blacklist">
+                        <p class="sc-placeholder">One GUID or identifier per line. Saved to <code>blacklist.txt</code> in the server folder.</p>
+                        <div class="sc-field"><label>Blacklist entries:</label><textarea id="sc-blacklist-text" class="sc-textarea sc-blacklist-text" rows="12" placeholder="GUID or line per entry"></textarea></div>
+                        <button type="button" id="sc-blacklist-save" class="sc-header-btn sc-header-btn-primary">Save blacklist</button>
+                    </div>
+                    <div id="sc-panel-settings" class="sc-panel hidden" data-tab="settings">
+                        <p class="config-hint">Controller config moved to <a href="/settings" class="nav-link-inline">Settings</a>.</p>
+                    </div>
+                    <div id="sc-panel-advanced" class="sc-panel hidden" data-tab="advanced">
+                        <p class="sc-advanced-intro">Advanced options matching the classic AC dedicated server / <a href="https://github.com/jo3stevens/ACServerManager/blob/master/frontend/advanced.html" target="_blank" rel="noopener noreferrer">ACServerManager Advanced</a> page. Voting fields stay on the Rules tab.</p>
+                        <div class="sc-rules-grid">
+                            <div class="sc-rules-section">
+                                <h3 class="sc-section-title">Timing &amp; limits</h3>
+                                <div class="sc-field"><label for="sc-sleep-time">Sleep time (ms):</label><input type="number" id="sc-sleep-time" class="sc-input sc-input-num" data-ini="SERVER" data-key="SLEEP_TIME" min="0" max="1000" step="1" placeholder="1"></div>
+                                <div class="sc-field"><label for="sc-max-ballast">Max ballast (kg):</label><input type="number" id="sc-max-ballast" class="sc-input sc-input-num" data-ini="SERVER" data-key="MAX_BALLAST_KG" min="0" step="1" placeholder="0"></div>
+                                <div class="sc-field"><label for="sc-legal-tyres">Legal tyres:</label><input type="text" id="sc-legal-tyres" class="sc-input" data-ini="SERVER" data-key="LEGAL_TYRES" placeholder="e.g. V"></div>
+                            </div>
+                            <div class="sc-rules-section">
+                                <h3 class="sc-section-title">Network buffers</h3>
+                                <div class="sc-field"><label for="sc-send-buffer">Send buffer size:</label><input type="number" id="sc-send-buffer" class="sc-input sc-input-num" data-ini="SERVER" data-key="SEND_BUFFER_SIZE" min="0" step="1" placeholder="0"></div>
+                                <div class="sc-field"><label for="sc-recv-buffer">Recv buffer size:</label><input type="number" id="sc-recv-buffer" class="sc-input sc-input-num" data-ini="SERVER" data-key="RECV_BUFFER_SIZE" min="0" step="1" placeholder="0"></div>
+                            </div>
+                            <div class="sc-rules-section">
+                                <h3 class="sc-section-title">Plugins</h3>
+                                <div class="sc-field"><label for="sc-udp-plugin-port">UDP plugin local port:</label><input type="number" id="sc-udp-plugin-port" class="sc-input sc-input-num" data-ini="SERVER" data-key="UDP_PLUGIN_LOCAL_PORT" min="0" max="65535" step="1" placeholder="0"></div>
+                                <div class="sc-field"><label for="sc-udp-plugin-addr">UDP plugin address:</label><input type="text" id="sc-udp-plugin-addr" class="sc-input" data-ini="SERVER" data-key="UDP_PLUGIN_ADDRESS" placeholder="host:port"></div>
+                                <div class="sc-field"><label for="sc-auth-plugin-addr">Auth plugin address:</label><input type="text" id="sc-auth-plugin-addr" class="sc-input" data-ini="SERVER" data-key="AUTH_PLUGIN_ADDRESS" placeholder="URL"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="sc-panel-details" class="sc-panel hidden" data-tab="details">
+                        <p class="sc-placeholder">Full <code>server_cfg.ini</code> as returned by the API (read-only). Save changes from other tabs, then refresh.</p>
+                        <div class="sc-details-toolbar">
+                            <button type="button" id="sc-details-refresh" class="sc-header-btn">Refresh</button>
+                        </div>
+                        <pre id="sc-details-raw" class="sc-details-raw" aria-label="Raw server_cfg.ini JSON"></pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <div id="sc-track-picker-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="sc-track-picker-title">
+        <div class="modal-backdrop" id="sc-track-picker-backdrop"></div>
+        <div class="sc-track-picker-panel">
+            <div class="sc-track-picker-header">
+                <div class="sc-track-picker-header-top">
+                    <h2 id="sc-track-picker-title" class="sc-track-picker-title">Select track</h2>
+                    <span id="sc-track-picker-server" class="sc-track-picker-server" aria-label="Current server"></span>
+                </div>
+                <div id="sc-track-picker-current-track" class="sc-track-picker-current-track" aria-live="polite">Current track: —</div>
+                <div id="sc-track-picker-warning" class="sc-track-picker-warning hidden" role="alert"></div>
+                <div class="sc-track-picker-filters">
+                    <label class="sc-track-picker-filter-label" for="sc-track-picker-search">Search:</label>
+                    <input type="text" id="sc-track-picker-search" class="sc-track-picker-search" placeholder="Track name or id…" aria-label="Search tracks" />
+                    <label class="sc-track-picker-filter-label" for="sc-track-picker-country">Country:</label>
+                    <select id="sc-track-picker-country" class="sc-track-picker-filter-select" aria-label="Filter by country"><option value="All">All</option></select>
+                </div>
+            </div>
+            <div class="sc-track-picker-body">
+                <div class="sc-track-picker-detail">
+                    <div class="sc-track-picker-detail-image-wrap">
+                        <img id="sc-track-picker-detail-img" class="sc-track-picker-detail-img" src="" alt="" />
+                        <div id="sc-track-picker-detail-fallback" class="sc-track-picker-detail-fallback">—</div>
+                    </div>
+                    <div class="sc-track-picker-detail-layouts" id="sc-track-picker-detail-layouts"></div>
+                    <div class="sc-track-picker-detail-info">
+                        <div class="sc-track-hero-info-section">
+                            <h4 class="sc-track-hero-info-heading">Track</h4>
+                            <div class="sc-track-hero-info-rows">
+                                <div class="sc-track-hero-info-row"><span class="sc-track-hero-info-label">Name</span><span id="sc-track-picker-info-name" class="sc-track-hero-info-value">—</span></div>
+                                <div class="sc-track-hero-info-row"><span class="sc-track-hero-info-label">Layout</span><span id="sc-track-picker-info-layout" class="sc-track-hero-info-value">—</span></div>
+                            </div>
+                        </div>
+                        <div class="sc-track-hero-info-section" id="sc-track-picker-description-wrap">
+                            <h4 class="sc-track-hero-info-heading">Description</h4>
+                            <div id="sc-track-picker-description" class="sc-track-hero-info-description">—</div>
+                        </div>
+                        <div class="sc-track-hero-info-section">
+                            <h4 class="sc-track-hero-info-heading">Details</h4>
+                            <div class="sc-track-hero-info-rows" id="sc-track-picker-details"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="sc-track-picker-list-wrap">
+                    <div class="sc-track-picker-list" id="sc-track-picker-list" role="listbox" aria-label="Tracks"></div>
+                </div>
+            </div>
+            <div class="sc-track-picker-footer">
+                <button type="button" id="sc-track-picker-cancel" class="sc-header-btn">Cancel</button>
+                <button type="button" id="sc-track-picker-ok" class="sc-header-btn sc-header-btn-primary">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="sc-cars-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="sc-cars-modal-title">
+        <div class="modal-backdrop" id="sc-cars-modal-backdrop"></div>
+        <div class="modal-panel">
+            <div class="modal-header">
+                <div class="modal-title" id="sc-cars-modal-title">Add Cars</div>
+                <button type="button" id="sc-cars-modal-close" class="modal-close">Close</button>
+            </div>
+            <div id="sc-cars-modal-preview" class="sc-cars-modal-preview">
+                <div class="sc-cars-modal-preview-imgwrap">
+                    <img id="sc-cars-modal-preview-img" class="sc-cars-modal-preview-img" alt="" />
+                    <div id="sc-cars-modal-preview-fallback" class="sc-cars-modal-preview-fallback">—</div>
+                </div>
+                <div class="sc-cars-modal-preview-meta">
+                    <div id="sc-cars-modal-preview-name" class="sc-cars-modal-preview-title"></div>
+                    <div id="sc-cars-modal-preview-class" class="sc-cars-modal-preview-line"></div>
+                    <div id="sc-cars-modal-preview-specs" class="sc-cars-modal-preview-line"></div>
+                </div>
+            </div>
+            <div class="modal-tabs">
+                <button type="button" class="modal-tab active" data-tab="all">ALL</button>
+                <button type="button" class="modal-tab" data-tab="brands">BRANDS</button>
+                <button type="button" class="modal-tab" data-tab="countries">COUNTRIES</button>
+                <button type="button" class="modal-tab" data-tab="categories">CATEGORIES</button>
+                <button type="button" class="modal-tab" data-tab="dlcs">DLCS</button>
+                <button type="button" class="modal-tab" data-tab="tags">TAGS</button>
+                <button type="button" class="modal-tab" data-tab="ratings">RATINGS</button>
+            </div>
+            <div class="modal-controls">
+                <label for="sc-cars-modal-filter">Filter:</label>
+                <input id="sc-cars-modal-filter" type="text" class="modal-filter-input" placeholder="Search (gt3, bmw, race, ks_...)" autocomplete="off" />
+            </div>
+            <div class="modal-list" id="sc-cars-modal-list" role="listbox">
+                <!-- rows injected by JS -->
+            </div>
+            <div class="modal-footer">
+                <span id="sc-cars-modal-selected-count" class="sc-cars-modal-selected-count">Selected: 0</span>
+                <button type="button" id="sc-cars-modal-add" class="btn-primary" disabled>Add</button>
+                <button type="button" id="sc-cars-modal-cancel" class="btn">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bookings admin modals -->
+    <div id="ba-walkin-modal" class="ba-modal-overlay" role="dialog" aria-modal="true" aria-hidden="true">
+        <div class="ba-modal-panel" style="width:520px;">
+            <div class="ba-modal-header">
+                <div>
+                    <div class="ba-modal-title">Walk-In Booking</div>
+                    <div class="page-subtitle" style="margin-top:6px;">Create a confirmed walk-in booking (no deposit)</div>
+                </div>
+                <button type="button" id="ba-walkin-close" class="ba-modal-close" aria-label="Close">&times;</button>
+            </div>
+            <form id="ba-walkin-form" class="ba-modal-body">
+                <div class="ba-toolbar" style="margin:0;">
+                    <div class="ba-field">
+                        <div class="ba-label">Date</div>
+                        <input type="date" id="ba-walkin-date" class="ba-input" required>
+                    </div>
+                    <div class="ba-field">
+                        <div class="ba-label">Time</div>
+                        <input type="time" id="ba-walkin-time" class="ba-input" required>
+                    </div>
+                    <div class="ba-field">
+                        <div class="ba-label">Duration (minutes)</div>
+                        <input type="number" id="ba-walkin-duration" class="ba-input" min="1" value="60" required>
+                    </div>
+                    <div class="ba-field">
+                        <div class="ba-label">Racers</div>
+                        <input type="number" id="ba-walkin-racers" class="ba-input" min="1" max="8" value="2" required>
+                    </div>
+                    <div class="ba-field" style="min-width:260px;">
+                        <div class="ba-label">Customer Name</div>
+                        <input type="text" id="ba-walkin-customer-name" class="ba-input" placeholder="Walk-In" required>
+                    </div>
+                </div>
+
+                <div id="ba-walkin-error" class="ba-inline-error" role="alert"></div>
+
+                <div class="ba-btn-row" style="margin-top:16px;">
+                    <button type="submit" id="ba-walkin-submit" class="btn-primary">Create Booking</button>
+                    <button type="button" id="ba-walkin-cancel" class="btn-secondary">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="ba-detail-modal" class="ba-modal-overlay" role="dialog" aria-modal="true" aria-hidden="true">
+        <div class="ba-modal-panel">
+            <div class="ba-modal-header">
+                <div>
+                    <div class="ba-modal-title">Booking Detail</div>
+                    <div class="page-subtitle" style="margin-top:6px;color:#888;">Assign simulators, reschedule, deposit & check-in actions</div>
+                </div>
+                <button type="button" id="ba-detail-close" class="ba-modal-close" aria-label="Close">&times;</button>
+            </div>
+            <div class="ba-modal-body">
+                <div id="ba-detail-error" class="ba-inline-error" role="alert"></div>
+                <div id="ba-detail-body"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast-container" class="toast-container" role="status" aria-live="polite" aria-atomic="true"></div>
+    <script src="/booking-admin.js"></script>
+    <script src="/app.js"></script>
+</body>
+</html>

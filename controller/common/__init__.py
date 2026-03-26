@@ -1,0 +1,1 @@
+# Controller common (shared models)

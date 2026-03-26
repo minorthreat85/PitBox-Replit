@@ -1,0 +1,40 @@
+# Icon Creation Guide
+
+To create branded PitBox installers (black/white/red theme):
+
+## Icon Files Needed (place in installer folder)
+
+1. **agent_icon.ico** - Used by Agent installer and by unified PitBox installer
+2. **controller_icon.ico** - Used by Controller installer
+
+## Fastest Lap Theme Colors
+
+- Background: Black (#000000)
+- Primary Accent: Red (#E3061D)
+- Text: White (#FFFFFF)
+- Secondary: Dark Gray (#1C1C1C)
+
+## Icon Design Suggestions
+
+**Agent Icon:**
+- Sim racing wheel in red
+- Or checkered flag pattern
+- Or "A" letter stylized with racing stripes
+
+**Controller Icon:**
+- Dashboard/control panel icon in red
+- Or grid/multiple monitors icon
+- Or "C" letter stylized with racing stripes
+
+## Tools for Creating Icons
+
+- **GIMP** (Free): Export as .ico and .bmp
+- **Paint.NET** (Free): With .ico plugin
+- **IcoFX** (Commercial): Professional icon editor
+- **Online**: convertio.co/png-ico/ for quick conversion
+
+## Theme
+
+Installers use a black background (WizardBackColor=#000000) with white/red accents.
+Icon files must be present in the installer folder when compiling or the build will fail.
+To build without custom icons, comment out the SetupIconFile= line in each .iss file.

@@ -1,0 +1,2 @@
+# Optional fallback: fastest-lap-logo-sidebar.png (canonical location is ui/src/assets/branding/).
+# The sidebar requests /assets/branding/fastest-lap-logo-sidebar.png; backend serves from ui path first.

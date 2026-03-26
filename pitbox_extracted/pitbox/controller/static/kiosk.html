@@ -1,0 +1,1113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>PitBox Kiosk</title>
+    <script src="/kiosk-copy.js"></script>
+    <style>
+        :root { --bg: #0d0d0d; --card: #1a1a1a; --border: #333; --accent: #FF0000; --text: #fff; --muted: #999; --text-strong: #e8e8e8; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; padding: 1rem; }
+        .screen { display: none; max-width: 420px; margin: 0 auto; }
+        .screen.active { display: block; }
+        h1 { font-size: 1.5rem; margin-bottom: 1rem; color: var(--accent); }
+        .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 1.15rem; margin-bottom: 1rem; }
+        label { display: block; font-size: 0.8rem; color: var(--muted); margin-bottom: 0.35rem; }
+        select, button { width: 100%; padding: 0.85rem; font-size: 1rem; border-radius: 8px; border: 1px solid var(--border); background: var(--card); color: var(--text); }
+        button.primary { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 600; margin-top: 0.5rem; cursor: pointer; min-height: 48px; font-size: 1.05rem; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .status { padding: 0.75rem; border-radius: 8px; margin-bottom: 1rem; font-size: 0.9rem; }
+        .status.configuring { background: #3d3d1a; }
+        .status.launching { background: #1a3d3d; }
+        .status.running { background: #1a3d1a; }
+        .status.error { background: #3d1a1a; color: #ee9090; }
+        .error-msg { color: #ee9090; font-size: 0.95rem; margin-top: 0.5rem; line-height: 1.4; }
+        .row { margin-bottom: 0.75rem; }
+        input[type="text"] { width: 100%; padding: 0.75rem; font-size: 1rem; border-radius: 8px; border: 1px solid var(--border); background: var(--card); color: var(--text); }
+        .search-wrap { position: relative; }
+        .search-wrap label { margin-bottom: 0.25rem; }
+        .picker-btn { display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 0.85rem; font-size: 1rem; border-radius: 8px; border: 1px solid var(--border); background: var(--card); color: var(--text); cursor: pointer; text-align: left; min-height: 48px; }
+        .picker-btn .label { color: var(--muted); font-size: 0.8rem; }
+        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 100; display: none; align-items: center; justify-content: center; padding: 1rem; }
+        .modal-overlay.open { display: flex; }
+        .modal { background: var(--card); border: 1px solid var(--border); border-radius: 12px; max-width: 100%; max-height: 90vh; width: 380px; display: flex; flex-direction: column; overflow: hidden; }
+        .modal-header { padding: 1rem; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
+        .modal-title { font-size: 1.1rem; color: var(--accent); }
+        .modal-close { background: none; border: none; color: var(--text); font-size: 1.5rem; cursor: pointer; padding: 0 0.5rem; line-height: 1; }
+        .modal-toolbar { padding: 0.5rem 1rem; display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; flex-shrink: 0; }
+        .modal-toolbar input { flex: 1; min-width: 120px; }
+        .modal-toolbar select { flex: 0 0 auto; min-width: 110px; padding: 0.5rem; }
+        .modal-body { overflow-y: auto; padding: 1rem; flex: 1; min-height: 0; }
+        .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem; }
+        .grid-item { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; cursor: pointer; text-align: center; transition: border-color 0.15s; }
+        .grid-item:active, .grid-item.selected { border-color: var(--accent); }
+        .grid-item img { display: block; width: 100%; aspect-ratio: 4/3; object-fit: contain; background: #0a0a0a; }
+        .grid-item .name { padding: 0.5rem 0.35rem; font-size: 0.8rem; line-height: 1.2; }
+        .step-progress { font-size: 0.9rem; color: var(--muted); margin-bottom: 0.5rem; }
+        .step-dots { display: flex; gap: 0.5rem; margin-bottom: 1rem; justify-content: center; }
+        .step-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--border); transition: background 0.2s; }
+        .step-dot.active { background: var(--accent); }
+        .step-dot.done { background: var(--muted); }
+        .step-title { font-size: 1.2rem; margin-bottom: 0.35rem; color: var(--text-strong); }
+        .step-desc { font-size: 0.95rem; color: var(--muted); margin-bottom: 1rem; line-height: 1.4; }
+        .claim-state { margin-top: 0.5rem; }
+        .claim-state .error-msg { margin-bottom: 1rem; }
+        .claim-body { font-size: 0.95rem; color: var(--text-strong); line-height: 1.5; white-space: pre-line; }
+        .claim-helper { font-size: 0.85rem; color: var(--muted); margin-top: 0.75rem; line-height: 1.4; }
+        .claim-manual-hint { font-size: 0.85rem; color: var(--muted); margin-top: 1rem; }
+        .claim-instruction-qr { display: block; margin: 1.25rem auto 0; padding: 0.75rem; background: #fff; border-radius: 12px; width: 160px; height: 160px; box-sizing: border-box; }
+        .claim-instruction-qr img { display: block; width: 100%; height: 100%; object-fit: contain; }
+        .btn-retry { min-height: 52px; font-size: 1.1rem; padding: 0.9rem; }
+        .link-start-over { display: inline-block; margin-top: 1rem; font-size: 0.9rem; color: var(--muted); text-decoration: none; cursor: pointer; }
+        .link-start-over:hover { color: var(--text); }
+        .mode-choices { display: flex; gap: 0.85rem; margin-bottom: 1.25rem; flex-wrap: wrap; }
+        .mode-btn { flex: 1; min-width: 140px; padding: 1.1rem; font-size: 1.05rem; border-radius: 8px; border: 2px solid var(--border); background: var(--card); color: var(--text); cursor: pointer; transition: border-color 0.15s, background 0.15s; min-height: 52px; }
+        .mode-btn:hover { border-color: var(--muted); }
+        .mode-btn.selected { border-color: var(--accent); background: rgba(255, 0, 0, 0.15); color: var(--text); }
+        .server-cards { display: flex; flex-direction: column; gap: 0.75rem; margin-bottom: 1rem; }
+        .server-card { background: var(--bg); border: 2px solid var(--border); border-radius: 10px; padding: 1rem; cursor: pointer; text-align: left; transition: border-color 0.15s, background 0.15s; }
+        .server-card:hover { border-color: var(--muted); }
+        .server-card.selected { border-color: var(--accent); background: rgba(255, 0, 0, 0.08); }
+        .server-card-name { font-size: 1.05rem; font-weight: 600; color: var(--text); margin-bottom: 0.35rem; }
+        .server-card-meta { font-size: 0.85rem; color: var(--muted); }
+        .preset-cards { display: flex; flex-direction: column; gap: 0.6rem; margin-bottom: 1rem; }
+        .preset-card { background: var(--bg); border: 2px solid var(--border); border-radius: 10px; padding: 1rem 1.1rem; cursor: pointer; text-align: center; font-size: 1rem; transition: border-color 0.15s, background 0.15s; min-height: 48px; }
+        .preset-card:hover { border-color: var(--muted); }
+        .preset-card.selected { border-color: var(--accent); background: rgba(255, 0, 0, 0.15); }
+        .track-preview-card { margin-bottom: 1rem; border-radius: 10px; overflow: hidden; border: 1px solid var(--border); background: var(--bg); }
+        .track-preview-card img { width: 100%; aspect-ratio: 16/9; object-fit: cover; display: block; }
+        .track-preview-card .track-name { padding: 0.75rem; font-size: 0.95rem; color: var(--muted); }
+        .step-nav { display: flex; gap: 0.5rem; margin-top: 1rem; }
+        .step-nav .secondary { flex: 1; min-height: 48px; }
+        .step-nav .primary { flex: 1; }
+        button.secondary { background: transparent; color: var(--text); border: 1px solid var(--border); font-weight: 500; cursor: pointer; }
+        button.secondary:disabled { opacity: 0.5; cursor: not-allowed; }
+        .loading-spinner { text-align: center; padding: 2rem; color: var(--muted); }
+        .empty-state { text-align: center; padding: 1.5rem; color: var(--muted); font-size: 0.95rem; }
+    </style>
+</head>
+<body>
+    <div id="screen-claim" class="screen">
+        <h1 id="claim-heading">PitBox Kiosk</h1>
+        <div id="claim-linking" class="claim-state">
+            <p id="claim-status">Linking to sim…</p>
+        </div>
+        <div id="claim-instruction" class="claim-state" style="display:none;">
+            <p id="claim-instruction-body" class="claim-body"></p>
+            <p id="claim-instruction-helper" class="claim-helper"></p>
+            <div id="claim-instruction-qr-wrap" class="claim-instruction-qr" aria-hidden="true">
+                <img id="claim-instruction-qr-img" src="" alt="QR code: open kiosk" width="160" height="160" />
+            </div>
+            <p class="claim-manual-hint">Or open this page from the same network with the link shown on the sim.</p>
+            <a href="#" id="claim-start-over" class="link-start-over" style="display:none;">Start Over</a>
+        </div>
+        <div id="claim-error-wrap" class="claim-state" style="display:none;">
+            <p id="claim-error" class="error-msg" role="alert"></p>
+            <button type="button" id="claim-retry" class="primary btn-retry">Try again</button>
+            <a href="#" id="claim-error-start-over" class="link-start-over">Start Over</a>
+        </div>
+    </div>
+    <div id="screen-main" class="screen">
+        <h1 id="main-heading">Configure &amp; Launch</h1>
+        <p id="step-progress" class="step-progress" aria-live="polite">Step 1 of 5</p>
+        <div id="step-dots" class="step-dots" aria-hidden="true"></div>
+        <div id="status-box" class="status" style="display:none;"></div>
+        <a href="#" id="main-start-over" class="link-start-over" style="display:none; margin-bottom: 0.5rem;">Start Over</a>
+
+        <!-- Step 1: Session type -->
+        <div id="step-1" class="step card" data-step="1">
+            <h2 class="step-title" id="step1-title">Session type</h2>
+            <p class="step-desc" id="step1-desc">Choose how you want to drive.</p>
+            <div class="mode-choices">
+                <button type="button" id="mode-single" class="mode-btn" data-mode="singleplayer">Solo Drive</button>
+                <button type="button" id="mode-online" class="mode-btn" data-mode="online">Multiplayer Race</button>
+                <button type="button" id="mode-create" class="mode-btn" data-mode="createserver">Create Server</button>
+            </div>
+            <div class="step-nav">
+                <button type="button" id="step1-next" class="primary" disabled>Next</button>
+            </div>
+        </div>
+
+        <!-- Step 2: Select server (multiplayer) -->
+        <div id="step-2" class="step card" data-step="2" style="display:none;">
+            <h2 class="step-title" id="step2-title">Select Server</h2>
+            <p class="step-desc" id="step2-desc">Choose a server to join.</p>
+            <div id="step2-loading" class="loading-spinner" style="display:none;">Loading servers…</div>
+            <div id="step2-empty" class="empty-state" style="display:none;">No online servers are currently available.</div>
+            <div id="step2-error" class="empty-state" style="display:none;"><span id="step2-error-text"></span> <button type="button" id="step2-retry" class="primary" style="margin-top:0.75rem;">Retry</button></div>
+            <div id="server-cards" class="server-cards" style="display:none;"></div>
+            <input type="hidden" id="server" value="" />
+            <div class="step-nav">
+                <button type="button" id="step2-back" class="secondary">Back</button>
+                <button type="button" id="step2-next" class="primary" disabled>Next</button>
+            </div>
+        </div>
+
+        <!-- Step 3: Select car + track preview -->
+        <div id="step-3" class="step card" data-step="3" style="display:none;">
+            <h2 class="step-title" id="step3-title">Select Car</h2>
+            <p class="step-desc" id="step3-desc">Choose your car.</p>
+            <div id="step3-track-preview" class="track-preview-card" style="display:none;">
+                <img id="step3-track-img" src="" alt="" />
+                <div id="step3-track-name" class="track-name">—</div>
+            </div>
+            <div class="row">
+                <button type="button" id="btn-pick-car" class="picker-btn"><span><span class="label">Choose car</span><br><span id="car-label">—</span></span></button>
+            </div>
+            <div id="step3-car-grid" class="grid" style="display:none;"></div>
+            <div id="create-server-options" style="display:none; margin-bottom: 1rem; margin-top: 1rem;">
+                <label for="create-players" style="margin-bottom:0.5rem; display:block; color:var(--muted); font-size:0.9rem;">Max Players</label>
+                <select id="create-players" style="width:100%; padding:0.85rem; font-size:1rem; border-radius:8px; border:1px solid var(--border); background:var(--card); color:var(--text);">
+                    <option value="2">2 Players</option>
+                    <option value="4">4 Players</option>
+                    <option value="6" selected>6 Players</option>
+                    <option value="8">8 Players</option>
+                    <option value="12">12 Players</option>
+                    <option value="16">16 Players</option>
+                </select>
+            </div>
+            <div class="step-nav">
+                <button type="button" id="step3-back" class="secondary">Back</button>
+                <button type="button" id="step3-next" class="primary">Next</button>
+            </div>
+        </div>
+
+        <!-- Step 4: Control preset -->
+        <div id="step-4" class="step card" data-step="4" style="display:none;">
+            <h2 class="step-title" id="step4-title">Control preset</h2>
+            <p class="step-desc" id="step4-desc">Choose your steering and shifting preset.</p>
+            <div id="preset-cards" class="preset-cards"></div>
+            <select id="steering-preset" style="display:none;"><option value="">—</option></select>
+            <select id="shifting-preset" style="display:none;"><option value="H-Pattern">H-Pattern</option></select>
+            <div class="step-nav">
+                <button type="button" id="step4-back" class="secondary">Back</button>
+                <button type="button" id="step4-next" class="primary" disabled>Next</button>
+            </div>
+        </div>
+
+        <!-- Step 5: Driver name + Launch -->
+        <div id="step-5" class="step card" data-step="5" style="display:none;">
+            <h2 class="step-title" id="step5-title">Driver name</h2>
+            <p class="step-desc" id="step5-desc">This name may appear in the session.</p>
+            <div class="row">
+                <label for="driver-name">Driver Name</label>
+                <input type="text" id="driver-name" placeholder="" maxlength="64" />
+            </div>
+            <div class="step-nav">
+                <button type="button" id="step5-back" class="secondary">Back</button>
+                <button type="button" id="btn-launch" class="primary" disabled>Launch Session</button>
+            </div>
+        </div>
+
+        <!-- Hidden for buildEnvelope (single player) -->
+        <select id="submode" style="display:none;"><option value="practice">Practice</option><option value="hotlap">Hotlap</option><option value="race">Race</option><option value="drift">Drift</option><option value="kids">Kids</option></select>
+        <select id="layout" style="display:none;"><option value="default">Default</option></select>
+        <select id="assists" style="display:none;"><option value="race">Race</option><option value="drift">Drift</option><option value="kids">Kids Mode</option></select>
+        <input type="hidden" id="mode" value="online" />
+        <div id="modal-car" class="modal-overlay" role="dialog" aria-label="Choose car">
+            <div class="modal">
+                <div class="modal-header">
+                    <span class="modal-title">Choose car</span>
+                    <button type="button" class="modal-close" id="modal-car-close" aria-label="Close">&times;</button>
+                </div>
+                <div class="modal-toolbar">
+                    <input type="text" id="modal-car-search" placeholder="Search cars…" autocomplete="off" />
+                    <select id="modal-car-sort"><option value="name_az">Name A–Z</option><option value="name_za">Name Z–A</option><option value="brand_az">Brand A–Z</option><option value="class_az">Class</option></select>
+                </div>
+                <div class="modal-body" id="modal-car-grid"></div>
+            </div>
+        </div>
+        <div id="modal-track" class="modal-overlay" role="dialog" aria-label="Choose track">
+            <div class="modal">
+                <div class="modal-header">
+                    <span class="modal-title">Choose track</span>
+                    <button type="button" class="modal-close" id="modal-track-close" aria-label="Close">&times;</button>
+                </div>
+                <div class="modal-toolbar">
+                    <input type="text" id="modal-track-search" placeholder="Search tracks…" autocomplete="off" />
+                    <select id="modal-track-sort"><option value="name_az">Name A–Z</option><option value="name_za">Name Z–A</option></select>
+                </div>
+                <div class="modal-body" id="modal-track-grid"></div>
+            </div>
+        </div>
+    </div>
+    <script>
+        (function () {
+            var COPY = (typeof KIOSK_COPY !== 'undefined') ? KIOSK_COPY : {};
+            var INACTIVITY_RESET_SEC = 75;
+
+            var sessionId = null;
+            var agentId = null;
+            var catalogs = { cars: [], tracks: [], assists: [], servers: [] };
+            var presets = { steering_presets: [], shifting_presets: [] };
+            var selectedCar = null;
+            var selectedTrack = null;
+            var carSort = 'name_az';
+            var trackSort = 'name_az';
+            var modalCarSearch = '';
+            var modalTrackSearch = '';
+            var currentStepIndex = 0;
+            var selectedMode = null;
+
+            var state = {
+                mode: null,
+                availableServers: [],
+                selectedServer: null,
+                availableCars: [],
+                selectedCar: null,
+                selectedPreset: null,
+                driverName: ''
+            };
+            var lastInteractionAt = 0;
+            var inactivityTimer = null;
+
+            function qs(s) { return document.querySelector(s); }
+            function qsAll(s) { return document.querySelectorAll(s); }
+            function showScreen(id) {
+                qsAll('.screen').forEach(function (el) { el.classList.remove('active'); });
+                var el = qs('#' + id);
+                if (el) el.classList.add('active');
+            }
+
+            function getStepOrder() {
+                if (selectedMode === 'online') return [1, 2, 3, 4, 5];
+                if (selectedMode === 'singleplayer') return [1, 3, 4, 5];
+                return [1, 2, 3, 4, 5];
+            }
+            function getCurrentStep() {
+                var order = getStepOrder();
+                return order[currentStepIndex];
+            }
+            function goToStep(stepNum) {
+                var order = getStepOrder();
+                var idx = order.indexOf(stepNum);
+                if (idx === -1) return;
+                currentStepIndex = idx;
+                qsAll('.step').forEach(function (el) { el.style.display = 'none'; });
+                var el = qs('#step-' + stepNum);
+                if (el) el.style.display = 'block';
+                var total = order.length;
+                var stepLabel = idx + 1;
+                var progressText = (COPY.global && COPY.global.stepProgress) ? COPY.global.stepProgress.replace('{current}', stepLabel).replace('{total}', total) : ('Step ' + stepLabel + ' of ' + total);
+                qs('#step-progress').textContent = progressText;
+                var dotsWrap = qs('#step-dots');
+                if (dotsWrap) {
+                    dotsWrap.innerHTML = '';
+                    for (var i = 0; i < total; i++) {
+                        var dot = document.createElement('span');
+                        dot.className = 'step-dot' + (i === idx ? ' active' : (i < idx ? ' done' : ''));
+                        dot.setAttribute('aria-hidden', 'true');
+                        dotsWrap.appendChild(dot);
+                    }
+                }
+                qs('#main-start-over').style.display = (stepNum >= 1 && stepNum <= 5) ? 'block' : 'none';
+                if (stepNum === 2 && selectedMode === 'online') loadServers();
+                if (stepNum === 3) {
+                    var pickRow = qs('#step-3 .row');
+                    var trackPreview = qs('#step3-track-preview');
+                    var carGrid = qs('#step3-car-grid');
+                    if (selectedMode === 'online' && state.selectedServer) {
+                        if (pickRow) pickRow.style.display = 'none';
+                        if (!state.selectedServer.cars || state.selectedServer.cars.length === 0) {
+                            api('/servers/' + encodeURIComponent(state.selectedServer.id)).then(function (detail) {
+                                state.selectedServer.cars = (detail.cars || []).map(function (c) { return { id: c.id, displayName: c.displayName || c.id, thumbnailUrl: c.thumbnailUrl || ('/api/cars/' + encodeURIComponent(c.id) + '/preview') }; });
+                                state.selectedServer.trackId = detail.trackId;
+                                state.selectedServer.trackConfig = detail.trackConfig || 'default';
+                                renderStep3Multiplayer();
+                            }).catch(function () { renderStep3Multiplayer(); });
+                        } else {
+                            renderStep3Multiplayer();
+                        }
+                    } else {
+                        if (pickRow) pickRow.style.display = 'block';
+                        if (trackPreview) trackPreview.style.display = 'none';
+                        if (carGrid) { carGrid.style.display = 'none'; carGrid.innerHTML = ''; }
+                    }
+                }
+                if (stepNum === 4) renderPresetCards();
+                if (stepNum === 5) updateLaunchButtonState();
+                var s2 = COPY.step2 || {}; var s3 = COPY.step3 || {}; var s4 = COPY.step4 || {}; var s5 = COPY.step5 || {};
+                if (stepNum === 2 && qs('#step2-title')) qs('#step2-title').textContent = s2.title || 'Select Server';
+                if (stepNum === 2 && qs('#step2-desc')) qs('#step2-desc').textContent = s2.desc || 'Choose a server to join.';
+                if (stepNum === 3 && qs('#step3-title')) qs('#step3-title').textContent = s3.title || 'Select Car';
+                if (stepNum === 3 && qs('#step3-desc')) qs('#step3-desc').textContent = s3.desc || 'Choose your car.';
+                if (stepNum === 4 && qs('#step4-title')) qs('#step4-title').textContent = s4.title || 'Control preset';
+                if (stepNum === 4 && qs('#step4-desc')) qs('#step4-desc').textContent = s4.desc || 'Choose your steering and shifting preset.';
+                if (stepNum === 5 && qs('#step5-title')) qs('#step5-title').textContent = s5.title || 'Driver name';
+                if (stepNum === 5 && qs('#step5-desc')) qs('#step5-desc').textContent = s5.desc || 'This name may appear in the session.';
+                if (stepNum === 5 && qs('#btn-launch')) qs('#btn-launch').textContent = s5.launch || 'Launch Session';
+                if (stepNum === 5 && qs('#driver-name')) qs('#driver-name').placeholder = s5.placeholder || 'Your name';
+            }
+            function nextStep() {
+                recordInteraction();
+                var order = getStepOrder();
+                if (currentStepIndex >= order.length - 1) return;
+                currentStepIndex++;
+                goToStep(order[currentStepIndex]);
+            }
+            function prevStep() {
+                recordInteraction();
+                var order = getStepOrder();
+                if (currentStepIndex <= 0) return;
+                currentStepIndex--;
+                goToStep(order[currentStepIndex]);
+            }
+
+            function api(path, opts) {
+                opts = opts || {};
+                return fetch('/api' + path, { cache: 'no-store', headers: opts.headers || {}, method: opts.method || 'GET', body: opts.body }).then(function (r) {
+                    if (!r.ok) throw new Error(r.status + ' ' + r.statusText);
+                    return r.headers.get('content-type') && r.headers.get('content-type').indexOf('json') !== -1 ? r.json() : r.text();
+                });
+            }
+            /** GET JSON; returns {} on 401/403 so kiosk still loads cars/tracks when operator-only catalogs are gated. */
+            function fetchCatalogJson(path) {
+                return fetch('/api' + path, { cache: 'no-store' }).then(function (r) {
+                    if (r.status === 401 || r.status === 403) return {};
+                    if (!r.ok) throw new Error(r.status + ' ' + r.statusText);
+                    var ct = r.headers.get('content-type') || '';
+                    if (ct.indexOf('json') === -1) throw new Error('Expected JSON');
+                    return r.json();
+                });
+            }
+
+            function applyCopy() {
+                var c = COPY.instruction || {};
+                if (qs('#claim-heading')) qs('#claim-heading').textContent = c.heading || 'PitBox Kiosk';
+                if (qs('#claim-instruction-body')) qs('#claim-instruction-body').textContent = (c.body || 'Scan the QR code on the sim screen to connect your phone.').replace(/\n/g, '\n');
+                if (qs('#claim-instruction-helper')) qs('#claim-instruction-helper').textContent = c.helper || 'The QR code appears in the top-right of the simulator screen.';
+                c = COPY.error || {};
+                if (qs('#claim-retry')) qs('#claim-retry').textContent = c.tryAgain || 'Try again';
+                c = COPY.step1 || {};
+                if (qs('#step1-title')) qs('#step1-title').textContent = c.title || 'Session type';
+                if (qs('#step1-desc')) qs('#step1-desc').textContent = c.desc || 'Choose how you want to drive.';
+                if (qs('#mode-single')) qs('#mode-single').textContent = c.solo || 'Solo Drive';
+                if (qs('#mode-online')) qs('#mode-online').textContent = c.multiplayer || 'Multiplayer Race';
+                if (qs('#mode-create')) qs('#mode-create').textContent = c.create || 'Create Server';
+                if (qs('#main-heading')) qs('#main-heading').textContent = (COPY.global && COPY.global.configureAndLaunch) || 'Configure & Launch';
+            }
+            function showClaimState(which) {
+                ['claim-linking', 'claim-instruction', 'claim-error-wrap'].forEach(function (id) {
+                    var el = qs('#' + id);
+                    if (el) el.style.display = (id === which) ? 'block' : 'none';
+                });
+                if (which === 'claim-instruction') {
+                    applyCopy();
+                    var kioskUrl = window.location.origin + '/kiosk';
+                    var qrImg = qs('#claim-instruction-qr-img');
+                    if (qrImg) qrImg.src = 'https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=' + encodeURIComponent(kioskUrl);
+                }
+            }
+            function doClaim() {
+                if (!urlAgent || !nonce || !token) {
+                    showScreen('screen-claim');
+                    showClaimState('claim-instruction');
+                    return;
+                }
+                showScreen('screen-claim');
+                showClaimState('claim-linking');
+                qs('#claim-status').textContent = 'Linking to sim…';
+                api('/kiosk/claim', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ agent_id: urlAgent, nonce: nonce, token: token })
+                }).then(function (res) {
+                    sessionId = res.session_id;
+                    agentId = res.agent_id;
+                    sessionStorage.setItem('pitbox_kiosk', JSON.stringify({ session_id: sessionId, agent_id: agentId }));
+                    lastInteractionAt = Date.now();
+                    resetInactivityTimer();
+                    showScreen('screen-main');
+                    goToStep(1);
+                    loadCatalogs();
+                }).catch(function (err) {
+                    var msg = (COPY.error && COPY.error.connectionFailed) ? (COPY.error.connectionFailed + ' ' + (COPY.error.connectionHint || '')) : 'Connection failed. Make sure your phone is connected to the same Wi‑Fi as the simulator.';
+                    qs('#claim-error').textContent = msg;
+                    showClaimState('claim-error-wrap');
+                });
+            }
+            function resetToInstruction() {
+                try { sessionStorage.removeItem('pitbox_kiosk'); } catch (e) {}
+                sessionId = null;
+                agentId = null;
+                selectedMode = null;
+                state = { mode: null, availableServers: [], selectedServer: null, availableCars: [], selectedCar: null, selectedPreset: null, driverName: '' };
+                selectedCar = null;
+                selectedTrack = null;
+                showScreen('screen-claim');
+                showClaimState('claim-instruction');
+            }
+            function resetInactivityTimer() {
+                if (inactivityTimer) clearTimeout(inactivityTimer);
+                inactivityTimer = null;
+                if (!sessionId || !agentId) return;
+                inactivityTimer = setTimeout(function () {
+                    var elapsed = (Date.now() - lastInteractionAt) / 1000;
+                    if (elapsed >= INACTIVITY_RESET_SEC) {
+                        resetToInstruction();
+                    }
+                    inactivityTimer = null;
+                }, INACTIVITY_RESET_SEC * 1000);
+            }
+            function recordInteraction() {
+                lastInteractionAt = Date.now();
+                resetInactivityTimer();
+            }
+            var params = new URLSearchParams(window.location.search);
+            var urlAgent = (params.get('agent_id') || '').trim();
+            var nonce = (params.get('nonce') || '').trim();
+            var token = (params.get('token') || '').trim();
+            var stored = sessionStorage.getItem('pitbox_kiosk');
+            if (stored) {
+                try {
+                    var data = JSON.parse(stored);
+                    if (data.session_id && data.agent_id) {
+                        sessionId = data.session_id;
+                        agentId = data.agent_id;
+                        showScreen('screen-main');
+                        goToStep(1);
+                        loadCatalogs();
+                        return;
+                    }
+                } catch (e) {}
+            }
+            showScreen('screen-claim');
+            if (urlAgent && nonce && token) {
+                doClaim();
+            } else {
+                showClaimState('claim-instruction');
+            }
+            qs('#claim-retry').addEventListener('click', function () { recordInteraction(); doClaim(); });
+            if (qs('#claim-error-start-over')) qs('#claim-error-start-over').addEventListener('click', function (e) { e.preventDefault(); resetToInstruction(); });
+            if (qs('#claim-start-over')) qs('#claim-start-over').addEventListener('click', function (e) { e.preventDefault(); location.reload(); });
+            if (qs('#main-start-over')) qs('#main-start-over').addEventListener('click', function (e) { e.preventDefault(); recordInteraction(); resetToInstruction(); });
+            if (qs('#step2-retry')) qs('#step2-retry').addEventListener('click', function () { recordInteraction(); loadServers(); });
+            if (qs('#driver-name')) qs('#driver-name').addEventListener('input', function () { recordInteraction(); updateLaunchButtonState(); });
+
+            function formatCarName(raw) {
+                if (raw == null || (typeof raw === 'string' && !raw.trim())) return '—';
+                var s = String(raw).trim();
+                if (s.indexOf('/') !== -1 || s.indexOf('\\') !== -1) s = s.replace(/\\/g, '/').split('/').filter(Boolean).pop() || s;
+                s = s.replace(/^ks_+/i, '').replace(/^nohesi_+/i, '').replace(/^traffic_+/i, '');
+                s = s.replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim();
+                if (!s) return '—';
+                var acronyms = { gt3: 1, gt4: 1, gt2: 1, gtd: 1, dtm: 1, f1: 1, f2: 1, f3: 1, mx5: 1, 'mx-5': 1, gtr: 1, nsx: 1, amg: 1, bmw: 1, audi: 1, porsche: 1, usa: 1, uk: 1, jdm: 1, v8: 1, v10: 1, v12: 1, tcr: 1, cup: 1, nx: 1, ks: 1 };
+                var words = s.split(' ');
+                var out = words.map(function (w) {
+                    var low = w.toLowerCase();
+                    if (low === 'mx5') return 'MX-5';
+                    if (low === 'mx') return 'MX';
+                    if (low === 'cup') return 'Cup';
+                    if (low === 'model') return 'Model';
+                    if (acronyms[low]) return low.toUpperCase();
+                    if (/^\d+$/.test(low)) return low;
+                    return low.charAt(0).toUpperCase() + low.slice(1);
+                });
+                return out.join(' ');
+            }
+            function formatCarDisplayName(carId, fallback) {
+                if (fallback != null && String(fallback).trim()) return String(fallback).trim();
+                if (!carId) return '—';
+                return formatCarName(carId);
+            }
+            function formatTrackName(raw) {
+                if (raw == null || (typeof raw === 'string' && raw.trim() === '')) return 'N/A';
+                var s = String(raw).trim();
+                if (s.toLowerCase() === 'n/a' || s === '—') return 'N/A';
+                if (s.indexOf('/') !== -1 || s.indexOf('\\') !== -1) s = s.replace(/\\/g, '/').split('/').filter(Boolean).pop() || s;
+                s = s.replace(/^ks_/i, '').replace(/^layout_/i, '').replace(/[-_]+/g, ' ').replace(/\s+/g, ' ').trim();
+                if (!s) return 'N/A';
+                var stop = { and: 1, or: 1, the: 1, of: 1, in: 1, at: 1, to: 1, a: 1 };
+                var acronyms = ['gp', 'f1', 'usa', 'uk', 'gt3', 'gt4', 'dtm', 'srp'];
+                return s.split(' ').map(function (w, i) {
+                    var low = w.toLowerCase();
+                    if (!low) return '';
+                    if (acronyms.indexOf(low) !== -1) return low.toUpperCase();
+                    if (i !== 0 && stop[low]) return low;
+                    return low.charAt(0).toUpperCase() + low.slice(1);
+                }).join(' ');
+            }
+            function formatLayoutName(raw) {
+                if (raw == null || (typeof raw === 'string' && raw.trim() === '')) return 'N/A';
+                var cleaned = String(raw).trim();
+                if (cleaned.toLowerCase() === 'n/a' || cleaned === '—') return 'N/A';
+                if (cleaned.indexOf('/') !== -1 || cleaned.indexOf('\\') !== -1) cleaned = cleaned.replace(/\\/g, '/').split('/').filter(Boolean).pop() || cleaned;
+                cleaned = cleaned.replace(/^ks_/i, '').replace(/^layout_/i, '').replace(/[-_]+/g, ' ').replace(/\s+/g, ' ').trim();
+                if (!cleaned) return 'N/A';
+                if (cleaned.toLowerCase() === 'default') return 'Default';
+                var stop = { and: 1, or: 1, the: 1, of: 1, in: 1, at: 1, to: 1, a: 1 };
+                var acronyms = ['gp', 'f1', 'usa', 'uk', 'gt3', 'gt4', 'dtm', 'srp'];
+                return cleaned.split(' ').map(function (w, i) {
+                    var low = w.toLowerCase();
+                    if (!low) return '';
+                    if (acronyms.indexOf(low) !== -1) return low.toUpperCase();
+                    if (i !== 0 && stop[low]) return low;
+                    return low.charAt(0).toUpperCase() + low.slice(1);
+                }).join(' ');
+            }
+            /** Same source as admin panel: GET /status, then use this agent's steering_presets and shifting_presets. */
+            function loadPresetsFromStatus() {
+                if (!agentId) return Promise.resolve();
+                return fetch('/api/status', { cache: 'no-store' }).then(function (r) {
+                    if (r.status === 401 || r.status === 403) {
+                        presets.steering_presets = [];
+                        presets.shifting_presets = [];
+                        return null;
+                    }
+                    if (!r.ok) throw new Error(r.status + ' ' + r.statusText);
+                    return r.json();
+                }).then(function (data) {
+                    if (!data) return;
+                    var agents = data.agents || [];
+                    var agent = agents.filter(function (a) {
+                        return (a.agent_id || '').toLowerCase() === (agentId || '').toLowerCase();
+                    })[0];
+                    if (agent) {
+                        presets.steering_presets = Array.isArray(agent.steering_presets) ? agent.steering_presets.slice() : [];
+                        presets.shifting_presets = Array.isArray(agent.shifting_presets) ? agent.shifting_presets.slice() : [];
+                    } else {
+                        presets.steering_presets = [];
+                        presets.shifting_presets = [];
+                    }
+                }).catch(function () {
+                    presets.steering_presets = [];
+                    presets.shifting_presets = [];
+                });
+            }
+
+            function loadCatalogs() {
+                Promise.all([
+                    fetchCatalogJson('/catalogs/cars'),
+                    fetchCatalogJson('/catalogs/tracks'),
+                    fetchCatalogJson('/catalogs/assists'),
+                    fetchCatalogJson('/catalogs/servers'),
+                    loadPresetsFromStatus()
+                ]).then(function (arr) {
+                    catalogs.cars = (arr[0].cars || []).filter(function (c) { return !c.disabled; });
+                    catalogs.tracks = (arr[1].tracks || []).filter(function (t) { return !t.disabled; });
+                    catalogs.assists = (arr[2].assists || []).filter(function (a) { return !a.disabled; });
+                    catalogs.servers = (arr[3].servers || []).filter(function (s) { return !s.disabled; });
+                    fillSelects();
+                    setStatus('', '');
+                    qs('#status-box').style.display = 'none';
+                }).catch(function (e) {
+                    console.error(e);
+                    catalogs.cars = []; catalogs.tracks = []; catalogs.assists = []; catalogs.servers = [];
+                    fillSelects();
+                    setStatus('error', 'Can\'t reach controller. Check Wi‑Fi and try again.');
+                });
+            }
+            function loadServers() {
+                var loading = qs('#step2-loading');
+                var empty = qs('#step2-empty');
+                var err = qs('#step2-error');
+                var errText = qs('#step2-error-text');
+                var cards = qs('#server-cards');
+                var nextBtn = qs('#step2-next');
+                if (loading) loading.style.display = 'block';
+                if (empty) empty.style.display = 'none';
+                if (err) err.style.display = 'none';
+                if (cards) { cards.style.display = 'none'; cards.innerHTML = ''; }
+                if (nextBtn) nextBtn.disabled = true;
+                state.availableServers = [];
+                state.selectedServer = null;
+                api('/servers').then(function (list) {
+                    if (loading) loading.style.display = 'none';
+                    var arr = Array.isArray(list) ? list : (list.servers || list);
+                    state.availableServers = (arr || []).map(function (s) {
+                        return {
+                            id: s.id || s.server_id,
+                            name: (s.name || s.id || s.server_id || '').trim() || s.id,
+                            trackName: s.trackLabel || s.trackName || '—',
+                            trackImage: s.trackImage || null,
+                            cars: s.cars || [],
+                            currentDrivers: s.currentDrivers != null ? s.currentDrivers : (s.playerCount != null ? s.playerCount : null),
+                            maxDrivers: s.maxDrivers != null ? s.maxDrivers : null,
+                            sessionType: s.sessionType || 'Practice'
+                        };
+                    });
+                    if (state.availableServers.length === 0 && typeof window.KIOSK_MOCK_SERVERS !== 'undefined' && window.KIOSK_MOCK_SERVERS.length > 0) {
+                        state.availableServers = window.KIOSK_MOCK_SERVERS.slice();
+                    }
+                    if (state.availableServers.length === 0) {
+                        if (empty) { empty.style.display = 'block'; empty.textContent = (COPY.step2 && COPY.step2.empty) || 'No online servers are currently available.'; }
+                    } else {
+                        renderServerCards();
+                        if (cards) cards.style.display = 'flex';
+                    }
+                }).catch(function (e) {
+                    if (loading) loading.style.display = 'none';
+                    if (typeof window.KIOSK_MOCK_SERVERS !== 'undefined' && window.KIOSK_MOCK_SERVERS.length > 0) {
+                        state.availableServers = window.KIOSK_MOCK_SERVERS.slice();
+                        renderServerCards();
+                        if (cards) cards.style.display = 'flex';
+                    } else {
+                        if (err) {
+                            if (errText) errText.textContent = (COPY.step2 && COPY.step2.error) || 'Could not load servers.';
+                            err.style.display = 'block';
+                        }
+                    }
+                });
+            }
+            function renderServerCards() {
+                var wrap = qs('#server-cards');
+                if (!wrap) return;
+                var sel = state.selectedServer ? state.selectedServer.id : null;
+                wrap.innerHTML = state.availableServers.map(function (s) {
+                    var drivers = (s.currentDrivers != null && s.maxDrivers != null) ? (s.currentDrivers + ' / ' + s.maxDrivers + ' ' + ((COPY.step2 && COPY.step2.drivers) || 'Drivers')) : '';
+                    var selected = s.id === sel ? ' selected' : '';
+                    return '<div class="server-card' + selected + '" data-server-id="' + escapeHtml(s.id) + '" role="button" tabindex="0">' +
+                        '<div class="server-card-name">' + escapeHtml(s.name) + '</div>' +
+                        '<div class="server-card-meta">Track: ' + escapeHtml(s.trackName) + '</div>' +
+                        '<div class="server-card-meta">' + escapeHtml(s.sessionType) + '</div>' +
+                        (drivers ? '<div class="server-card-meta">' + escapeHtml(drivers) + '</div>' : '') +
+                        '</div>';
+                }).join('');
+                wrap.querySelectorAll('.server-card').forEach(function (card) {
+                    card.addEventListener('click', function () {
+                        recordInteraction();
+                        var id = card.getAttribute('data-server-id');
+                        state.selectedServer = state.availableServers.filter(function (s) { return s.id === id; })[0] || null;
+                        if (qs('#server')) qs('#server').value = state.selectedServer ? state.selectedServer.id : '';
+                        qs('#step2-next').disabled = !state.selectedServer;
+                        renderServerCards();
+                        if (state.selectedServer && (!state.selectedServer.cars || state.selectedServer.cars.length === 0)) {
+                            api('/servers/' + encodeURIComponent(state.selectedServer.id)).then(function (detail) {
+                                state.selectedServer.cars = (detail.cars || []).map(function (c) { return { id: c.id, displayName: c.displayName || c.id, thumbnailUrl: c.thumbnailUrl || ('/api/cars/' + encodeURIComponent(c.id) + '/preview') }; });
+                                state.selectedServer.trackId = detail.trackId;
+                                state.selectedServer.trackConfig = detail.trackConfig || 'default';
+                            }).catch(function () {});
+                        }
+                    });
+                });
+            }
+            function renderStep3Multiplayer() {
+                var trackPreview = qs('#step3-track-preview');
+                var trackImg = qs('#step3-track-img');
+                var trackName = qs('#step3-track-name');
+                var carGrid = qs('#step3-car-grid');
+                var s = state.selectedServer;
+                if (!s) return;
+                if (trackPreview && trackName) {
+                    trackName.textContent = s.trackName || '—';
+                    if (s.trackId && trackImg) {
+                        trackImg.src = '/api/tracks/' + encodeURIComponent(s.trackId) + '/layouts/' + encodeURIComponent(s.trackConfig || 'default') + '/preview';
+                        trackImg.onerror = function () { this.style.background = '#1a1a1a'; };
+                        trackPreview.style.display = 'block';
+                    } else {
+                        trackPreview.style.display = 'block';
+                        if (trackImg) trackImg.removeAttribute('src');
+                    }
+                }
+                var cars = s.cars || [];
+                state.availableCars = cars;
+                if (carGrid && cars.length > 0) {
+                    carGrid.innerHTML = cars.map(function (c) {
+                        var id = c.id || c;
+                        var name = (c.displayName || id);
+                        var url = c.thumbnailUrl || ('/api/cars/' + encodeURIComponent(id) + '/preview');
+                        var sel = selectedCar && selectedCar.car_id === id ? ' selected' : '';
+                        return '<div class="grid-item' + sel + '" data-car-id="' + escapeHtml(id) + '" data-car-name="' + escapeHtml(name) + '" role="button" tabindex="0"><img src="' + url + '" alt="" loading="lazy" onerror="this.style.background=\'#222\'"><span class="name">' + escapeHtml(name) + '</span></div>';
+                    }).join('');
+                    carGrid.style.display = 'grid';
+                    carGrid.querySelectorAll('.grid-item').forEach(function (el) {
+                        el.addEventListener('click', function () {
+                            recordInteraction();
+                            selectedCar = { car_id: el.getAttribute('data-car-id'), name: el.getAttribute('data-car-name') };
+                            qs('#car-label').textContent = selectedCar.name || selectedCar.car_id;
+                            carGrid.querySelectorAll('.grid-item').forEach(function (x) { x.classList.remove('selected'); });
+                            el.classList.add('selected');
+                        });
+                    });
+                } else {
+                    carGrid.style.display = 'none';
+                }
+            }
+            function renderPresetCards() {
+                var wrap = qs('#preset-cards');
+                if (!wrap) return;
+                var steeringList = Array.isArray(presets.steering_presets) && presets.steering_presets.length > 0 ? presets.steering_presets : ['Race', 'Kids', 'Drift'];
+                var shiftingList = Array.isArray(presets.shifting_presets) && presets.shifting_presets.length > 0 ? presets.shifting_presets : SHIFTING_PRESET_FALLBACK;
+                wrap.innerHTML = steeringList.map(function (st, i) {
+                    var sh = shiftingList[i % shiftingList.length] || shiftingList[0];
+                    var label = presetDisplayLabel(st) + (sh ? ' / ' + sh : '');
+                    var sel = (qs('#steering-preset').value === st) ? ' selected' : '';
+                    return '<div class="preset-card' + sel + '" data-steering="' + escapeHtml(st) + '" data-shifting="' + escapeHtml(sh) + '" role="button" tabindex="0">' + escapeHtml(label) + '</div>';
+                }).join('');
+                wrap.querySelectorAll('.preset-card').forEach(function (card) {
+                    card.addEventListener('click', function () {
+                        recordInteraction();
+                        var st = card.getAttribute('data-steering');
+                        var sh = card.getAttribute('data-shifting');
+                        if (qs('#steering-preset')) qs('#steering-preset').value = st;
+                        if (qs('#shifting-preset')) qs('#shifting-preset').value = sh;
+                        wrap.querySelectorAll('.preset-card').forEach(function (x) { x.classList.remove('selected'); });
+                        card.classList.add('selected');
+                        qs('#step4-next').disabled = false;
+                    });
+                });
+                if (qs('#step4-next')) qs('#step4-next').disabled = !qs('#steering-preset').value;
+            }
+            function updateLaunchButtonState() {
+                var name = (qs('#driver-name') && qs('#driver-name').value || '').trim();
+                if (qs('#btn-launch')) qs('#btn-launch').disabled = name.length === 0;
+            }
+
+            function getSortedFilteredCars() {
+                var q = (modalCarSearch || '').toLowerCase().trim();
+                var list = q ? catalogs.cars.filter(function (c) {
+                    var name = (c.name || c.car_id || '').toLowerCase();
+                    var id = (c.car_id || '').toLowerCase();
+                    var brand = (c.brand || '').toLowerCase();
+                    var classes = (c.class_ids || []).join(' ').toLowerCase();
+                    return name.indexOf(q) !== -1 || id.indexOf(q) !== -1 || brand.indexOf(q) !== -1 || classes.indexOf(q) !== -1;
+                }) : catalogs.cars.slice();
+                var key = carSort;
+                list.sort(function (a, b) {
+                    if (key === 'name_az') return (a.name || a.car_id || '').localeCompare(b.name || b.car_id || '', undefined, { sensitivity: 'base' });
+                    if (key === 'name_za') return (b.name || b.car_id || '').localeCompare(a.name || a.car_id || '', undefined, { sensitivity: 'base' });
+                    if (key === 'brand_az') return (a.brand || '').localeCompare(b.brand || '', undefined, { sensitivity: 'base' }) || (a.name || a.car_id || '').localeCompare(b.name || b.car_id || '', undefined, { sensitivity: 'base' });
+                    if (key === 'class_az') {
+                        var ca = (a.class_ids && a.class_ids[0]) || (a.tags && a.tags[0]) || '';
+                        var cb = (b.class_ids && b.class_ids[0]) || (b.tags && b.tags[0]) || '';
+                        return ca.localeCompare(cb, undefined, { sensitivity: 'base' }) || (a.name || a.car_id || '').localeCompare(b.name || b.car_id || '', undefined, { sensitivity: 'base' });
+                    }
+                    return 0;
+                });
+                return list;
+            }
+            function getSortedFilteredTracks() {
+                var q = (modalTrackSearch || '').toLowerCase().trim();
+                var list = q ? catalogs.tracks.filter(function (t) {
+                    var name = (t.name || t.track_id || '').toLowerCase();
+                    var id = (t.track_id || '').toLowerCase();
+                    return name.indexOf(q) !== -1 || id.indexOf(q) !== -1;
+                }) : catalogs.tracks.slice();
+                var key = trackSort;
+                list.sort(function (a, b) {
+                    if (key === 'name_az') return (a.name || a.track_id || '').localeCompare(b.name || b.track_id || '', undefined, { sensitivity: 'base' });
+                    if (key === 'name_za') return (b.name || b.track_id || '').localeCompare(a.name || a.track_id || '', undefined, { sensitivity: 'base' });
+                    return 0;
+                });
+                return list;
+            }
+
+            function renderCarGrid() {
+                var list = getSortedFilteredCars();
+                var grid = qs('#modal-car-grid');
+                var curId = selectedCar ? selectedCar.car_id : '';
+                grid.innerHTML = list.map(function (c) {
+                    var name = escapeHtml(formatCarDisplayName(c.car_id, c.name));
+                    var src = '/api/cars/' + encodeURIComponent(c.car_id) + '/preview';
+                    var sel = c.car_id === curId ? ' selected' : '';
+                    return '<div class="grid-item' + sel + '" data-car-id="' + escapeHtml(c.car_id) + '" data-car-name="' + name + '" role="button" tabindex="0"><img src="' + src + '" alt="" loading="lazy" onerror="this.style.background=\'#222\'"><span class="name">' + name + '</span></div>';
+                }).join('') || '<p class="row" style="color:var(--muted);">No cars match</p>';
+                grid.querySelectorAll('.grid-item').forEach(function (el) {
+                    el.addEventListener('click', function () {
+                        selectedCar = { car_id: el.getAttribute('data-car-id'), name: el.getAttribute('data-car-name') };
+                        qs('#car-label').textContent = selectedCar.name || selectedCar.car_id;
+                        qs('#modal-car').classList.remove('open');
+                    });
+                });
+            }
+            function renderTrackGrid() {
+                var list = getSortedFilteredTracks();
+                var grid = qs('#modal-track-grid');
+                var curId = selectedTrack ? selectedTrack.track_id : '';
+                grid.innerHTML = list.map(function (t) {
+                    var name = escapeHtml(t.name || formatTrackName(t.track_id));
+                    var layoutId = (t.layouts && t.layouts[0] && t.layouts[0].layout_id) ? t.layouts[0].layout_id : 'default';
+                    var src = '/api/tracks/' + encodeURIComponent(t.track_id) + '/layouts/' + encodeURIComponent(layoutId) + '/preview';
+                    var sel = t.track_id === curId ? ' selected' : '';
+                    return '<div class="grid-item' + sel + '" data-track-id="' + escapeHtml(t.track_id) + '" data-track-name="' + name + '" role="button" tabindex="0"><img src="' + src + '" alt="" loading="lazy" onerror="this.style.background=\'#222\'"><span class="name">' + name + '</span></div>';
+                }).join('') || '<p class="row" style="color:var(--muted);">No tracks match</p>';
+                grid.querySelectorAll('.grid-item').forEach(function (el) {
+                    el.addEventListener('click', function () {
+                        var trackId = el.getAttribute('data-track-id');
+                        var trackName = el.getAttribute('data-track-name') || trackId;
+                        var t = catalogs.tracks.find(function (x) { return x.track_id === trackId; });
+                        selectedTrack = { track_id: trackId, name: trackName, layouts: (t && t.layouts) ? t.layouts : [] };
+                        qs('#track-label').textContent = selectedTrack.name || formatTrackName(selectedTrack.track_id);
+                        var layoutSel = qs('#layout');
+                        layoutSel.innerHTML = '<option value="default">Default</option>';
+                        if (selectedTrack.layouts && selectedTrack.layouts.length) {
+                            layoutSel.innerHTML = selectedTrack.layouts.map(function (l) {
+                                return '<option value="' + escapeHtml(l.layout_id) + '">' + escapeHtml(l.name || formatLayoutName(l.layout_id)) + '</option>';
+                            }).join('');
+                        }
+                        qs('#modal-track').classList.remove('open');
+                    });
+                });
+            }
+
+            function fillSelects() {
+                if (qs('#car-label')) qs('#car-label').textContent = selectedCar ? (selectedCar.name || selectedCar.car_id) : '—';
+                if (qs('#track-label')) qs('#track-label').textContent = selectedTrack ? (selectedTrack.name || formatTrackName(selectedTrack.track_id)) : '—';
+                var layoutSel = qs('#layout');
+                if (selectedTrack && selectedTrack.layouts && selectedTrack.layouts.length) {
+                    var curLayout = layoutSel.value || 'default';
+                    layoutSel.innerHTML = selectedTrack.layouts.map(function (l) {
+                        return '<option value="' + escapeHtml(l.layout_id) + '">' + escapeHtml(l.name || formatLayoutName(l.layout_id)) + '</option>';
+                    }).join('');
+                    if (curLayout && [].slice.call(layoutSel.options).some(function (o) { return o.value === curLayout; })) layoutSel.value = curLayout;
+                } else {
+                    layoutSel.innerHTML = '<option value="default">Default</option>';
+                }
+
+                var steeringSel = qs('#steering-preset');
+                var steeringList = Array.isArray(presets.steering_presets) && presets.steering_presets.length > 0
+                    ? presets.steering_presets.map(function (name) { return { v: name, label: presetDisplayLabel(name) }; })
+                    : [];
+                steeringSel.innerHTML = steeringList.length > 0
+                    ? steeringList.map(function (o) { return '<option value="' + escapeHtml(o.v) + '">' + escapeHtml(o.label) + '</option>'; }).join('')
+                    : '<option value="">— No preset —</option>';
+                if (steeringList.length && (!steeringSel.value || !steeringList.some(function (o) { return o.v === steeringSel.value; }))) steeringSel.selectedIndex = 0;
+
+                var shiftingSel = qs('#shifting-preset');
+                var shiftingList = Array.isArray(presets.shifting_presets) && presets.shifting_presets.length > 0
+                    ? presets.shifting_presets
+                    : SHIFTING_PRESET_FALLBACK.slice();
+                shiftingSel.innerHTML = shiftingList.map(function (n) {
+                    return '<option value="' + escapeHtml(n) + '">' + escapeHtml(n) + '</option>';
+                }).join('');
+                if (shiftingList.length && (!shiftingSel.value || shiftingList.indexOf(shiftingSel.value) === -1)) shiftingSel.value = shiftingList[0];
+
+                var assistSel = qs('#assists');
+                if (assistSel) assistSel.innerHTML = catalogs.assists.map(function (a) {
+                    return '<option value="' + escapeHtml(a.assist_preset_id) + '">' + escapeHtml(a.name || a.assist_preset_id) + '</option>';
+                }).join('') || '<option value="race">Race</option>';
+                var serverInput = qs('#server');
+                if (serverInput && serverInput.tagName === 'INPUT') { /* server is set by server cards in multiplayer */ }
+                else if (serverInput && serverInput.tagName === 'SELECT') {
+                    serverInput.innerHTML = catalogs.servers.map(function (s) {
+                        return '<option value="' + escapeHtml(s.server_id) + '">' + escapeHtml(s.name || s.server_id) + '</option>';
+                    }).join('') || '<option value="">—</option>';
+                }
+            }
+
+            /** Same as agent/admin: display label for steering preset (strip leading digits). */
+            function presetDisplayLabel(raw) {
+                if (raw == null || (typeof raw === 'string' && !raw.trim())) return '';
+                var s = String(raw).trim();
+                var without = s.replace(/^\d+\s+/, '').trim();
+                return without || s;
+            }
+
+            /** Same fallback list as agent/admin when sim has no shifting_presets. */
+            var SHIFTING_PRESET_FALLBACK = ['H-Pattern', 'Sequential', 'Automatic', 'H-Pattern No Assist', 'Sequential No Assist', 'Drifting'];
+
+            function escapeHtml(s) {
+                if (s == null) return '';
+                var div = document.createElement('div');
+                div.textContent = s;
+                return div.innerHTML;
+            }
+
+            qs('#btn-pick-car').addEventListener('click', function () {
+                modalCarSearch = '';
+                carSort = qs('#modal-car-sort').value || 'name_az';
+                qs('#modal-car-search').value = '';
+                renderCarGrid();
+                qs('#modal-car').classList.add('open');
+            });
+            qs('#modal-car-close').addEventListener('click', function () { qs('#modal-car').classList.remove('open'); });
+            qs('#modal-car-search').addEventListener('input', function () {
+                modalCarSearch = (qs('#modal-car-search').value || '').trim();
+                renderCarGrid();
+            });
+            qs('#modal-car-sort').addEventListener('change', function () {
+                carSort = qs('#modal-car-sort').value || 'name_az';
+                renderCarGrid();
+            });
+
+            var btnTrack = qs('#btn-pick-track');
+            if (btnTrack) btnTrack.addEventListener('click', function () {
+                modalTrackSearch = '';
+                trackSort = qs('#modal-track-sort').value || 'name_az';
+                qs('#modal-track-search').value = '';
+                renderTrackGrid();
+                qs('#modal-track').classList.add('open');
+            });
+            if (qs('#modal-track-close')) qs('#modal-track-close').addEventListener('click', function () { qs('#modal-track').classList.remove('open'); });
+            qs('#modal-track-search').addEventListener('input', function () {
+                modalTrackSearch = (qs('#modal-track-search').value || '').trim();
+                renderTrackGrid();
+            });
+            qs('#modal-track-sort').addEventListener('change', function () {
+                trackSort = qs('#modal-track-sort').value || 'name_az';
+                renderTrackGrid();
+            });
+
+            qs('#modal-car').addEventListener('click', function (e) { if (e.target === qs('#modal-car')) qs('#modal-car').classList.remove('open'); });
+            qs('#modal-track').addEventListener('click', function (e) { if (e.target === qs('#modal-track')) qs('#modal-track').classList.remove('open'); });
+
+            qsAll('.mode-btn').forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    var mode = btn.getAttribute('data-mode');
+                    selectedMode = mode;
+                    qs('#mode').value = mode;
+                    qsAll('.mode-btn').forEach(function (b) { b.classList.remove('selected'); });
+                    btn.classList.add('selected');
+                    qs('#step1-next').disabled = false;
+                });
+            });
+
+            qs('#step1-next').addEventListener('click', function () {
+                if (selectedMode === 'online') goToStep(2);
+                else {
+                    var cOpts = qs('#create-server-options');
+                    if (cOpts) cOpts.style.display = (selectedMode === 'createserver') ? 'block' : 'none';
+                    goToStep(3);
+                }
+            });
+            qs('#step2-back').addEventListener('click', prevStep);
+            qs('#step2-next').addEventListener('click', nextStep);
+            qs('#step3-back').addEventListener('click', prevStep);
+            qs('#step3-next').addEventListener('click', nextStep);
+            qs('#step4-back').addEventListener('click', prevStep);
+            qs('#step4-next').addEventListener('click', nextStep);
+            qs('#step5-back').addEventListener('click', prevStep);
+
+            function buildEnvelope(action) {
+                var modeKind = qs('#mode').value;
+                var submode = modeKind === 'online' ? 'join' : (qs('#submode').value || 'practice');
+                var steeringVal = (qs('#steering-preset') && qs('#steering-preset').value || '').trim();
+                var shiftingVal = (qs('#shifting-preset') && qs('#shifting-preset').value || '').trim();
+                var driverName = (qs('#driver-name') && qs('#driver-name').value || '').trim();
+                var carId = selectedCar ? selectedCar.car_id : '';
+                var trackId, layoutId, displayTitle;
+                if (modeKind === 'online' && state.selectedServer) {
+                    trackId = state.selectedServer.trackId || '';
+                    layoutId = state.selectedServer.trackConfig || 'default';
+                    displayTitle = state.selectedServer.trackName || state.selectedServer.name || 'Session';
+                } else {
+                    trackId = selectedTrack ? selectedTrack.track_id : '';
+                    layoutId = (qs('#layout') && qs('#layout').value || '').trim() || 'default';
+                    displayTitle = selectedTrack ? (selectedTrack.name || trackId) : 'Session';
+                }
+                var sel = {
+                    mode: { kind: modeKind, submode: submode },
+                    server: modeKind === 'online' ? { server_id: (qs('#server') && qs('#server').value) || (state.selectedServer && state.selectedServer.id), address_override: null } : undefined,
+                    car: { car_id: carId, skin_id: 'default' },
+                    track: { track_id: trackId, layout_id: layoutId },
+                    assists: { preset_id: (qs('#assists') && qs('#assists').value) || 'race', overrides: null },
+                    rules: { force_manual_shifting: false, limit_speed_kph: null },
+                    notes: { display_title: displayTitle, ui_tags: modeKind === 'online' ? ['Online'] : [] }
+                };
+                if (steeringVal) sel.steering_preset = steeringVal;
+                if (shiftingVal) sel.shifting_preset = shiftingVal;
+                if (driverName) sel.driver_name = driverName;
+                return {
+                    schema_version: 1,
+                    request_id: Date.now().toString(36) + Math.random().toString(36).slice(2),
+                    timestamp_utc: new Date().toISOString(),
+                    source: { type: 'kiosk', session_id: sessionId },
+                    target: { agent_id: agentId },
+                    intent: { action: action },
+                    selection: sel
+                };
+            }
+
+            function setStatus(status, text) {
+                var box = qs('#status-box');
+                box.style.display = 'block';
+                box.className = 'status ' + (status || '');
+                box.textContent = text || status || '';
+            }
+
+            function sendCommand(action) {
+                if (!sessionId || !agentId) return;
+
+                if (qs('#mode').value === 'createserver' && action === 'apply_and_launch') {
+                    setStatus('configuring', 'Creating server…');
+                    qs('#btn-launch').disabled = true;
+                    
+                    var carId = selectedCar ? selectedCar.car_id : '';
+                    var trackId = selectedTrack ? selectedTrack.track_id : '';
+                    var players = parseInt(qs('#create-players') ? qs('#create-players').value : 6, 10) || 6;
+                    
+                    api('/server/create', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ track: trackId, car: carId, players: players, host_rig_id: agentId })
+                    }).then(function (srv) {
+                        if (!srv.ok) throw new Error("Failed to create server");
+                        // We successfully got a server slot
+                        qs('#mode').value = 'online';
+                        state.selectedServer = {
+                            id: 'pool_' + srv.server_number,
+                            name: srv.server_name,
+                            trackId: trackId,
+                            trackName: (selectedTrack ? selectedTrack.name : trackId)
+                        };
+                        var envelope = buildEnvelope(action);
+                        envelope.selection.server = {
+                            server_id: 'pool_' + srv.server_number,
+                            join_addr: srv.ip + ':' + srv.tcp_port,
+                            address_override: { host: srv.ip, port: srv.tcp_port },
+                            server_cfg_snapshot: srv.server_cfg_snapshot,
+                            preset_name: "PoolServer"
+                        };
+                        
+                        _sendEnvelope(envelope);
+                    }).catch(function (err) {
+                        setStatus('error', err.message || 'Could not create server.');
+                        qs('#btn-launch').disabled = false;
+                    });
+                    return;
+                }
+
+                var envelope = buildEnvelope(action);
+                _sendEnvelope(envelope);
+            }
+
+            function _sendEnvelope(envelope) {
+                console.log("Launch envelope:", envelope);
+                setStatus('configuring', 'Sending to sim…');
+                qs('#btn-launch').disabled = true;
+                api('/kiosk/command', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(envelope)
+                }).then(function (res) {
+                    var st = (res.status || 'idle');
+                    var msg = st.charAt(0).toUpperCase() + st.slice(1);
+                    if (res.errors && res.errors.length) {
+                        setStatus('error', (res.errors.map(function (e) { return e.message || e.code; }).join('; ')));
+                    } else {
+                        var launchCopy = COPY.launching || {};
+                        setStatus(st, (st === 'launching' || st === 'running') ? (launchCopy.subtext || 'Please wait…') : msg);
+                    }
+                    qs('#btn-launch').disabled = false;
+                }).catch(function (err) {
+                    setStatus('error', err.message || 'Could not reach controller. Check connection.');
+                    qs('#btn-launch').disabled = false;
+                });
+            }
+
+            qs('#btn-launch').addEventListener('click', function () {
+                qs('#btn-launch').disabled = true;
+                sendCommand('apply_and_launch');
+            });
+
+            function pollStatus() {
+                if (!agentId) return;
+                api('/sims/' + encodeURIComponent(agentId) + '/kiosk-display').then(function (data) {
+                    if (data.status && data.status !== 'idle') {
+                        var box = qs('#status-box');
+                        box.style.display = 'block';
+                        box.className = 'status ' + data.status;
+                        box.textContent = (data.status.charAt(0).toUpperCase() + data.status.slice(1)) + (data.selection && data.selection.car_id ? ' · ' + (formatCarDisplayName(data.selection.car_id, data.selection.car_name) || data.selection.car_id) : '');
+                        if (data.errors && data.errors.length) {
+                            box.classList.add('error');
+                            box.textContent = 'Error: ' + data.errors.map(function (e) { return e.message || e.code; }).join('; ');
+                        }
+                    }
+                }).catch(function () {});
+            }
+            setInterval(pollStatus, 2500);
+        })();
+    </script>
+</body>
+</html>
