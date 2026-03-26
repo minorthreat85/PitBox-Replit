@@ -188,105 +188,14 @@
         <!-- Page: Bookings (native admin) -->
 
         <!-- Page: Bookings (unified admin — List / Schedule / Check-In / Analytics) -->
-        <div id="page-bookings" class="content-page hidden" data-page="bookings" data-ba-active-sub="list">
-            <div class="page-header">
-                <h1 class="page-title">BOOKINGS</h1>
-                <p class="page-subtitle" id="ba-sub-subtitle">Admin booking management — list, edit, assign simulators</p>
-            </div>
-
-            <!-- Sub-tab nav -->
-            <div class="ba-sub-nav">
-                <button type="button" class="ba-sub-tab active" data-ba-sub="list">List</button>
-                <button type="button" class="ba-sub-tab" data-ba-sub="schedule">Schedule</button>
-                <button type="button" class="ba-sub-tab" data-ba-sub="checkin">Check-In</button>
-                <button type="button" class="ba-sub-tab" data-ba-sub="analytics">Analytics</button>
-            </div>
-
-            <!-- Sub-panel: List -->
-            <div id="ba-panel-list" class="ba-sub-panel">
-                <div class="ba-glass-card">
-                    <div class="ba-toolbar">
-                        <div class="ba-field">
-                            <div class="ba-label">Status</div>
-                            <select id="ba-filter-status" class="ba-select" aria-label="Filter by status">
-                                <option value="">All</option>
-                                <option value="pending_deposit">Pending Deposit</option>
-                                <option value="confirmed">Confirmed</option>
-                                <option value="checked_in">Checked In</option>
-                                <option value="completed">Completed</option>
-                                <option value="cancelled">Cancelled</option>
-                                <option value="no_show">No Show</option>
-                            </select>
-                        </div>
-                        <div class="ba-field">
-                            <div class="ba-label">Date</div>
-                            <input type="date" id="ba-filter-date" class="ba-input" aria-label="Filter by date">
-                        </div>
-                        <div class="ba-btn-row" style="margin-left:auto;">
-                            <button type="button" id="ba-walkin-open" class="btn-primary">Walk-In</button>
-                            <button type="button" id="ba-bookings-refresh" class="btn-secondary">Refresh</button>
-                        </div>
-                    </div>
-                    <div id="ba-bookings-error" class="ba-inline-error" role="alert"></div>
-                    <div class="ba-table-wrap">
-                        <table class="ba-table" id="ba-bookings-table" aria-label="Bookings table">
-                            <thead>
-                                <tr>
-                                    <th>Confirmation #</th>
-                                    <th>Customer</th>
-                                    <th>Date</th>
-                                    <th>Time</th>
-                                    <th>Duration</th>
-                                    <th>Racers</th>
-                                    <th>Status</th>
-                                    <th>Deposit</th>
-                                </tr>
-                            </thead>
-                            <tbody id="ba-bookings-tbody"></tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Sub-panel: Schedule -->
-            <div id="ba-panel-schedule" class="ba-sub-panel hidden">
-                <div class="ba-glass-card">
-                    <div class="ba-toolbar" style="justify-content: space-between;">
-                        <div class="ba-btn-row">
-                            <button type="button" id="ba-schedule-prev" class="btn-secondary">Prev</button>
-                            <div class="ba-field" style="min-width: 210px;">
-                                <div class="ba-label">Date</div>
-                                <input type="date" id="ba-schedule-date" class="ba-input" aria-label="Schedule date">
-                            </div>
-                            <button type="button" id="ba-schedule-next" class="btn-secondary">Next</button>
-                        </div>
-                    </div>
-                    <div id="ba-schedule-error" class="ba-inline-error" role="alert"></div>
-                    <div id="ba-schedule-container"></div>
-                </div>
-            </div>
-
-            <!-- Sub-panel: Check-In -->
-            <div id="ba-panel-checkin" class="ba-sub-panel hidden">
-                <div class="ba-glass-card">
-                    <div id="ba-checkin-error" class="ba-inline-error" role="alert"></div>
-                    <div id="ba-checkin-list" class="ba-card-grid"></div>
-                </div>
-            </div>
-
-            <!-- Sub-panel: Analytics -->
-            <div id="ba-panel-analytics" class="ba-sub-panel hidden">
-                <div class="ba-glass-card">
-                    <div id="ba-analytics-error" class="ba-inline-error" role="alert"></div>
-                    <div id="ba-analytics-container">
-                        <div id="ba-analytics-kpis" class="ba-analytics-kpis"></div>
-                        <div class="ba-analytics-grid">
-                            <div id="ba-analytics-bars"></div>
-                            <div id="ba-analytics-status"></div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+        <!-- Page: Bookings (embedded external admin) -->
+        <div id="page-bookings" class="content-page hidden" data-page="bookings" style="padding:0;display:flex;flex-direction:column;">
+            <iframe
+                id="ba-iframe"
+                src="https://booking.myfastestlap.com/admin/bookings"
+                title="Bookings Admin"
+                style="flex:1;width:100%;border:none;min-height:calc(100vh - 56px);"
+            ></iframe>
         </div>
         <!-- Page: System Logs (event log with filters and expandable details) -->
         <div id="page-system-logs" class="content-page hidden" data-page="system-logs">

@@ -383,11 +383,7 @@
     } else {
       if (window._logsPollTimer) { clearInterval(window._logsPollTimer); window._logsPollTimer = null; }
     }
-    if (pageId === 'bookings') {
-      initBookingSubTabs();
-      var activeSub = (document.getElementById('page-bookings') || {}).getAttribute && document.getElementById('page-bookings').getAttribute('data-ba-active-sub') || 'list';
-      loadBookingSubPanel(activeSub);
-    }
+    if (pageId === 'bookings') { /* embedded iframe — no data load needed */ }
     if (pageId !== 'server-config' && sessionsRevisionPollTimer) {
       clearInterval(sessionsRevisionPollTimer);
       sessionsRevisionPollTimer = null;
