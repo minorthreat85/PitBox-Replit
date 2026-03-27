@@ -1,8 +1,7 @@
 """
 Operator authentication for dangerous controller API routes.
 
-Uses the same session cookie as Employee Control (/employee/login). When employee_password
-is unset, only loopback clients may call operator-protected routes (local automation).
+When employee_password is unset, all LAN clients are allowed (open access).
 When employee_password is set, a valid session cookie is required from every client.
 """
 from __future__ import annotations
@@ -58,19 +57,14 @@ def is_localhost_request(request: Request) -> bool:
 
 async def require_operator(request: Request) -> None:
     """
-    Block unauthenticated remote clients from operator APIs.
+    Gate operator APIs.
 
-    - No employee_password: allow localhost only; LAN gets 403.
-    - employee_password set: require pitbox_employee session cookie (all clients).
+    - No employee_password: allow all clients (open LAN access — no login required).
+    - employee_password set: require pitbox_employee session cookie from every client.
     """
     pw = get_employee_password_optional()
     if pw is None:
-        if is_localhost_request(request):
-            return
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=MSG_OPERATOR_REMOTE_DISABLED,
-        )
+        return  # No password configured — open to all LAN clients
     if request.cookies.get(EMPLOYEE_COOKIE) != "1":
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
