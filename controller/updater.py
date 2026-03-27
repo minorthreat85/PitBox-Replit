@@ -605,6 +605,7 @@ def run_unified_installer_update() -> tuple[bool, str]:
                 "update_pitbox.ps1 at C:\\PitBox\\tools\\update_pitbox.ps1."
             )
 
+    # Try 1: scheduled task as the logged-in desktop user (needed when controller is a Windows service)
     try:
         import psutil
         logged_in_user = None
@@ -612,28 +613,47 @@ def run_unified_installer_update() -> tuple[bool, str]:
             if u.name and u.name.lower() != "system":
                 logged_in_user = u.name
                 break
-        if not logged_in_user:
-            return False, "Could not determine logged-in user to show interactive prompt."
+    except Exception:
+        logged_in_user = None
 
-        logger.info("Using fallback update script: %s", script)
+    if logged_in_user and os.name == "nt":
+        logger.info("Using scheduled task to run update script as user: %s", logged_in_user)
         task_name = "PitBox Interactive Updater"
         ps_script = f"""
 $ErrorActionPreference = 'Stop'
 Unregister-ScheduledTask -TaskName '{task_name}' -Confirm:$false -ErrorAction SilentlyContinue
-$Action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument '-WindowStyle Hidden -ExecutionPolicy Bypass -File "{script}" -Force'
+$Action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument '-WindowStyle Normal -ExecutionPolicy Bypass -File "{script}" -Force'
 $Principal = New-ScheduledTaskPrincipal -UserId "{logged_in_user}" -LogonType Interactive -RunLevel Highest
 Register-ScheduledTask -TaskName '{task_name}' -Action $Action -Principal $Principal -Force | Out-Null
 Start-ScheduledTask -TaskName '{task_name}'
 """
-        create_res = subprocess.run(
-            ["powershell.exe", "-ExecutionPolicy", "Bypass", "-Command", ps_script],
-            capture_output=True, text=True,
-        )
-        if create_res.returncode != 0:
-            logger.error("Failed to create/run update task. stdout: %s, stderr: %s", create_res.stdout, create_res.stderr)
-            return False, f"Failed to run interactive update task: {create_res.stderr.strip() or create_res.stdout.strip()}"
-    except Exception as e:
-        logger.exception("Failed to start PowerShell update script: %s", e)
-        return False, f"Failed to start update: {e}"
+        try:
+            create_res = subprocess.run(
+                ["powershell.exe", "-ExecutionPolicy", "Bypass", "-Command", ps_script],
+                capture_output=True, text=True, timeout=30,
+            )
+            if create_res.returncode == 0:
+                logger.info("Scheduled task started for user %s", logged_in_user)
+                return True, "Update script started — a PowerShell window will appear on your desktop."
+            logger.warning("Scheduled task failed (%s); falling back to direct spawn", create_res.stderr.strip())
+        except Exception as e:
+            logger.warning("Scheduled task exception (%s); falling back to direct spawn", e)
 
-    return True, "Update script started (check your desktop for the PowerShell window)"
+    # Try 2: direct spawn (works when controller is running as an interactive process, not a service)
+    logger.info("Attempting direct spawn of update script: %s", script)
+    try:
+        creationflags = 0
+        if os.name == "nt":
+            creationflags = 0x00000010 | 0x00000200  # CREATE_NEW_CONSOLE | CREATE_NEW_PROCESS_GROUP
+        subprocess.Popen(
+            ["powershell.exe", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Normal", "-File", str(script), "-Force"],
+            cwd=str(script.parent),
+            creationflags=creationflags,
+            stdin=subprocess.DEVNULL,
+        )
+        return True, "Update script started — a PowerShell window will appear."
+    except FileNotFoundError:
+        return False, "powershell.exe not found. Run the update manually: open a PowerShell window and run C:\\PitBox\\tools\\update_pitbox.ps1 -Force"
+    except Exception as e:
+        logger.exception("Failed to start update script directly: %s", e)
+        return False, f"Failed to start update: {e}"
