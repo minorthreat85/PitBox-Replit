@@ -41,6 +41,18 @@ Config file at: `/home/runner/workspace/.config/PitBox/Controller/controller_con
 - `ui/` — UI source assets (branding)
 - `tools/` — Utilities and installer scripts
 
+## GitHub Sync & Local Rebuild Workflow
+
+After every session where code changes are made:
+1. Push changed files to GitHub (`minorthreat85/PitBox-Replit`) via the GitHub REST API using `GITHUB_PERSONAL_ACCESS_TOKEN_PITBOX_REPLIT`.
+2. Skip `examples/controller_config.json` (contains secrets, flagged by GitHub's secret scanner).
+3. The user then pulls on their local Windows machine (`C:\Users\info\pitbox\`) and runs:
+   ```
+   build_release.ps1 -Dev
+   ```
+
+**This push-and-rebuild step is always required after code changes.**
+
 ## Dependencies
 
 Installed via pip:
