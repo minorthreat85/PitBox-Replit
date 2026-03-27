@@ -334,29 +334,28 @@ begin
     Log('Task may not have existed (exit ' + IntToStr(ResultCode) + ')');
 end;
 
-// Add firewall rule for Agent
+// Add firewall rules for Agent (TCP API + UDP enrollment broadcast)
 procedure AddAgentFirewallRule();
 var
   ResultCode: Integer;
 begin
-  Log('Adding firewall rule for Agent (ports 9631-9638)');
-  
-  // Check if rule already exists
-  Exec('netsh.exe', 'advfirewall firewall show rule name="PitBox Agent"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-  
-  if ResultCode <> 0 then
-  begin
-    Exec('netsh.exe', 'advfirewall firewall add rule name="PitBox Agent" dir=in action=allow protocol=TCP localport=9631-9638 description="Fastest Lap PitBox Agent API"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-    
-    if ResultCode = 0 then
-      Log('Firewall rule added successfully')
-    else
-      Log('Failed to add firewall rule (non-fatal)');
-  end
+  Log('Adding firewall rules for Agent (TCP 9631-9638 + UDP 9640 enrollment)');
+
+  // TCP rule for agent API (controller polls agent)
+  Exec('netsh.exe', 'advfirewall firewall delete rule name="PitBox Agent"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Exec('netsh.exe', 'advfirewall firewall add rule name="PitBox Agent" dir=in action=allow protocol=TCP localport=9631-9638 description="Fastest Lap PitBox Agent API"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  if ResultCode = 0 then
+    Log('TCP firewall rule added successfully')
   else
-  begin
-    Log('Firewall rule already exists');
-  end;
+    Log('Failed to add TCP firewall rule (non-fatal)');
+
+  // UDP rule for enrollment broadcast (controller sends UDP 9640 to sim PCs for auto-pair)
+  Exec('netsh.exe', 'advfirewall firewall delete rule name="PitBox Agent Enrollment"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Exec('netsh.exe', 'advfirewall firewall add rule name="PitBox Agent Enrollment" dir=in action=allow protocol=UDP localport=9640 description="Fastest Lap PitBox Agent enrollment broadcast"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  if ResultCode = 0 then
+    Log('UDP enrollment firewall rule added successfully')
+  else
+    Log('Failed to add UDP enrollment firewall rule (non-fatal)');
 end;
 
 // Remove firewall rule for Agent

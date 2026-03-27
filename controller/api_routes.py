@@ -2033,7 +2033,7 @@ class AddAgentBody(BaseModel):
 
 @router.post("/config/agents")
 async def add_agent_to_config(body: AddAgentBody, _: None = Depends(require_operator)):
-    """Add an agent to controller_config.json (enrollment/pairing). Does not modify any agent_config.json."""
+    """Add or update an agent (upsert). Writes to enrolled_rigs.json (sim card store) and controller_config.json."""
     path = get_config_path()
     if not path:
         raise HTTPException(
@@ -2041,13 +2041,24 @@ async def add_agent_to_config(body: AddAgentBody, _: None = Depends(require_oper
             detail="No controller config file loaded; create or open controller_config.json first",
         )
     config = get_config()
-    if any(a.id == body.id for a in config.agents):
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"Agent '{body.id}' already exists in config",
-        )
-    new_agent = AgentInfo(id=body.id, host=body.host, port=body.port, token=body.token)
-    new_agents = list(config.agents) + [new_agent]
+    existing_in_config = any(a.id == body.id for a in config.agents)
+    updated = existing_in_config
+
+    # Always upsert into enrolled_rigs.json (the live sim-card store)
+    enrolled_add(body.id, body.host, body.port, hostname=None)
+
+    # Sync controller_config.json: update existing entry or append new one
+    if existing_in_config:
+        new_agents = [
+            AgentInfo(id=a.id, host=body.host if a.id == body.id else a.host,
+                      port=body.port if a.id == body.id else a.port,
+                      token=body.token if a.id == body.id else a.token)
+            for a in config.agents
+        ]
+    else:
+        new_agent = AgentInfo(id=body.id, host=body.host, port=body.port, token=body.token)
+        new_agents = list(config.agents) + [new_agent]
+
     new_config = ControllerConfig(
         ui_host=config.ui_host,
         ui_port=config.ui_port,
@@ -2067,7 +2078,7 @@ async def add_agent_to_config(body: AddAgentBody, _: None = Depends(require_oper
         update_channel=config.update_channel,
     )
     save_config(Path(path), new_config)
-    return {"ok": True, "agent_id": body.id}
+    return {"ok": True, "agent_id": body.id, "updated": updated}
 
 
 class ConfigPutBody(BaseModel):
