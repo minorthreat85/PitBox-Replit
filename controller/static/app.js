@@ -3691,7 +3691,7 @@
 
       btn.disabled = true;
       if (progressWrap) progressWrap.classList.remove('hidden');
-      if (progressMsg) progressMsg.textContent = hasUnified ? 'Launching installer…' : 'Starting updater…';
+      if (progressMsg) progressMsg.textContent = 'Starting download…';
       if (progressPct) progressPct.textContent = '';
 
       pitboxFetch(url, {
@@ -3701,19 +3701,13 @@
       })
         .then(function (r) { return r.json().then(function (res) { if (!r.ok) throw new Error(res.detail || res.message || r.statusText); return res; }); })
         .then(function () {
-          if (typeof showToast === 'function') showToast(hasUnified ? 'Installer started' : 'Updater started', 'success');
-          if (hasUnified) {
-            if (progressMsg) progressMsg.textContent = 'Installer started. Please check for a UAC prompt and follow the installer windows.';
-            btn.disabled = true;
-            btn.textContent = 'Installer running...';
-            // Do not open the release URL here; the background script is handling the download.
-          } else {
-            startUpdateProgressPolling(progressWrap, progressMsg, progressPct, btn);
-          }
+          if (typeof showToast === 'function') showToast('Downloading update…', 'success');
+          btn.disabled = true;
+          btn.textContent = 'Updating…';
+          startUpdateProgressPolling(progressWrap, progressMsg, progressPct, btn);
         })
         .catch(function (err) {
           if (typeof showToast === 'function') showToast('Update failed: ' + (err.message || err), 'error');
-          if (releaseUrl && typeof window.open === 'function') window.open(releaseUrl, '_blank', 'noopener,noreferrer');
           btn.disabled = false;
           btn.textContent = 'Download update & restart';
           if (progressWrap) progressWrap.classList.add('hidden');
@@ -3721,12 +3715,16 @@
     });
   }
   function startUpdateProgressPolling(progressWrap, progressMsg, progressPct, btn) {
-    var pollMs = 1000;
-    var maxMs = 120000;
+    var pollMs = 1500;
+    var maxMs = 600000;
     var start = Date.now();
+    var wasDown = false;
+    var downSince = 0;
     function poll() {
       if (Date.now() - start > maxMs) {
-        if (progressMsg) progressMsg.textContent = 'Stopped polling after 2 minutes.';
+        if (progressMsg) progressMsg.textContent = 'Update timed out after 10 minutes.';
+        if (btn) { btn.disabled = false; btn.textContent = 'Download update & restart'; }
+        if (progressWrap) progressWrap.classList.add('hidden');
         return;
       }
       pitboxFetch(API_BASE + '/update/status')
@@ -3735,11 +3733,22 @@
           var state = data.state || 'idle';
           var message = data.message || '';
           var percent = data.percent != null ? data.percent : 0;
+
+          if (wasDown) {
+            wasDown = false;
+            downSince = 0;
+            if (progressMsg) progressMsg.textContent = 'PitBox restarted — reloading…';
+            if (progressPct) progressPct.textContent = '';
+            setTimeout(function () { window.location.reload(); }, 1200);
+            return;
+          }
+
           if (progressMsg) progressMsg.textContent = message || state;
           if (progressPct) progressPct.textContent = percent > 0 ? percent + '%' : '';
+
           if (state === 'done') {
-            if (progressMsg) progressMsg.textContent = 'Updated — reloading…';
-            setTimeout(function () { window.location.reload(); }, 1000);
+            if (progressMsg) progressMsg.textContent = 'Install complete — reloading…';
+            setTimeout(function () { window.location.reload(); }, 1500);
             return;
           }
           if (state === 'error') {
@@ -3751,6 +3760,12 @@
           setTimeout(poll, pollMs);
         })
         .catch(function () {
+          if (!wasDown) {
+            wasDown = true;
+            downSince = Date.now();
+            if (progressMsg) progressMsg.textContent = 'Installing… PitBox will restart shortly.';
+            if (progressPct) progressPct.textContent = '';
+          }
           setTimeout(poll, pollMs);
         });
     }

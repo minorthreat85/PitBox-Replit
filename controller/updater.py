@@ -2,12 +2,16 @@
 PitBox Controller updater: GitHub Releases API, semver comparison, external updater spawn.
 Controller never updates itself; POST /api/update/apply spawns pitbox_updater.exe (detached).
 """
+import hashlib
 import json
 import logging
 import os
 import re
+import shutil
 import subprocess
 import sys
+import tempfile
+import threading
 import time
 from pathlib import Path
 from typing import Any, Optional
@@ -27,6 +31,99 @@ DEFAULT_UPDATER_EXE = Path(r"C:\PitBox\updater\pitbox_updater.exe")
 DEFAULT_PITBOX_UPDATER_EXE = Path(r"C:\PitBox\updater\PitBoxUpdater.exe")
 DEFAULT_INSTALL_DIR = Path(r"C:\PitBox\Controller")
 DEFAULT_WORK_DIR = Path(r"C:\PitBox\updates")
+
+# ---------------------------------------------------------------------------
+# In-process install state (for silent Inno installer download + run)
+# ---------------------------------------------------------------------------
+_INSTALL_LOCK = threading.Lock()
+_INSTALL_STATE: dict[str, Any] = {"state": "idle", "message": "", "percent": 0}
+
+
+def _set_install_state(state: str, message: str, percent: int = 0) -> None:
+    with _INSTALL_LOCK:
+        _INSTALL_STATE["state"] = state
+        _INSTALL_STATE["message"] = message
+        _INSTALL_STATE["percent"] = percent
+    logger.info("Install state: %s — %s (%d%%)", state, message, percent)
+
+
+def _download_and_install(asset_url: str, expected_sha256: str, installer_filename: str) -> None:
+    """
+    Background thread: download Inno installer EXE, verify SHA-256, run silently.
+    Writes progress to _INSTALL_STATE so the /api/update/status polling reflects reality.
+    """
+    tmp_dir = Path(tempfile.mkdtemp(prefix="pitbox_upd_"))
+    installer_path = tmp_dir / installer_filename
+    try:
+        channel = get_update_channel_config()
+        token = (channel.get("github_token") or "").strip() or None
+
+        headers: dict[str, str] = {"Accept": "application/octet-stream", "User-Agent": "PitBox-Controller"}
+        if token:
+            headers["Authorization"] = f"token {token}"
+
+        _set_install_state("downloading", "Downloading update… 0%", 0)
+        req = Request(asset_url, headers=headers)
+        with urlopen(req, timeout=300) as resp:
+            total = int(resp.headers.get("Content-Length") or 0)
+            downloaded = 0
+            sha = hashlib.sha256()
+            with open(installer_path, "wb") as f:
+                while True:
+                    chunk = resp.read(65536)
+                    if not chunk:
+                        break
+                    f.write(chunk)
+                    sha.update(chunk)
+                    downloaded += len(chunk)
+                    if total:
+                        pct = int(downloaded * 90 / total)
+                        _set_install_state("downloading", f"Downloading update… {pct}%", pct)
+
+        _set_install_state("verifying", "Verifying download…", 92)
+        actual = sha.hexdigest().lower()
+        if actual != expected_sha256.lower():
+            _set_install_state(
+                "error",
+                f"SHA-256 mismatch — download may be corrupt. Expected …{expected_sha256[-8:]}, got …{actual[-8:]}",
+            )
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+            return
+
+        _set_install_state("installing", "Installing silently… PitBox will restart automatically.", 95)
+        try:
+            # Ensure the downloaded EXE is executable (needed on Linux/Mac; no-op on Windows)
+            try:
+                installer_path.chmod(0o755)
+            except Exception:
+                pass
+            proc = subprocess.Popen(
+                [str(installer_path), "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART"],
+                cwd=str(tmp_dir),
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            proc.wait(timeout=300)
+            if proc.returncode == 0:
+                _set_install_state("done", "Install complete — PitBox is restarting…", 100)
+            else:
+                _set_install_state("error", f"Installer exited with code {proc.returncode}")
+        except subprocess.TimeoutExpired:
+            try:
+                proc.kill()
+            except Exception:
+                pass
+            _set_install_state("error", "Installer timed out after 5 minutes")
+        except Exception as exc:
+            _set_install_state("error", f"Failed to run installer: {exc}")
+
+    except Exception as exc:
+        logger.exception("Download/install thread failed: %s", exc)
+        _set_install_state("error", f"Update failed: {exc}")
+    finally:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+
 
 # Cache for release info
 _cache: Optional[dict] = None
@@ -374,7 +471,16 @@ def get_update_status() -> dict[str, Any]:
 
 
 def get_updater_status(work_dir: Path | None = None) -> dict[str, Any]:
-    """Read external updater status from work_dir/status.json. Never cached."""
+    """
+    Return current update state.
+    Checks in-memory _INSTALL_STATE first (set by the background download/install thread),
+    then falls back to status.json written by the external pitbox_updater.exe.
+    """
+    with _INSTALL_LOCK:
+        mem = _INSTALL_STATE.copy()
+    if mem.get("state") and mem["state"] != "idle":
+        return mem
+
     wd = work_dir or DEFAULT_WORK_DIR
     path = wd / "status.json"
     if not path.exists():
@@ -554,10 +660,16 @@ Start-ScheduledTask -TaskName '{task_name}'
 
 def run_unified_installer_update() -> tuple[bool, str]:
     """
-    Prefer PitBoxUpdater.exe (installer-based). It runs in the logged-in user session
-    via scheduled task so its window and the Inno installer are visible.
-    Fall back to update_pitbox.ps1 if PitBoxUpdater.exe is not found.
+    Download the Inno Setup installer directly, verify SHA-256, and run it with /VERYSILENT.
+    No PowerShell window, no scheduled tasks — completely silent like an auto-update.
+    Runs the download+install in a background daemon thread and returns immediately.
+    Progress is tracked in _INSTALL_STATE and exposed via /api/update/status.
     """
+    with _INSTALL_LOCK:
+        current_state = _INSTALL_STATE.get("state", "idle")
+    if current_state not in ("idle", "error", "done"):
+        return False, "An update is already in progress."
+
     status = get_update_status()
     if status.get("error"):
         return False, status.get("error", "Update check failed")
@@ -566,94 +678,29 @@ def run_unified_installer_update() -> tuple[bool, str]:
 
     unified = status.get("unified_installer")
     if not unified:
-        return False, "No unified installer (PitBoxInstaller_*.exe) in this release."
+        return False, "No unified installer (PitBoxInstaller*.exe) found in this release."
 
-    asset_url = unified.get("api_url") or unified.get("url")
+    # Prefer browser_download_url (no auth needed for public repos); fall back to API URL
+    asset_url = unified.get("url") or unified.get("api_url")
     if not asset_url:
-        return False, "Unified installer URL not available."
-    latest = status.get("latest_version") or "unknown"
+        return False, "Unified installer download URL not available."
+
     installer_sha = (unified.get("sha256") or "").strip()
     if not installer_sha:
         return False, (
-            "Cannot run installer update: release has no SHA-256 for the installer asset. "
-            "Add to GitHub release notes: "
-            "<!-- pitbox_sha256:EXACT_INSTALLER_FILENAME.exe:64_hex_digits --> "
-            "(filename must match the PitBoxInstaller asset name exactly)."
+            "Release is missing a SHA-256 annotation for the installer. "
+            "Add this to the GitHub release notes: "
+            "<!-- pitbox_sha256:PitBoxInstaller-x.x.x.exe:64_hex_digits -->"
         )
 
-    # Primary path: PitBoxUpdater.exe
-    pitbox_updater_exe = Path(os.environ.get("PITBOX_UPDATER_INSTALLER_EXE", str(DEFAULT_PITBOX_UPDATER_EXE)))
-    if pitbox_updater_exe.exists():
-        ok, msg = _launch_pitbox_updater_installer(asset_url, latest, expected_sha256=installer_sha)
-        if ok:
-            return True, msg
-        logger.warning("PitBoxUpdater launch failed: %s; falling back to PowerShell script", msg)
+    installer_filename = unified.get("name") or "PitBoxInstaller.exe"
 
-    # Fallback: PowerShell update_pitbox.ps1
-    script = os.environ.get("PITBOX_UPDATE_SCRIPT")
-    if script:
-        script = Path(script)
-        if not script.exists():
-            logger.warning("PITBOX_UPDATE_SCRIPT set but missing: %s", script)
-            return False, f"Update script not found: {script}"
-    else:
-        script = _resolve_update_script_path()
-        if script is None:
-            return False, (
-                "PitBoxUpdater.exe not found and update script not found. "
-                "Expected PitBoxUpdater at C:\\PitBox\\updater\\PitBoxUpdater.exe or "
-                "update_pitbox.ps1 at C:\\PitBox\\tools\\update_pitbox.ps1."
-            )
-
-    # Try 1: scheduled task as the logged-in desktop user (needed when controller is a Windows service)
-    try:
-        import psutil
-        logged_in_user = None
-        for u in psutil.users():
-            if u.name and u.name.lower() != "system":
-                logged_in_user = u.name
-                break
-    except Exception:
-        logged_in_user = None
-
-    if logged_in_user and os.name == "nt":
-        logger.info("Using scheduled task to run update script as user: %s", logged_in_user)
-        task_name = "PitBox Interactive Updater"
-        ps_script = f"""
-$ErrorActionPreference = 'Stop'
-Unregister-ScheduledTask -TaskName '{task_name}' -Confirm:$false -ErrorAction SilentlyContinue
-$Action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument '-WindowStyle Normal -ExecutionPolicy Bypass -File "{script}" -Force'
-$Principal = New-ScheduledTaskPrincipal -UserId "{logged_in_user}" -LogonType Interactive -RunLevel Highest
-Register-ScheduledTask -TaskName '{task_name}' -Action $Action -Principal $Principal -Force | Out-Null
-Start-ScheduledTask -TaskName '{task_name}'
-"""
-        try:
-            create_res = subprocess.run(
-                ["powershell.exe", "-ExecutionPolicy", "Bypass", "-Command", ps_script],
-                capture_output=True, text=True, timeout=30,
-            )
-            if create_res.returncode == 0:
-                logger.info("Scheduled task started for user %s", logged_in_user)
-                return True, "Update script started — a PowerShell window will appear on your desktop."
-            logger.warning("Scheduled task failed (%s); falling back to direct spawn", create_res.stderr.strip())
-        except Exception as e:
-            logger.warning("Scheduled task exception (%s); falling back to direct spawn", e)
-
-    # Try 2: direct spawn (works when controller is running as an interactive process, not a service)
-    logger.info("Attempting direct spawn of update script: %s", script)
-    try:
-        creationflags = 0
-        if os.name == "nt":
-            creationflags = 0x00000010 | 0x00000200  # CREATE_NEW_CONSOLE | CREATE_NEW_PROCESS_GROUP
-        subprocess.Popen(
-            ["powershell.exe", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Normal", "-File", str(script), "-Force"],
-            cwd=str(script.parent),
-            creationflags=creationflags,
-            stdin=subprocess.DEVNULL,
-        )
-        return True, "Update script started — a PowerShell window will appear."
-    except FileNotFoundError:
-        return False, "powershell.exe not found. Run the update manually: open a PowerShell window and run C:\\PitBox\\tools\\update_pitbox.ps1 -Force"
-    except Exception as e:
-        logger.exception("Failed to start update script directly: %s", e)
-        return False, f"Failed to start update: {e}"
+    _set_install_state("starting", "Starting download…", 0)
+    t = threading.Thread(
+        target=_download_and_install,
+        args=(asset_url, installer_sha, installer_filename),
+        daemon=True,
+        name="pitbox-installer",
+    )
+    t.start()
+    return True, "Download started — progress visible in the Updates panel."
