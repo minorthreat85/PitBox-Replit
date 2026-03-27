@@ -2,18 +2,24 @@
 """
 PyInstaller spec file for PitBox Tray Launcher
 Builds a windowed (no console) EXE with the custom PitBox icon.
+
+pystray uses dynamic backend loading (pystray._win32 on Windows) so we must
+use collect_all() to pull in every sub-module; otherwise PyInstaller misses them.
 """
 
+from PyInstaller.utils.hooks import collect_all
+
 block_cipher = None
+
+pystray_datas, pystray_binaries, pystray_hiddenimports = collect_all('pystray')
+pillow_datas, pillow_binaries, pillow_hiddenimports = collect_all('PIL')
 
 a = Analysis(
     ['systray/pitbox_tray.py'],
     pathex=[],
-    binaries=[],
-    datas=[
-        ('assets/pitbox.ico', '.'),
-    ],
-    hiddenimports=['pystray._win32', 'PIL', 'PIL.Image', 'PIL.ImageDraw', 'PIL.ImageFont'],
+    binaries=[] + pystray_binaries + pillow_binaries,
+    datas=[('assets/pitbox.ico', '.')] + pystray_datas + pillow_datas,
+    hiddenimports=[] + pystray_hiddenimports + pillow_hiddenimports,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
