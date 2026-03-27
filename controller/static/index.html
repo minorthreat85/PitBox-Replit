@@ -188,13 +188,306 @@
 
         <!-- Page: Bookings (unified admin — List / Schedule / Check-In / Analytics) -->
         <!-- Page: Bookings (embedded external admin) -->
-        <div id="page-bookings" class="content-page hidden" data-page="bookings" style="padding:0;display:flex;flex-direction:column;">
-            <iframe
-                id="ba-iframe"
-                src="/proxy/booking/admin/bookings"
-                title="Bookings Admin"
-                style="flex:1;width:100%;border:none;min-height:calc(100vh - 56px);"
-            ></iframe>
+        <div id="page-bookings" class="content-page hidden" data-page="bookings" style="display:flex;flex-direction:column;overflow:hidden;height:100%;">
+            <!-- Booking sub-tab nav -->
+            <nav class="ba-sub-nav">
+                <button type="button" class="ba-sub-tab active" data-ba-sub="list">Bookings</button>
+                <button type="button" class="ba-sub-tab" data-ba-sub="schedule">Schedule</button>
+                <button type="button" class="ba-sub-tab" data-ba-sub="checkin">Check-In</button>
+                <button type="button" class="ba-sub-tab" data-ba-sub="customers">Customers</button>
+                <button type="button" class="ba-sub-tab" data-ba-sub="memberships">Memberships</button>
+                <button type="button" class="ba-sub-tab" data-ba-sub="tiers">Tiers</button>
+                <button type="button" class="ba-sub-tab" data-ba-sub="analytics">Analytics</button>
+            </nav>
+
+            <!-- Bookings List Panel -->
+            <div id="ba-panel-list" class="ba-panel">
+                <div class="ba-toolbar">
+                    <input type="date" id="ba-filter-date" class="ba-input">
+                    <select id="ba-filter-status" class="ba-select">
+                        <option value="">All Statuses</option>
+                        <option value="confirmed">Confirmed</option>
+                        <option value="checked_in">Checked In</option>
+                        <option value="pending_deposit">Pending Deposit</option>
+                        <option value="completed">Completed</option>
+                        <option value="cancelled">Cancelled</option>
+                        <option value="no_show">No Show</option>
+                    </select>
+                    <button type="button" id="ba-bookings-refresh" class="btn-secondary">Refresh</button>
+                    <button type="button" id="ba-walkin-open" class="btn-primary">+ Walk-In</button>
+                </div>
+                <div id="ba-bookings-error" class="ba-error"></div>
+                <div class="ba-table-wrap">
+                    <table class="ba-table" id="ba-bookings-table">
+                        <thead><tr>
+                            <th>Time</th><th>Customer</th><th>Racers</th><th>Duration</th><th>Sims</th><th>Status</th><th>Payment</th><th>Confirmation</th>
+                        </tr></thead>
+                        <tbody id="ba-bookings-tbody">
+                            <tr><td colspan="8"><div class="ba-loading">Loading&#8230;</div></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Schedule Panel -->
+            <div id="ba-panel-schedule" class="ba-panel hidden">
+                <div class="ba-toolbar">
+                    <button type="button" id="ba-schedule-prev" class="btn-secondary">&lsaquo; Prev</button>
+                    <input type="date" id="ba-schedule-date" class="ba-input">
+                    <button type="button" id="ba-schedule-next" class="btn-secondary">Next &rsaquo;</button>
+                </div>
+                <div id="ba-schedule-error" class="ba-error"></div>
+                <div id="ba-schedule-container" class="ba-schedule-wrap">
+                    <div class="ba-loading">Select a date to load schedule.</div>
+                </div>
+            </div>
+
+            <!-- Check-In Panel -->
+            <div id="ba-panel-checkin" class="ba-panel hidden">
+                <div class="ba-toolbar">
+                    <span class="ba-panel-title">Today&#39;s Check-Ins</span>
+                </div>
+                <div id="ba-checkin-error" class="ba-error"></div>
+                <div id="ba-checkin-list" class="ba-checkin-list">
+                    <div class="ba-loading">Loading&#8230;</div>
+                </div>
+            </div>
+
+            <!-- Customers Panel -->
+            <div id="ba-panel-customers" class="ba-panel hidden">
+                <div class="ba-toolbar">
+                    <input type="text" id="ba-customer-search" class="ba-input" placeholder="Search name / phone / email&#8230;">
+                    <button type="button" id="ba-customer-refresh" class="btn-secondary">Refresh</button>
+                    <button type="button" id="ba-customer-add" class="btn-primary">+ Add Customer</button>
+                </div>
+                <div id="ba-customers-error" class="ba-error"></div>
+                <div class="ba-table-wrap">
+                    <table class="ba-table">
+                        <thead><tr><th>Name</th><th>Phone</th><th>Email</th><th>Notes</th><th></th></tr></thead>
+                        <tbody id="ba-customers-tbody">
+                            <tr><td colspan="5"><div class="ba-loading">Loading&#8230;</div></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Memberships Panel -->
+            <div id="ba-panel-memberships" class="ba-panel hidden">
+                <div class="ba-toolbar">
+                    <select id="ba-memberships-status-filter" class="ba-select">
+                        <option value="">All Statuses</option>
+                        <option value="active">Active</option>
+                        <option value="expired">Expired</option>
+                        <option value="cancelled">Cancelled</option>
+                    </select>
+                    <button type="button" id="ba-memberships-refresh" class="btn-secondary">Refresh</button>
+                    <button type="button" id="ba-membership-add" class="btn-primary">+ Add Membership</button>
+                </div>
+                <div id="ba-memberships-error" class="ba-error"></div>
+                <div class="ba-table-wrap">
+                    <table class="ba-table">
+                        <thead><tr><th>Customer</th><th>Tier</th><th>Start</th><th>End</th><th>Sessions</th><th>Status</th><th></th></tr></thead>
+                        <tbody id="ba-memberships-tbody">
+                            <tr><td colspan="7"><div class="ba-loading">Loading&#8230;</div></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Tiers Panel -->
+            <div id="ba-panel-tiers" class="ba-panel hidden">
+                <div class="ba-toolbar">
+                    <button type="button" id="ba-tiers-refresh" class="btn-secondary">Refresh</button>
+                    <button type="button" id="ba-tier-add" class="btn-primary">+ Add Tier</button>
+                </div>
+                <div id="ba-tiers-error" class="ba-error"></div>
+                <div class="ba-table-wrap">
+                    <table class="ba-table">
+                        <thead><tr><th>Name</th><th>Price</th><th>Duration (days)</th><th>Sessions</th><th>Description</th><th></th></tr></thead>
+                        <tbody id="ba-tiers-tbody">
+                            <tr><td colspan="6"><div class="ba-loading">Loading&#8230;</div></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Analytics Panel -->
+            <div id="ba-panel-analytics" class="ba-panel hidden">
+                <div class="ba-toolbar">
+                    <button type="button" class="btn-secondary ba-period-btn active" data-ba-period="7d">7 days</button>
+                    <button type="button" class="btn-secondary ba-period-btn" data-ba-period="30d">30 days</button>
+                    <button type="button" class="btn-secondary ba-period-btn" data-ba-period="90d">90 days</button>
+                </div>
+                <div id="ba-analytics-error" class="ba-error"></div>
+                <div id="ba-analytics-container"></div>
+                <div id="ba-analytics-kpis" class="ba-kpi-grid"></div>
+                <div id="ba-analytics-bars" class="ba-bars-wrap"></div>
+                <div id="ba-analytics-status" class="ba-status-wrap"></div>
+            </div>
+
+            <!-- Walk-In Modal -->
+            <div id="ba-walkin-modal" class="ba-overlay" aria-hidden="true">
+                <div class="ba-modal">
+                    <div class="ba-modal-header">
+                        <span class="ba-modal-title">New Walk-In Booking</span>
+                        <button type="button" id="ba-walkin-close" class="ba-modal-close" aria-label="Close">&times;</button>
+                    </div>
+                    <form id="ba-walkin-form" class="ba-modal-body">
+                        <div id="ba-walkin-error" class="ba-error"></div>
+                        <div class="ba-form-row">
+                            <label class="ba-label">Customer Name</label>
+                            <input type="text" id="ba-walkin-customer-name" class="ba-input" placeholder="Name">
+                        </div>
+                        <div class="ba-form-row">
+                            <label class="ba-label">Date</label>
+                            <input type="date" id="ba-walkin-date" class="ba-input">
+                        </div>
+                        <div class="ba-form-row">
+                            <label class="ba-label">Time</label>
+                            <input type="time" id="ba-walkin-time" class="ba-input" value="14:00">
+                        </div>
+                        <div class="ba-form-row">
+                            <label class="ba-label">Duration (min)</label>
+                            <input type="number" id="ba-walkin-duration" class="ba-input" value="60" min="15" step="15">
+                        </div>
+                        <div class="ba-form-row">
+                            <label class="ba-label">Racers</label>
+                            <input type="number" id="ba-walkin-racers" class="ba-input" value="1" min="1" max="8">
+                        </div>
+                        <div class="ba-modal-actions">
+                            <button type="button" id="ba-walkin-cancel" class="btn-secondary">Cancel</button>
+                            <button type="submit" id="ba-walkin-submit" class="btn-primary">Create Booking</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Booking Detail Modal -->
+            <div id="ba-detail-modal" class="ba-overlay" aria-hidden="true">
+                <div class="ba-modal ba-modal--wide">
+                    <div class="ba-modal-header">
+                        <span class="ba-modal-title">Booking Detail</span>
+                        <button type="button" id="ba-detail-close" class="ba-modal-close" aria-label="Close">&times;</button>
+                    </div>
+                    <div id="ba-detail-body" class="ba-modal-body">
+                        <div class="ba-loading">Loading&#8230;</div>
+                    </div>
+                    <div id="ba-detail-error" class="ba-error ba-detail-error-bar"></div>
+                </div>
+            </div>
+
+            <!-- Customer Form Modal -->
+            <div id="ba-customer-modal" class="ba-overlay" aria-hidden="true">
+                <div class="ba-modal">
+                    <div class="ba-modal-header">
+                        <span class="ba-modal-title" id="ba-customer-modal-title">Add Customer</span>
+                        <button type="button" id="ba-customer-modal-close" class="ba-modal-close" aria-label="Close">&times;</button>
+                    </div>
+                    <form id="ba-customer-form" class="ba-modal-body">
+                        <div id="ba-customer-form-error" class="ba-error"></div>
+                        <div class="ba-form-row">
+                            <label class="ba-label">Name</label>
+                            <input type="text" id="ba-customer-name" class="ba-input" placeholder="Full name" required>
+                        </div>
+                        <div class="ba-form-row">
+                            <label class="ba-label">Phone</label>
+                            <input type="text" id="ba-customer-phone" class="ba-input" placeholder="Phone number">
+                        </div>
+                        <div class="ba-form-row">
+                            <label class="ba-label">Email</label>
+                            <input type="email" id="ba-customer-email" class="ba-input" placeholder="Email address">
+                        </div>
+                        <div class="ba-form-row">
+                            <label class="ba-label">Notes</label>
+                            <textarea id="ba-customer-notes" class="ba-input" rows="2" placeholder="Notes"></textarea>
+                        </div>
+                        <div class="ba-modal-actions">
+                            <button type="button" id="ba-customer-form-cancel" class="btn-secondary">Cancel</button>
+                            <button type="submit" id="ba-customer-form-submit" class="btn-primary">Save</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Tier Form Modal -->
+            <div id="ba-tier-modal" class="ba-overlay" aria-hidden="true">
+                <div class="ba-modal">
+                    <div class="ba-modal-header">
+                        <span class="ba-modal-title" id="ba-tier-modal-title">Add Tier</span>
+                        <button type="button" id="ba-tier-modal-close" class="ba-modal-close" aria-label="Close">&times;</button>
+                    </div>
+                    <form id="ba-tier-form" class="ba-modal-body">
+                        <div id="ba-tier-form-error" class="ba-error"></div>
+                        <div class="ba-form-row">
+                            <label class="ba-label">Name</label>
+                            <input type="text" id="ba-tier-name" class="ba-input" placeholder="Tier name" required>
+                        </div>
+                        <div class="ba-form-row">
+                            <label class="ba-label">Price ($)</label>
+                            <input type="number" id="ba-tier-price" class="ba-input" value="0" min="0" step="0.01">
+                        </div>
+                        <div class="ba-form-row">
+                            <label class="ba-label">Duration (days)</label>
+                            <input type="number" id="ba-tier-duration" class="ba-input" value="365" min="1">
+                        </div>
+                        <div class="ba-form-row">
+                            <label class="ba-label">Sessions Included</label>
+                            <input type="number" id="ba-tier-sessions" class="ba-input" value="0" min="0">
+                        </div>
+                        <div class="ba-form-row">
+                            <label class="ba-label">Description</label>
+                            <textarea id="ba-tier-description" class="ba-input" rows="2" placeholder="Description"></textarea>
+                        </div>
+                        <div class="ba-modal-actions">
+                            <button type="button" id="ba-tier-form-cancel" class="btn-secondary">Cancel</button>
+                            <button type="submit" id="ba-tier-form-submit" class="btn-primary">Save</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Membership Form Modal -->
+            <div id="ba-membership-modal" class="ba-overlay" aria-hidden="true">
+                <div class="ba-modal">
+                    <div class="ba-modal-header">
+                        <span class="ba-modal-title" id="ba-membership-modal-title">Add Membership</span>
+                        <button type="button" id="ba-membership-modal-close" class="ba-modal-close" aria-label="Close">&times;</button>
+                    </div>
+                    <form id="ba-membership-form" class="ba-modal-body">
+                        <div id="ba-membership-form-error" class="ba-error"></div>
+                        <div class="ba-form-row">
+                            <label class="ba-label">Customer ID</label>
+                            <input type="number" id="ba-membership-customer-id" class="ba-input" placeholder="Customer ID" required>
+                        </div>
+                        <div class="ba-form-row">
+                            <label class="ba-label">Tier</label>
+                            <select id="ba-membership-tier-id" class="ba-select" required>
+                                <option value="">Select tier&#8230;</option>
+                            </select>
+                        </div>
+                        <div class="ba-form-row">
+                            <label class="ba-label">Start Date</label>
+                            <input type="date" id="ba-membership-start" class="ba-input" required>
+                        </div>
+                        <div class="ba-form-row">
+                            <label class="ba-label">End Date</label>
+                            <input type="date" id="ba-membership-end" class="ba-input" required>
+                        </div>
+                        <div class="ba-form-row">
+                            <label class="ba-label">Status</label>
+                            <select id="ba-membership-status" class="ba-select">
+                                <option value="active">Active</option>
+                                <option value="expired">Expired</option>
+                                <option value="cancelled">Cancelled</option>
+                            </select>
+                        </div>
+                        <div class="ba-modal-actions">
+                            <button type="button" id="ba-membership-form-cancel" class="btn-secondary">Cancel</button>
+                            <button type="submit" id="ba-membership-form-submit" class="btn-primary">Save</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
         </div>
         <!-- Page: System Logs (event log with filters and expandable details) -->
         <div id="page-system-logs" class="content-page hidden" data-page="system-logs">
@@ -775,64 +1068,6 @@
         </div>
     </div>
 
-    <!-- Bookings admin modals -->
-    <div id="ba-walkin-modal" class="ba-modal-overlay" role="dialog" aria-modal="true" aria-hidden="true">
-        <div class="ba-modal-panel" style="width:520px;">
-            <div class="ba-modal-header">
-                <div>
-                    <div class="ba-modal-title">Walk-In Booking</div>
-                    <div class="page-subtitle" style="margin-top:6px;">Create a confirmed walk-in booking (no deposit)</div>
-                </div>
-                <button type="button" id="ba-walkin-close" class="ba-modal-close" aria-label="Close">&times;</button>
-            </div>
-            <form id="ba-walkin-form" class="ba-modal-body">
-                <div class="ba-toolbar" style="margin:0;">
-                    <div class="ba-field">
-                        <div class="ba-label">Date</div>
-                        <input type="date" id="ba-walkin-date" class="ba-input" required>
-                    </div>
-                    <div class="ba-field">
-                        <div class="ba-label">Time</div>
-                        <input type="time" id="ba-walkin-time" class="ba-input" required>
-                    </div>
-                    <div class="ba-field">
-                        <div class="ba-label">Duration (minutes)</div>
-                        <input type="number" id="ba-walkin-duration" class="ba-input" min="1" value="60" required>
-                    </div>
-                    <div class="ba-field">
-                        <div class="ba-label">Racers</div>
-                        <input type="number" id="ba-walkin-racers" class="ba-input" min="1" max="8" value="2" required>
-                    </div>
-                    <div class="ba-field" style="min-width:260px;">
-                        <div class="ba-label">Customer Name</div>
-                        <input type="text" id="ba-walkin-customer-name" class="ba-input" placeholder="Walk-In" required>
-                    </div>
-                </div>
-
-                <div id="ba-walkin-error" class="ba-inline-error" role="alert"></div>
-
-                <div class="ba-btn-row" style="margin-top:16px;">
-                    <button type="submit" id="ba-walkin-submit" class="btn-primary">Create Booking</button>
-                    <button type="button" id="ba-walkin-cancel" class="btn-secondary">Cancel</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <div id="ba-detail-modal" class="ba-modal-overlay" role="dialog" aria-modal="true" aria-hidden="true">
-        <div class="ba-modal-panel">
-            <div class="ba-modal-header">
-                <div>
-                    <div class="ba-modal-title">Booking Detail</div>
-                    <div class="page-subtitle" style="margin-top:6px;color:#888;">Assign simulators, reschedule, deposit & check-in actions</div>
-                </div>
-                <button type="button" id="ba-detail-close" class="ba-modal-close" aria-label="Close">&times;</button>
-            </div>
-            <div class="ba-modal-body">
-                <div id="ba-detail-error" class="ba-inline-error" role="alert"></div>
-                <div id="ba-detail-body"></div>
-            </div>
-        </div>
     </div>
 
     <div id="toast-container" class="toast-container" role="status" aria-live="polite" aria-atomic="true"></div>

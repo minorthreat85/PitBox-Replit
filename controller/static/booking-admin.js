@@ -907,14 +907,456 @@
 
   async function loadAnalyticsPage() {
     var errEl = $('ba-analytics-error');
-    var wrap = $('ba-analytics-container');
-    if (wrap) wrap.innerHTML = '<div class="ba-loading">Loading…</div>';
+    var loadingEl = $('ba-analytics-container');
+    if (loadingEl) loadingEl.innerHTML = '<div class="ba-loading">Loading…</div>';
+    var kpis = $('ba-analytics-kpis');
+    var bars = $('ba-analytics-bars');
+    var status = $('ba-analytics-status');
+    if (kpis) kpis.innerHTML = '';
+    if (bars) bars.innerHTML = '';
+    if (status) status.innerHTML = '';
     hideError(errEl);
     try {
       var data = await api('/admin/analytics?period=' + encodeURIComponent(baState.cachePeriod), { method: 'GET' });
+      if (loadingEl) loadingEl.innerHTML = '';
       renderAnalytics(data);
     } catch (ex) {
+      if (loadingEl) loadingEl.innerHTML = '';
       showError(errEl, ex && ex.message ? ex.message : String(ex));
+    }
+  }
+
+  function bindAnalyticsPeriodOnce() {
+    if (window._baAnalyticsPeriodBound) return;
+    window._baAnalyticsPeriodBound = true;
+    document.querySelectorAll('.ba-period-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        document.querySelectorAll('.ba-period-btn').forEach(function (b) { b.classList.remove('active'); });
+        btn.classList.add('active');
+        baState.cachePeriod = btn.getAttribute('data-ba-period') || '30d';
+        loadAnalyticsPage();
+      });
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Customers
+  // ---------------------------------------------------------------------------
+
+  var _baCustomerEditId = null;
+
+  function renderCustomersTable(customers) {
+    var tbody = $('ba-customers-tbody');
+    if (!tbody) return;
+    if (!customers || customers.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="5"><div class="ba-loading">No customers found.</div></td></tr>';
+      return;
+    }
+    tbody.innerHTML = customers.map(function (c) {
+      return '<tr>' +
+        '<td>' + escapeHtml(c.name || '') + '</td>' +
+        '<td>' + escapeHtml(c.phone || '') + '</td>' +
+        '<td>' + escapeHtml(c.email || '') + '</td>' +
+        '<td>' + escapeHtml(c.notes || '') + '</td>' +
+        '<td style="white-space:nowrap;">' +
+          '<button type="button" class="btn-secondary ba-btn-sm" data-ba-customer-edit="' + c.id + '">Edit</button> ' +
+          '<button type="button" class="btn-secondary ba-btn-sm" data-ba-customer-delete="' + c.id + '">Delete</button>' +
+        '</td>' +
+      '</tr>';
+    }).join('');
+    tbody.querySelectorAll('[data-ba-customer-edit]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var id = Number(btn.getAttribute('data-ba-customer-edit'));
+        var c = customers.find(function (x) { return x.id === id; });
+        if (!c) return;
+        _baCustomerEditId = id;
+        var titleEl = $('ba-customer-modal-title');
+        if (titleEl) titleEl.textContent = 'Edit Customer';
+        if ($('ba-customer-name')) $('ba-customer-name').value = c.name || '';
+        if ($('ba-customer-phone')) $('ba-customer-phone').value = c.phone || '';
+        if ($('ba-customer-email')) $('ba-customer-email').value = c.email || '';
+        if ($('ba-customer-notes')) $('ba-customer-notes').value = c.notes || '';
+        openOverlay($('ba-customer-modal'));
+      });
+    });
+    tbody.querySelectorAll('[data-ba-customer-delete]').forEach(function (btn) {
+      btn.addEventListener('click', async function () {
+        var id = btn.getAttribute('data-ba-customer-delete');
+        if (!confirm('Delete this customer?')) return;
+        btn.disabled = true;
+        try {
+          await api('/admin/customers/' + encodeURIComponent(id), { method: 'DELETE' });
+          await loadCustomersPage();
+        } catch (ex) {
+          showError($('ba-customers-error'), ex && ex.message ? ex.message : String(ex));
+          btn.disabled = false;
+        }
+      });
+    });
+  }
+
+  async function loadCustomersPage() {
+    var errEl = $('ba-customers-error');
+    var tbody = $('ba-customers-tbody');
+    if (tbody) tbody.innerHTML = '<tr><td colspan="5"><div class="ba-loading">Loading…</div></td></tr>';
+    hideError(errEl);
+    try {
+      var searchEl = $('ba-customer-search');
+      var search = searchEl ? searchEl.value.trim() : '';
+      var url = '/admin/customers' + (search ? ('?search=' + encodeURIComponent(search)) : '');
+      var data = await api(url, { method: 'GET' });
+      if (!Array.isArray(data)) data = [];
+      renderCustomersTable(data);
+    } catch (ex) {
+      showError(errEl, ex && ex.message ? ex.message : String(ex));
+    }
+  }
+
+  function bindCustomersPageEventsOnce() {
+    if (window._baCustomersEventsBound) return;
+    window._baCustomersEventsBound = true;
+    var searchEl = $('ba-customer-search');
+    if (searchEl) {
+      var searchTimer;
+      searchEl.addEventListener('input', function () {
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(loadCustomersPage, 300);
+      });
+    }
+    var refreshBtn = $('ba-customer-refresh');
+    if (refreshBtn) refreshBtn.addEventListener('click', loadCustomersPage);
+    var addBtn = $('ba-customer-add');
+    if (addBtn) {
+      addBtn.addEventListener('click', function () {
+        _baCustomerEditId = null;
+        var titleEl = $('ba-customer-modal-title');
+        if (titleEl) titleEl.textContent = 'Add Customer';
+        var form = $('ba-customer-form');
+        if (form) form.reset();
+        hideError($('ba-customer-form-error'));
+        openOverlay($('ba-customer-modal'));
+      });
+    }
+    var modal = $('ba-customer-modal');
+    var modalClose = $('ba-customer-modal-close');
+    var formCancel = $('ba-customer-form-cancel');
+    if (modalClose) modalClose.addEventListener('click', function () { closeOverlay(modal); });
+    if (formCancel) formCancel.addEventListener('click', function () { closeOverlay(modal); });
+    if (modal) modal.addEventListener('click', function (e) { if (e.target === modal) closeOverlay(modal); });
+    var form = $('ba-customer-form');
+    if (form) {
+      form.addEventListener('submit', async function (e) {
+        e.preventDefault();
+        var errEl = $('ba-customer-form-error');
+        hideError(errEl);
+        var payload = {
+          name: ($('ba-customer-name') || {}).value || '',
+          phone: ($('ba-customer-phone') || {}).value || '',
+          email: ($('ba-customer-email') || {}).value || '',
+          notes: ($('ba-customer-notes') || {}).value || '',
+        };
+        var submitBtn = $('ba-customer-form-submit');
+        setBusy(submitBtn, true);
+        try {
+          if (_baCustomerEditId) {
+            await api('/admin/customers/' + encodeURIComponent(_baCustomerEditId), { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+          } else {
+            await api('/admin/customers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+          }
+          closeOverlay(modal);
+          await loadCustomersPage();
+        } catch (ex) {
+          showError(errEl, ex && ex.message ? ex.message : String(ex));
+        } finally {
+          setBusy(submitBtn, false);
+        }
+      });
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Membership Tiers
+  // ---------------------------------------------------------------------------
+
+  var _baTierEditId = null;
+
+  function renderTiersTable(tiers) {
+    var tbody = $('ba-tiers-tbody');
+    if (!tbody) return;
+    if (!tiers || tiers.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6"><div class="ba-loading">No tiers found.</div></td></tr>';
+      return;
+    }
+    tbody.innerHTML = tiers.map(function (t) {
+      var price = '$' + centsToDollars(t.priceCents || 0);
+      return '<tr>' +
+        '<td>' + escapeHtml(t.name || '') + '</td>' +
+        '<td>' + escapeHtml(price) + '</td>' +
+        '<td>' + escapeHtml(String(t.durationDays || 0)) + '</td>' +
+        '<td>' + escapeHtml(String(t.sessionsIncluded || 0)) + '</td>' +
+        '<td>' + escapeHtml(t.description || '') + '</td>' +
+        '<td style="white-space:nowrap;">' +
+          '<button type="button" class="btn-secondary ba-btn-sm" data-ba-tier-edit="' + t.id + '">Edit</button> ' +
+          '<button type="button" class="btn-secondary ba-btn-sm" data-ba-tier-delete="' + t.id + '">Delete</button>' +
+        '</td>' +
+      '</tr>';
+    }).join('');
+    tbody.querySelectorAll('[data-ba-tier-edit]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var id = Number(btn.getAttribute('data-ba-tier-edit'));
+        var t = tiers.find(function (x) { return x.id === id; });
+        if (!t) return;
+        _baTierEditId = id;
+        var titleEl = $('ba-tier-modal-title');
+        if (titleEl) titleEl.textContent = 'Edit Tier';
+        if ($('ba-tier-name')) $('ba-tier-name').value = t.name || '';
+        if ($('ba-tier-price')) $('ba-tier-price').value = centsToDollars(t.priceCents || 0);
+        if ($('ba-tier-duration')) $('ba-tier-duration').value = t.durationDays || 365;
+        if ($('ba-tier-sessions')) $('ba-tier-sessions').value = t.sessionsIncluded || 0;
+        if ($('ba-tier-description')) $('ba-tier-description').value = t.description || '';
+        openOverlay($('ba-tier-modal'));
+      });
+    });
+    tbody.querySelectorAll('[data-ba-tier-delete]').forEach(function (btn) {
+      btn.addEventListener('click', async function () {
+        var id = btn.getAttribute('data-ba-tier-delete');
+        if (!confirm('Delete this tier?')) return;
+        btn.disabled = true;
+        try {
+          await api('/admin/membership-tiers/' + encodeURIComponent(id), { method: 'DELETE' });
+          await loadTiersPage();
+        } catch (ex) {
+          showError($('ba-tiers-error'), ex && ex.message ? ex.message : String(ex));
+          btn.disabled = false;
+        }
+      });
+    });
+  }
+
+  async function loadTiersPage() {
+    var errEl = $('ba-tiers-error');
+    var tbody = $('ba-tiers-tbody');
+    if (tbody) tbody.innerHTML = '<tr><td colspan="6"><div class="ba-loading">Loading…</div></td></tr>';
+    hideError(errEl);
+    try {
+      var data = await api('/admin/membership-tiers', { method: 'GET' });
+      if (!Array.isArray(data)) data = [];
+      renderTiersTable(data);
+    } catch (ex) {
+      showError(errEl, ex && ex.message ? ex.message : String(ex));
+    }
+  }
+
+  function bindTiersPageEventsOnce() {
+    if (window._baTiersEventsBound) return;
+    window._baTiersEventsBound = true;
+    var refreshBtn = $('ba-tiers-refresh');
+    if (refreshBtn) refreshBtn.addEventListener('click', loadTiersPage);
+    var addBtn = $('ba-tier-add');
+    if (addBtn) {
+      addBtn.addEventListener('click', function () {
+        _baTierEditId = null;
+        var titleEl = $('ba-tier-modal-title');
+        if (titleEl) titleEl.textContent = 'Add Tier';
+        var form = $('ba-tier-form');
+        if (form) form.reset();
+        if ($('ba-tier-duration')) $('ba-tier-duration').value = 365;
+        hideError($('ba-tier-form-error'));
+        openOverlay($('ba-tier-modal'));
+      });
+    }
+    var modal = $('ba-tier-modal');
+    var modalClose = $('ba-tier-modal-close');
+    var formCancel = $('ba-tier-form-cancel');
+    if (modalClose) modalClose.addEventListener('click', function () { closeOverlay(modal); });
+    if (formCancel) formCancel.addEventListener('click', function () { closeOverlay(modal); });
+    if (modal) modal.addEventListener('click', function (e) { if (e.target === modal) closeOverlay(modal); });
+    var form = $('ba-tier-form');
+    if (form) {
+      form.addEventListener('submit', async function (e) {
+        e.preventDefault();
+        var errEl = $('ba-tier-form-error');
+        hideError(errEl);
+        var priceVal = parseFloat(($('ba-tier-price') || {}).value || '0') || 0;
+        var payload = {
+          name: ($('ba-tier-name') || {}).value || '',
+          priceCents: Math.round(priceVal * 100),
+          durationDays: Number(($('ba-tier-duration') || {}).value || 365),
+          sessionsIncluded: Number(($('ba-tier-sessions') || {}).value || 0),
+          description: ($('ba-tier-description') || {}).value || '',
+        };
+        var submitBtn = $('ba-tier-form-submit');
+        setBusy(submitBtn, true);
+        try {
+          if (_baTierEditId) {
+            await api('/admin/membership-tiers/' + encodeURIComponent(_baTierEditId), { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+          } else {
+            await api('/admin/membership-tiers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+          }
+          closeOverlay(modal);
+          await loadTiersPage();
+        } catch (ex) {
+          showError(errEl, ex && ex.message ? ex.message : String(ex));
+        } finally {
+          setBusy(submitBtn, false);
+        }
+      });
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Memberships
+  // ---------------------------------------------------------------------------
+
+  var _baMembershipEditId = null;
+
+  function renderMembershipsTable(memberships) {
+    var tbody = $('ba-memberships-tbody');
+    if (!tbody) return;
+    if (!memberships || memberships.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="7"><div class="ba-loading">No memberships found.</div></td></tr>';
+      return;
+    }
+    tbody.innerHTML = memberships.map(function (m) {
+      var statusBadgeInfo = { active: { cls: 'ba-badge--green', label: 'Active' }, expired: { cls: 'ba-badge--gray', label: 'Expired' }, cancelled: { cls: 'ba-badge--red', label: 'Cancelled' } };
+      var badge = statusBadgeInfo[m.status] || { cls: 'ba-badge--gray', label: m.status || '—' };
+      var sessionsDisplay = m.sessionsIncluded > 0
+        ? (escapeHtml(String(m.sessionsUsed || 0)) + ' / ' + escapeHtml(String(m.sessionsIncluded)))
+        : escapeHtml(String(m.sessionsUsed || 0));
+      return '<tr>' +
+        '<td>' + escapeHtml(m.customerName || String(m.customerId)) + '</td>' +
+        '<td>' + escapeHtml(m.tierName || String(m.tierId)) + '</td>' +
+        '<td>' + escapeHtml(m.startDate || '') + '</td>' +
+        '<td>' + escapeHtml(m.endDate || '') + '</td>' +
+        '<td>' + sessionsDisplay + '</td>' +
+        '<td><span class="ba-badge ' + badge.cls + '">' + badge.label + '</span></td>' +
+        '<td style="white-space:nowrap;">' +
+          '<button type="button" class="btn-secondary ba-btn-sm" data-ba-membership-edit="' + m.id + '">Edit</button> ' +
+          '<button type="button" class="btn-secondary ba-btn-sm" data-ba-membership-delete="' + m.id + '">Delete</button>' +
+        '</td>' +
+      '</tr>';
+    }).join('');
+    tbody.querySelectorAll('[data-ba-membership-edit]').forEach(function (btn) {
+      btn.addEventListener('click', async function () {
+        var id = Number(btn.getAttribute('data-ba-membership-edit'));
+        var m = memberships.find(function (x) { return x.id === id; });
+        if (!m) return;
+        _baMembershipEditId = id;
+        var titleEl = $('ba-membership-modal-title');
+        if (titleEl) titleEl.textContent = 'Edit Membership';
+        if ($('ba-membership-customer-id')) $('ba-membership-customer-id').value = m.customerId || '';
+        if ($('ba-membership-start')) $('ba-membership-start').value = m.startDate || '';
+        if ($('ba-membership-end')) $('ba-membership-end').value = m.endDate || '';
+        if ($('ba-membership-status')) $('ba-membership-status').value = m.status || 'active';
+        await _loadTiersIntoSelect();
+        var tierEl = $('ba-membership-tier-id');
+        if (tierEl) tierEl.value = m.tierId || '';
+        openOverlay($('ba-membership-modal'));
+      });
+    });
+    tbody.querySelectorAll('[data-ba-membership-delete]').forEach(function (btn) {
+      btn.addEventListener('click', async function () {
+        var id = btn.getAttribute('data-ba-membership-delete');
+        if (!confirm('Delete this membership?')) return;
+        btn.disabled = true;
+        try {
+          await api('/admin/memberships/' + encodeURIComponent(id), { method: 'DELETE' });
+          await loadMembershipsPage();
+        } catch (ex) {
+          showError($('ba-memberships-error'), ex && ex.message ? ex.message : String(ex));
+          btn.disabled = false;
+        }
+      });
+    });
+  }
+
+  async function loadMembershipsPage() {
+    var errEl = $('ba-memberships-error');
+    var tbody = $('ba-memberships-tbody');
+    if (tbody) tbody.innerHTML = '<tr><td colspan="7"><div class="ba-loading">Loading…</div></td></tr>';
+    hideError(errEl);
+    try {
+      var statusEl = $('ba-memberships-status-filter');
+      var statusVal = statusEl ? statusEl.value : '';
+      var url = '/admin/memberships' + (statusVal ? ('?status=' + encodeURIComponent(statusVal)) : '');
+      var data = await api(url, { method: 'GET' });
+      if (!Array.isArray(data)) data = [];
+      renderMembershipsTable(data);
+    } catch (ex) {
+      showError(errEl, ex && ex.message ? ex.message : String(ex));
+    }
+  }
+
+  async function _loadTiersIntoSelect() {
+    var sel = $('ba-membership-tier-id');
+    if (!sel) return;
+    try {
+      var tiers = await api('/admin/membership-tiers', { method: 'GET' });
+      if (!Array.isArray(tiers)) tiers = [];
+      var current = sel.value;
+      sel.innerHTML = '<option value="">Select tier…</option>' + tiers.map(function (t) {
+        return '<option value="' + t.id + '">' + escapeHtml(t.name || ('Tier ' + t.id)) + '</option>';
+      }).join('');
+      if (current) sel.value = current;
+    } catch (e) {}
+  }
+
+  function bindMembershipsPageEventsOnce() {
+    if (window._baMembershipsEventsBound) return;
+    window._baMembershipsEventsBound = true;
+    var refreshBtn = $('ba-memberships-refresh');
+    if (refreshBtn) refreshBtn.addEventListener('click', loadMembershipsPage);
+    var statusEl = $('ba-memberships-status-filter');
+    if (statusEl) statusEl.addEventListener('change', loadMembershipsPage);
+    var addBtn = $('ba-membership-add');
+    if (addBtn) {
+      addBtn.addEventListener('click', async function () {
+        _baMembershipEditId = null;
+        var titleEl = $('ba-membership-modal-title');
+        if (titleEl) titleEl.textContent = 'Add Membership';
+        var form = $('ba-membership-form');
+        if (form) form.reset();
+        hideError($('ba-membership-form-error'));
+        await _loadTiersIntoSelect();
+        openOverlay($('ba-membership-modal'));
+      });
+    }
+    var modal = $('ba-membership-modal');
+    var modalClose = $('ba-membership-modal-close');
+    var formCancel = $('ba-membership-form-cancel');
+    if (modalClose) modalClose.addEventListener('click', function () { closeOverlay(modal); });
+    if (formCancel) formCancel.addEventListener('click', function () { closeOverlay(modal); });
+    if (modal) modal.addEventListener('click', function (e) { if (e.target === modal) closeOverlay(modal); });
+    var form = $('ba-membership-form');
+    if (form) {
+      form.addEventListener('submit', async function (e) {
+        e.preventDefault();
+        var errEl = $('ba-membership-form-error');
+        hideError(errEl);
+        var tierEl = $('ba-membership-tier-id');
+        var payload = {
+          customerId: Number(($('ba-membership-customer-id') || {}).value || 0),
+          tierId: Number((tierEl || {}).value || 0),
+          startDate: ($('ba-membership-start') || {}).value || '',
+          endDate: ($('ba-membership-end') || {}).value || '',
+          status: ($('ba-membership-status') || {}).value || 'active',
+        };
+        var submitBtn = $('ba-membership-form-submit');
+        setBusy(submitBtn, true);
+        try {
+          if (_baMembershipEditId) {
+            await api('/admin/memberships/' + encodeURIComponent(_baMembershipEditId), { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: payload.status, endDate: payload.endDate }) });
+          } else {
+            await api('/admin/memberships', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+          }
+          closeOverlay(modal);
+          await loadMembershipsPage();
+        } catch (ex) {
+          showError(errEl, ex && ex.message ? ex.message : String(ex));
+        } finally {
+          setBusy(submitBtn, false);
+        }
+      });
     }
   }
 
@@ -933,10 +1375,25 @@
   };
 
   window.loadAnalyticsPage = async function () {
+    bindAnalyticsPeriodOnce();
     await loadAnalyticsPage();
+  };
+
+  window.loadCustomersPage = async function () {
+    bindCustomersPageEventsOnce();
+    await loadCustomersPage();
+  };
+
+  window.loadTiersPage = async function () {
+    bindTiersPageEventsOnce();
+    await loadTiersPage();
+  };
+
+  window.loadMembershipsPage = async function () {
+    bindMembershipsPageEventsOnce();
+    await loadMembershipsPage();
   };
 
   // Bind nav-driven events once in case user lands directly on a page and clicks.
   bindSharedEventsOnce();
 })();
-

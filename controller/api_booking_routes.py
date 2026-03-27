@@ -58,6 +58,45 @@ def _init_db() -> None:
             updatedAt           TEXT    NOT NULL
         )
         """)
+        conn.execute("""
+        CREATE TABLE IF NOT EXISTS customers (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            name        TEXT    NOT NULL DEFAULT '',
+            phone       TEXT    NOT NULL DEFAULT '',
+            email       TEXT    NOT NULL DEFAULT '',
+            notes       TEXT    NOT NULL DEFAULT '',
+            createdAt   TEXT    NOT NULL,
+            updatedAt   TEXT    NOT NULL
+        )
+        """)
+        conn.execute("""
+        CREATE TABLE IF NOT EXISTS membership_tiers (
+            id               INTEGER PRIMARY KEY AUTOINCREMENT,
+            name             TEXT    NOT NULL DEFAULT '',
+            priceCents       INTEGER NOT NULL DEFAULT 0,
+            durationDays     INTEGER NOT NULL DEFAULT 365,
+            sessionsIncluded INTEGER NOT NULL DEFAULT 0,
+            description      TEXT    NOT NULL DEFAULT '',
+            createdAt        TEXT    NOT NULL,
+            updatedAt        TEXT    NOT NULL
+        )
+        """)
+        conn.execute("""
+        CREATE TABLE IF NOT EXISTS memberships (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            customerId   INTEGER NOT NULL,
+            tierId       INTEGER NOT NULL,
+            startDate    TEXT    NOT NULL,
+            endDate      TEXT    NOT NULL,
+            status       TEXT    NOT NULL DEFAULT 'active',
+            sessionsUsed INTEGER NOT NULL DEFAULT 0,
+            notes        TEXT    NOT NULL DEFAULT '',
+            createdAt    TEXT    NOT NULL,
+            updatedAt    TEXT    NOT NULL,
+            FOREIGN KEY (customerId) REFERENCES customers(id),
+            FOREIGN KEY (tierId)     REFERENCES membership_tiers(id)
+        )
+        """)
         conn.commit()
 
 
@@ -442,3 +481,231 @@ def get_analytics(period: str = "30d"):
         "durationBreakdown": duration_breakdown,
         "statusBreakdown": status_breakdown,
     }
+
+
+# ---------------------------------------------------------------------------
+# Customers
+# ---------------------------------------------------------------------------
+
+class CustomerRequest(BaseModel):
+    name: str = ""
+    phone: str = ""
+    email: str = ""
+    notes: str = ""
+
+
+@router.get("/admin/customers")
+def list_customers(search: Optional[str] = None):
+    with _get_conn() as conn:
+        if search:
+            like = f"%{search}%"
+            rows = conn.execute(
+                "SELECT * FROM customers WHERE name LIKE ? OR phone LIKE ? OR email LIKE ? ORDER BY name ASC",
+                (like, like, like),
+            ).fetchall()
+        else:
+            rows = conn.execute("SELECT * FROM customers ORDER BY name ASC").fetchall()
+    return [dict(r) for r in rows]
+
+
+@router.post("/admin/customers", status_code=201)
+def create_customer(body: CustomerRequest):
+    now = _now_iso()
+    with _get_conn() as conn:
+        cur = conn.execute(
+            "INSERT INTO customers (name, phone, email, notes, createdAt, updatedAt) VALUES (?,?,?,?,?,?)",
+            (body.name, body.phone, body.email, body.notes, now, now),
+        )
+        conn.commit()
+        row = conn.execute("SELECT * FROM customers WHERE id = ?", (cur.lastrowid,)).fetchone()
+    return dict(row)
+
+
+@router.patch("/admin/customers/{customer_id}")
+def patch_customer(customer_id: int, body: CustomerRequest):
+    now = _now_iso()
+    with _get_conn() as conn:
+        row = conn.execute("SELECT * FROM customers WHERE id = ?", (customer_id,)).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Customer not found")
+        conn.execute(
+            "UPDATE customers SET name=?, phone=?, email=?, notes=?, updatedAt=? WHERE id=?",
+            (body.name, body.phone, body.email, body.notes, now, customer_id),
+        )
+        conn.commit()
+        updated = conn.execute("SELECT * FROM customers WHERE id = ?", (customer_id,)).fetchone()
+    return dict(updated)
+
+
+@router.delete("/admin/customers/{customer_id}", status_code=204)
+def delete_customer(customer_id: int):
+    with _get_conn() as conn:
+        row = conn.execute("SELECT id FROM customers WHERE id = ?", (customer_id,)).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Customer not found")
+        conn.execute("DELETE FROM customers WHERE id = ?", (customer_id,))
+        conn.commit()
+
+
+# ---------------------------------------------------------------------------
+# Membership Tiers
+# ---------------------------------------------------------------------------
+
+class TierRequest(BaseModel):
+    name: str = ""
+    priceCents: int = 0
+    durationDays: int = 365
+    sessionsIncluded: int = 0
+    description: str = ""
+
+
+@router.get("/admin/membership-tiers")
+def list_tiers():
+    with _get_conn() as conn:
+        rows = conn.execute("SELECT * FROM membership_tiers ORDER BY name ASC").fetchall()
+    return [dict(r) for r in rows]
+
+
+@router.post("/admin/membership-tiers", status_code=201)
+def create_tier(body: TierRequest):
+    now = _now_iso()
+    with _get_conn() as conn:
+        cur = conn.execute(
+            "INSERT INTO membership_tiers (name, priceCents, durationDays, sessionsIncluded, description, createdAt, updatedAt) VALUES (?,?,?,?,?,?,?)",
+            (body.name, body.priceCents, body.durationDays, body.sessionsIncluded, body.description, now, now),
+        )
+        conn.commit()
+        row = conn.execute("SELECT * FROM membership_tiers WHERE id = ?", (cur.lastrowid,)).fetchone()
+    return dict(row)
+
+
+@router.patch("/admin/membership-tiers/{tier_id}")
+def patch_tier(tier_id: int, body: TierRequest):
+    now = _now_iso()
+    with _get_conn() as conn:
+        row = conn.execute("SELECT * FROM membership_tiers WHERE id = ?", (tier_id,)).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Tier not found")
+        conn.execute(
+            "UPDATE membership_tiers SET name=?, priceCents=?, durationDays=?, sessionsIncluded=?, description=?, updatedAt=? WHERE id=?",
+            (body.name, body.priceCents, body.durationDays, body.sessionsIncluded, body.description, now, tier_id),
+        )
+        conn.commit()
+        updated = conn.execute("SELECT * FROM membership_tiers WHERE id = ?", (tier_id,)).fetchone()
+    return dict(updated)
+
+
+@router.delete("/admin/membership-tiers/{tier_id}", status_code=204)
+def delete_tier(tier_id: int):
+    with _get_conn() as conn:
+        row = conn.execute("SELECT id FROM membership_tiers WHERE id = ?", (tier_id,)).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Tier not found")
+        conn.execute("DELETE FROM membership_tiers WHERE id = ?", (tier_id,))
+        conn.commit()
+
+
+# ---------------------------------------------------------------------------
+# Memberships
+# ---------------------------------------------------------------------------
+
+class MembershipRequest(BaseModel):
+    customerId: int
+    tierId: int
+    startDate: str
+    endDate: str
+    status: str = "active"
+    sessionsUsed: int = 0
+    notes: str = ""
+
+
+class MembershipPatchRequest(BaseModel):
+    status: Optional[str] = None
+    sessionsUsed: Optional[int] = None
+    endDate: Optional[str] = None
+    notes: Optional[str] = None
+
+
+@router.get("/admin/memberships")
+def list_memberships(customer_id: Optional[int] = None, status: Optional[str] = None):
+    with _get_conn() as conn:
+        q = """
+            SELECT m.*, c.name AS customerName, c.email AS customerEmail, c.phone AS customerPhone,
+                   t.name AS tierName, t.priceCents, t.sessionsIncluded
+            FROM memberships m
+            LEFT JOIN customers c ON c.id = m.customerId
+            LEFT JOIN membership_tiers t ON t.id = m.tierId
+            WHERE 1=1
+        """
+        params: list = []
+        if customer_id is not None:
+            q += " AND m.customerId = ?"
+            params.append(customer_id)
+        if status:
+            q += " AND m.status = ?"
+            params.append(status)
+        q += " ORDER BY m.startDate DESC"
+        rows = conn.execute(q, params).fetchall()
+    return [dict(r) for r in rows]
+
+
+@router.post("/admin/memberships", status_code=201)
+def create_membership(body: MembershipRequest):
+    now = _now_iso()
+    with _get_conn() as conn:
+        for fk_table, fk_id in [("customers", body.customerId), ("membership_tiers", body.tierId)]:
+            if not conn.execute(f"SELECT id FROM {fk_table} WHERE id = ?", (fk_id,)).fetchone():
+                raise HTTPException(status_code=400, detail=f"{fk_table} id {fk_id} not found")
+        cur = conn.execute(
+            "INSERT INTO memberships (customerId, tierId, startDate, endDate, status, sessionsUsed, notes, createdAt, updatedAt) VALUES (?,?,?,?,?,?,?,?,?)",
+            (body.customerId, body.tierId, body.startDate, body.endDate, body.status, body.sessionsUsed, body.notes, now, now),
+        )
+        conn.commit()
+        mid = cur.lastrowid
+        row = conn.execute("""
+            SELECT m.*, c.name AS customerName, t.name AS tierName
+            FROM memberships m
+            LEFT JOIN customers c ON c.id = m.customerId
+            LEFT JOIN membership_tiers t ON t.id = m.tierId
+            WHERE m.id = ?
+        """, (mid,)).fetchone()
+    return dict(row)
+
+
+@router.patch("/admin/memberships/{membership_id}")
+def patch_membership(membership_id: int, body: MembershipPatchRequest):
+    now = _now_iso()
+    with _get_conn() as conn:
+        row = conn.execute("SELECT * FROM memberships WHERE id = ?", (membership_id,)).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Membership not found")
+        updates: Dict[str, Any] = {"updatedAt": now}
+        if body.status is not None:
+            updates["status"] = body.status
+        if body.sessionsUsed is not None:
+            updates["sessionsUsed"] = body.sessionsUsed
+        if body.endDate is not None:
+            updates["endDate"] = body.endDate
+        if body.notes is not None:
+            updates["notes"] = body.notes
+        set_clause = ", ".join(f"{k} = ?" for k in updates)
+        conn.execute(f"UPDATE memberships SET {set_clause} WHERE id = ?", list(updates.values()) + [membership_id])
+        conn.commit()
+        updated = conn.execute("""
+            SELECT m.*, c.name AS customerName, t.name AS tierName
+            FROM memberships m
+            LEFT JOIN customers c ON c.id = m.customerId
+            LEFT JOIN membership_tiers t ON t.id = m.tierId
+            WHERE m.id = ?
+        """, (membership_id,)).fetchone()
+    return dict(updated)
+
+
+@router.delete("/admin/memberships/{membership_id}", status_code=204)
+def delete_membership(membership_id: int):
+    with _get_conn() as conn:
+        row = conn.execute("SELECT id FROM memberships WHERE id = ?", (membership_id,)).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Membership not found")
+        conn.execute("DELETE FROM memberships WHERE id = ?", (membership_id,))
+        conn.commit()

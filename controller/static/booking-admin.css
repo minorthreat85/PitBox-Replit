@@ -496,3 +496,140 @@
 .ba-sub-panel.hidden {
     display: none !important;
 }
+
+
+/* ========== Panel containers ========== */
+.ba-panel {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    overflow: hidden;
+    padding: 0 16px 16px;
+}
+.ba-panel .ba-table-wrap {
+    overflow-y: auto;
+    flex: 1;
+}
+.ba-schedule-wrap {
+    overflow-y: auto;
+    flex: 1;
+}
+.ba-checkin-list {
+    overflow-y: auto;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 4px 0;
+}
+
+/* ========== Sub-nav fix for full-height layout ========== */
+#page-bookings {
+    overflow: hidden;
+}
+.ba-sub-nav {
+    flex-shrink: 0;
+    padding: 0 16px;
+    margin-bottom: 0;
+}
+
+/* ========== Error bar ========== */
+.ba-error {
+    display: none;
+    margin: 6px 0 10px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    background: rgba(255,0,0,0.08);
+    border: 1px solid rgba(255,0,0,0.35);
+    color: #fff;
+    font-size: 0.9rem;
+}
+.ba-error.show { display: block; }
+.ba-detail-error-bar {
+    margin: 0 18px 12px;
+}
+
+/* ========== Overlay modal ========== */
+.ba-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 3000;
+    background: rgba(0,0,0,0.7);
+    display: none;
+    align-items: center;
+    justify-content: center;
+}
+.ba-overlay.show {
+    display: flex;
+}
+.ba-modal {
+    background: #0d0d0d;
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 18px;
+    width: 100%;
+    max-width: 480px;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.6);
+}
+.ba-modal--wide { max-width: 680px; }
+
+/* ========== Form rows ========== */
+.ba-form-row {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 14px;
+}
+.ba-modal-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    margin-top: 8px;
+    padding-top: 14px;
+    border-top: 1px solid rgba(255,255,255,0.08);
+}
+.ba-panel-title {
+    font-size: 0.9rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #888;
+}
+
+/* ========== Small action buttons ========== */
+.ba-btn-sm {
+    font-size: 0.78rem !important;
+    padding: 4px 10px !important;
+    border-radius: 6px !important;
+}
+
+/* ========== Analytics ID selectors ========== */
+#ba-analytics-kpis {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 14px;
+    margin-top: 14px;
+}
+@media (min-width: 900px) {
+    #ba-analytics-kpis { grid-template-columns: repeat(4, 1fr); }
+}
+#ba-analytics-bars {
+    margin-top: 14px;
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 14px;
+    padding: 8px;
+}
+#ba-analytics-status {
+    margin-top: 14px;
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 14px;
+    padding: 8px;
+}
+.ba-period-btn.active {
+    background: rgba(255,0,0,0.12) !important;
+    border-color: rgba(255,0,0,0.45) !important;
+    color: #fff !important;
+}
