@@ -3373,12 +3373,14 @@ async def get_car_skin_livery(car_id: str, skin_name: str):
 
 @router.get("/cars/{car_id}/skins/{skin_name}/preview")
 async def get_car_skin_preview(car_id: str, skin_name: str):
-    """Serve preview image for a car skin (content/cars/<car_id>/skins/<skin_name>/preview.jpg)."""
+    """Serve preview image for a car skin; falls back to any skin preview for the car if the specific skin has none."""
     if ".." in car_id or "/" in car_id or "\\" in car_id:
         raise HTTPException(status_code=404, detail="Invalid car_id")
     if ".." in skin_name or "/" in skin_name or "\\" in skin_name:
         raise HTTPException(status_code=404, detail="Invalid skin_name")
     path = _find_car_skin_preview(car_id, skin_name)
+    if path is None:
+        path = _find_car_preview(car_id)
     if path is None:
         raise HTTPException(status_code=404, detail="Skin preview not found")
     return _image_response(path, "image/jpeg" if path.suffix.lower() in (".jpg", ".jpeg") else "image/png")
