@@ -445,9 +445,24 @@ begin
       // Create Scheduled Task (ONLOGON, Run only when user is logged on)
       if WizardIsTaskSelected('startupagent') then
       begin
-        CreateAgentScheduledTask();
+        if CreateAgentScheduledTask() then
+        begin
+          // Run the task immediately so agent starts without requiring logoff/logon
+          Log('Starting PitBox Agent now via Scheduled Task run...');
+          Exec('schtasks.exe', '/Run /TN "PitBox Agent"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+          if ResultCode = 0 then
+            Log('PitBox Agent started successfully')
+          else
+          begin
+            // Fallback: launch exe directly in user session
+            Log('schtasks /Run returned ' + IntToStr(ResultCode) + ', launching agent exe directly');
+            ShellExec('open', ExpandConstant('{app}\PitBoxAgent.exe'),
+              '--config "' + ExpandConstant('{app}\Agent\config\agent_config.json') + '"',
+              ExpandConstant('{app}'), SW_HIDE, ewNoWait, ResultCode);
+          end;
+        end;
       end;
-      
+
       Log('Agent will auto-start via Scheduled Task (user session, NOT service)');
     end;
     
