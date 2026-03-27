@@ -520,7 +520,8 @@ async def employee_session(request: Request):
         "logged_in": effective_logged_in,
         "login_required_for_control": enabled and not effective_logged_in,
         "require_cookie_for_remote_control": enabled,
-        "localhost_only_without_password": pw is None,
+        # When no password is set all LAN clients have open access (not localhost-only).
+        "localhost_only_without_password": False,
     }
 
 
