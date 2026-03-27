@@ -1,0 +1,37 @@
+# Build artifacts
+dist/
+build/
+*.spec.bak
+
+# Attached assets (user-uploaded files, not source code)
+attached_assets/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+.eggs/
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets / local config
+.env
+*.local
+
+# Logs
+*.log
+logs/
