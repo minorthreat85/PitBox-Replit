@@ -1,7 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 """
 PyInstaller spec file for PitBox Tray Launcher
-Builds a windowed (no console) EXE that shows a system tray icon.
+Builds a windowed (no console) EXE with the custom PitBox icon.
 """
 
 block_cipher = None
@@ -10,7 +10,9 @@ a = Analysis(
     ['systray/pitbox_tray.py'],
     pathex=[],
     binaries=[],
-    datas=[],
+    datas=[
+        ('assets/pitbox.ico', '.'),
+    ],
     hiddenimports=['pystray._win32', 'PIL', 'PIL.Image', 'PIL.ImageDraw', 'PIL.ImageFont'],
     hookspath=[],
     hooksconfig={},
@@ -39,6 +41,7 @@ exe = EXE(
     upx_exclude=[],
     runtime_tmpdir=None,
     console=False,
+    icon='assets/pitbox.ico',
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,

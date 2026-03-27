@@ -451,6 +451,17 @@ async def legacy_status():
     return "Controller is running."
 
 
+@app.get("/favicon.ico")
+async def serve_favicon():
+    """Serve PitBox favicon."""
+    from fastapi.responses import FileResponse
+    path = STATIC_DIR / "favicon.ico"
+    if not path.exists():
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="favicon.ico not found")
+    return FileResponse(path, media_type="image/x-icon")
+
+
 @app.get("/app.js")
 async def serve_app_js(request: Request):
     """Serve main GUI script."""

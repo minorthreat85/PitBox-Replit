@@ -71,6 +71,11 @@ Source: "..\dist\PitBoxUpdater.exe"; DestDir: "{app}\updater"; Components: agent
 Source: "..\dist\PitBoxTray.exe"; DestDir: "{app}"; Components: controller; Flags: ignoreversion
 #endif
 
+; PitBox icon (for shortcuts and taskbar)
+#ifexist "..\assets\pitbox.ico"
+Source: "..\assets\pitbox.ico"; DestDir: "{app}"; Components: controller; Flags: ignoreversion
+#endif
+
 ; Updater script (fallback for Settings -> Updates "Download update & restart"; must be at {app}\tools\update_pitbox.ps1)
 Source: "..\dist\tools\update_pitbox.ps1"; DestDir: "{app}\tools"; Components: controller; Flags: ignoreversion
 
@@ -97,8 +102,8 @@ Name: "C:\ProgramData\PitBox\logs"
 
 [Icons]
 ; Start Menu shortcuts
-Name: "{group}\PitBox"; Filename: "{app}\PitBoxTray.exe"; Components: controller
-Name: "{group}\PitBox Web UI"; Filename: "http://pitbox:9630"; Components: controller
+Name: "{group}\PitBox"; Filename: "{app}\PitBoxTray.exe"; IconFilename: "{app}\pitbox.ico"; Components: controller
+Name: "{group}\PitBox Web UI"; Filename: "http://pitbox:9630"; IconFilename: "{app}\pitbox.ico"; Components: controller
 Name: "{group}\Start PitBox"; Filename: "{app}\START.cmd"; WorkingDir: "{app}"; Components: controller
 Name: "{group}\Stop PitBox"; Filename: "{app}\STOP.cmd"; WorkingDir: "{app}"; Components: controller
 Name: "{group}\Controller Logs"; Filename: "C:\ProgramData\PitBox\logs"; Components: controller
@@ -106,7 +111,7 @@ Name: "{group}\Update PitBox"; Filename: "powershell.exe"; Parameters: "-Executi
 Name: "{group}\{cm:UninstallProgram,{#MyAppName}}"; Filename: "{uninstallexe}"
 
 ; Desktop shortcuts
-Name: "{commondesktop}\PitBox"; Filename: "{app}\PitBoxTray.exe"; Components: controller; Tasks: openbrowser
+Name: "{commondesktop}\PitBox"; Filename: "{app}\PitBoxTray.exe"; IconFilename: "{app}\pitbox.ico"; Components: controller; Tasks: openbrowser
 Name: "{commondesktop}\Stop PitBox"; Filename: "{app}\STOP.cmd"; WorkingDir: "{app}"; Components: controller
 
 ; NOTE: Agent auto-start is via Scheduled Task (created in [Code]), NOT Startup folder.
