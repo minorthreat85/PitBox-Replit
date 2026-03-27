@@ -49,113 +49,61 @@ def _set_install_state(state: str, message: str, percent: int = 0) -> None:
 
 def _run_installer_windows(installer_path: Path, cwd: Path) -> None:
     """
-    Run the Inno Setup installer on Windows.
-    Tries direct launch first (works when already elevated / running as SYSTEM).
-    If exit code 5 (access denied / PrivilegesRequired=admin without elevation),
-    falls back to ShellExecuteEx with 'runas' verb — shows a single UAC dialog,
-    no console window.  Sets _INSTALL_STATE to 'done' or 'error'.
+    Run the Inno Setup installer on Windows without any visible window.
+
+    Strategy:
+    1. Write a detached PowerShell launcher script to the temp dir.
+       The script stops the PitBox service first (releasing file locks),
+       then runs the installer with /VERYSILENT /SUPPRESSMSGBOXES.
+    2. Fire the launcher as a fully DETACHED_PROCESS so it survives even if
+       our controller process is killed by the service stop.
+    3. Return immediately — the frontend will detect the controller going
+       offline and auto-reload when the new version comes back up.
+
+    This avoids:
+    - Inno exit code 5 (CloseApplications fails on locked service files)
+    - ShellExecuteEx runas blocking forever in session-0 / SYSTEM context
+    - Any visible console or PowerShell window
     """
-    args = "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART"
-    installer_str = str(installer_path)
-    cwd_str = str(cwd)
+    installer_str = str(installer_path).replace("'", "''")  # escape for PS single-quote
+    cwd_str = str(cwd).replace("'", "''")
 
-    # --- Attempt 1: direct launch (no UAC) ---
-    try:
-        proc = subprocess.Popen(
-            [installer_str, "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART"],
-            cwd=cwd_str,
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-        proc.wait(timeout=300)
-        rc = proc.returncode
-        if rc == 0:
-            _set_install_state("done", "Install complete — PitBox is restarting…", 100)
-            return
-        if rc != 5:
-            _set_install_state("error", f"Installer exited with code {rc}")
-            return
-        logger.info("Installer returned code 5 (needs elevation); retrying via ShellExecuteEx runas")
-    except subprocess.TimeoutExpired:
-        try:
-            proc.kill()
-        except Exception:
-            pass
-        _set_install_state("error", "Installer timed out after 5 minutes")
-        return
-    except Exception as exc:
-        logger.warning("Direct install launch failed (%s); trying elevated launch", exc)
+    # PowerShell script that runs detached from our process tree
+    launcher_ps = f"""
+$ErrorActionPreference = 'SilentlyContinue'
+# Give the controller a moment to respond to the browser's next poll
+Start-Sleep -Seconds 3
+# Stop the service so Inno can replace locked files
+Stop-Service -Name 'PitBoxController' -Force -ErrorAction SilentlyContinue
+Start-Sleep -Seconds 4
+# Run the Inno installer silently
+& '{installer_str}' /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
+"""
+    launcher_path = cwd / "pitbox_launcher.ps1"
+    launcher_path.write_text(launcher_ps, encoding="utf-8")
 
-    # --- Attempt 2: elevated via ShellExecuteEx (runas verb) → UAC prompt ---
-    try:
-        import ctypes
-        from ctypes import wintypes
+    DETACHED_PROCESS = 0x00000008
+    CREATE_NEW_PROCESS_GROUP = 0x00000200
 
-        SEE_MASK_NOCLOSEPROCESS = 0x00000040
-        SEE_MASK_NO_CONSOLE = 0x00008000
-        SW_HIDE = 0
-
-        class SHELLEXECUTEINFOW(ctypes.Structure):
-            _fields_ = [
-                ("cbSize", wintypes.DWORD),
-                ("fMask", wintypes.ULONG),
-                ("hwnd", wintypes.HWND),
-                ("lpVerb", wintypes.LPCWSTR),
-                ("lpFile", wintypes.LPCWSTR),
-                ("lpParameters", wintypes.LPCWSTR),
-                ("lpDirectory", wintypes.LPCWSTR),
-                ("nShow", ctypes.c_int),
-                ("hInstApp", wintypes.HINSTANCE),
-                ("lpIDList", ctypes.c_void_p),
-                ("lpClass", wintypes.LPCWSTR),
-                ("hkeyClass", wintypes.HKEY),
-                ("dwHotKey", wintypes.DWORD),
-                ("hIconOrMonitor", wintypes.HANDLE),
-                ("hProcess", wintypes.HANDLE),
-            ]
-
-        sei = SHELLEXECUTEINFOW()
-        sei.cbSize = ctypes.sizeof(sei)
-        sei.fMask = SEE_MASK_NOCLOSEPROCESS | SEE_MASK_NO_CONSOLE
-        sei.lpVerb = "runas"
-        sei.lpFile = installer_str
-        sei.lpParameters = args
-        sei.lpDirectory = cwd_str
-        sei.nShow = SW_HIDE
-
-        _set_install_state("installing", "Waiting for UAC approval… a prompt may appear.", 96)
-        ok = ctypes.windll.shell32.ShellExecuteExW(ctypes.byref(sei))
-        if not ok:
-            err = ctypes.windll.kernel32.GetLastError()
-            _set_install_state("error", f"ShellExecuteEx failed (error {err}) — try running PitBox as administrator")
-            return
-
-        h_proc = sei.hProcess
-        WAIT_TIMEOUT = 0x00000102
-        INFINITE = 0xFFFFFFFF
-        TIMEOUT_MS = 300_000  # 5 minutes
-
-        _set_install_state("installing", "Installing silently… PitBox will restart automatically.", 97)
-        result = ctypes.windll.kernel32.WaitForSingleObject(h_proc, TIMEOUT_MS)
-        if result == WAIT_TIMEOUT:
-            ctypes.windll.kernel32.TerminateProcess(h_proc, 1)
-            ctypes.windll.kernel32.CloseHandle(h_proc)
-            _set_install_state("error", "Installer timed out after 5 minutes")
-            return
-
-        exit_code = wintypes.DWORD(0)
-        ctypes.windll.kernel32.GetExitCodeProcess(h_proc, ctypes.byref(exit_code))
-        ctypes.windll.kernel32.CloseHandle(h_proc)
-
-        if exit_code.value == 0:
-            _set_install_state("done", "Install complete — PitBox is restarting…", 100)
-        else:
-            _set_install_state("error", f"Elevated installer exited with code {exit_code.value}")
-
-    except Exception as exc:
-        logger.exception("Elevated install failed: %s", exc)
-        _set_install_state("error", f"Could not launch elevated installer: {exc}")
+    subprocess.Popen(
+        [
+            "powershell.exe",
+            "-WindowStyle", "Hidden",
+            "-ExecutionPolicy", "Bypass",
+            "-NonInteractive",
+            "-File", str(launcher_path),
+        ],
+        cwd=cwd_str,
+        creationflags=DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        close_fds=True,
+    )
+    # We return here — the launcher will stop the service (killing us) and
+    # run the installer.  The frontend will detect the offline/online
+    # transition and reload automatically.
+    _set_install_state("installing", "Installer launched — PitBox will restart in a few seconds…", 98)
 
 
 def _download_and_install(asset_url: str, expected_sha256: str, installer_filename: str) -> None:
@@ -235,7 +183,15 @@ def _download_and_install(asset_url: str, expected_sha256: str, installer_filena
         logger.exception("Download/install thread failed: %s", exc)
         _set_install_state("error", f"Update failed: {exc}")
     finally:
-        shutil.rmtree(tmp_dir, ignore_errors=True)
+        # On Windows the detached PowerShell launcher still needs the installer
+        # EXE and .ps1 from tmp_dir — leave them in place.  The OS purges temp
+        # files on the next reboot.  On Linux/Mac clean up immediately.
+        with _INSTALL_LOCK:
+            cur_state = _INSTALL_STATE.get("state", "idle")
+        if os.name == "nt" and cur_state in ("installing", "done"):
+            logger.info("Leaving tmp dir for detached installer: %s", tmp_dir)
+        else:
+            shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
 # Cache for release info
