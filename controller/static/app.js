@@ -5447,22 +5447,23 @@
     return null;
   }
 
-  /** Run set-driver-name + launch_online for one sim (same as Launch Session). Returns Promise<{ success: boolean, error?: string }>. */
-  function applyAndLaunchOne(id) {
-    return ensureOperatorOrRedirect().then(function (ok) {
-      if (!ok) return { success: false, error: 'Sign-in required' };
-      var card = grid.querySelector('.sim-card[data-agent-id="' + (window.CSS && window.CSS.escape ? window.CSS.escape(id) : id.replace(/"/g, '\\"')) + '"]');
-      var ojs = getOnlineJoinState(id);
-      var carId = getCarIdFromCard(card, id) || (ojs.selectedCarId && String(ojs.selectedCarId).trim()) || null;
-      if (carId) ojs.selectedCarId = carId;
-      var driverInput = card ? card.querySelector('.sim-card-driver-input') : null;
-      var driverName = (driverInput && (driverInput.value || '').trim()) || (driverNames[id] !== undefined ? String(driverNames[id]).trim() : '') || ('Sim ' + id);
-      var presetId = (card && card.querySelector('.preset-steering')) ? (card.querySelector('.preset-steering').value || '').trim() : (steeringPreset[id] || '');
-      var shifterMode = (card && card.querySelector('.preset-shifting')) ? (card.querySelector('.preset-shifting').value || '').trim() : (shiftingPreset[id] || '');
-      var simDisplay = (ojs.selectedServerId || '').trim() || null;
-      var details = ojs.serverDetails || {};
-      var timerMinutes = getTimerMinutesFromCard(card, id);
-      var payload = {
+  /** Read launch payload for one sim from DOM (sync). */
+  function buildLaunchPayload(id) {
+    var card = grid.querySelector('.sim-card[data-agent-id="' + (window.CSS && window.CSS.escape ? window.CSS.escape(id) : id.replace(/"/g, '\\"')) + '"]');
+    var ojs = getOnlineJoinState(id);
+    var carId = getCarIdFromCard(card, id) || (ojs.selectedCarId && String(ojs.selectedCarId).trim()) || null;
+    if (carId) ojs.selectedCarId = carId;
+    var driverInput = card ? card.querySelector('.sim-card-driver-input') : null;
+    var driverName = (driverInput && (driverInput.value || '').trim()) || (driverNames[id] !== undefined ? String(driverNames[id]).trim() : '') || ('Sim ' + id);
+    var presetId = (card && card.querySelector('.preset-steering')) ? (card.querySelector('.preset-steering').value || '').trim() : (steeringPreset[id] || '');
+    var shifterMode = (card && card.querySelector('.preset-shifting')) ? (card.querySelector('.preset-shifting').value || '').trim() : (shiftingPreset[id] || '');
+    var simDisplay = (ojs.selectedServerId || '').trim() || null;
+    var details = ojs.serverDetails || {};
+    var timerMinutes = getTimerMinutesFromCard(card, id);
+    return {
+      driverName: driverName,
+      timerMinutes: timerMinutes,
+      launchPayload: {
         server_id: ojs.selectedServerId || null,
         server_ip: details.ip || null,
         server_port: details.port != null ? details.port : null,
@@ -5471,107 +5472,143 @@
         shifter_mode: shifterMode || null,
         sim_display: simDisplay,
         max_running_time_minutes: timerMinutes
-      };
-      return pitboxFetch(API_BASE + '/set-driver-name', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sim_id: id, driver_name: driverName })
+      }
+    };
+  }
+
+  /** Send set-driver-name for one sim. Returns Promise<{ success, error? }>. */
+  function setDriverNameFor(id, driverName) {
+    return pitboxFetch(API_BASE + '/set-driver-name', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sim_id: id, driver_name: driverName })
+    })
+      .then(function (r) {
+        if (r.ok) return { success: true };
+        return r.json().then(function (d) { return { success: false, error: d.detail || d.message || 'Set name failed' }; });
       })
-        .then(function (r) { return r.ok ? Promise.resolve() : r.json().then(function (d) { return Promise.reject(new Error(d.detail || d.message || 'Set name failed')); }); })
-        .then(function () {
-          return pitboxFetch(API_BASE + '/agents/' + encodeURIComponent(id) + '/launch_online', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-          });
-        })
-        .then(function (r) {
-          return r.json().then(function (data) {
-            if (r.ok) {
-              sessionStartTimeByAgent[id] = Date.now();
-              sessionTimerMinutesByAgent[id] = timerMinutes;
-              return { success: true };
-            }
-            var msg = (data.detail && typeof data.detail === 'object' && data.detail.detail) ? data.detail.detail : (data.detail || data.message || r.statusText);
-            if (typeof msg !== 'string') msg = (data.detail && data.detail.error) ? data.detail.error : String(msg);
-            return { success: false, error: msg };
-          });
-        })
-        .catch(function (e) { return { success: false, error: e.message || String(e) }; });
+      .catch(function (e) { return { success: false, error: e.message || String(e) }; });
+  }
+
+  /** Send launch_online for one sim. Returns Promise<{ success, error?, timerMinutes? }>. */
+  function launchOnlineWith(id, payload, timerMinutes) {
+    return pitboxFetch(API_BASE + '/agents/' + encodeURIComponent(id) + '/launch_online', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    })
+      .then(function (r) {
+        return r.json().then(function (data) {
+          if (r.ok) {
+            sessionStartTimeByAgent[id] = Date.now();
+            sessionTimerMinutesByAgent[id] = timerMinutes;
+            return { success: true };
+          }
+          var msg = (data.detail && typeof data.detail === 'object' && data.detail.detail) ? data.detail.detail : (data.detail || data.message || r.statusText);
+          if (typeof msg !== 'string') msg = (data.detail && data.detail.error) ? data.detail.error : String(msg);
+          return { success: false, error: msg };
+        });
+      })
+      .catch(function (e) { return { success: false, error: e.message || String(e) }; });
+  }
+
+  /** Run set-driver-name + launch_online for one sim (used by single-card Launch Session button). */
+  function applyAndLaunchOne(id) {
+    return ensureOperatorOrRedirect().then(function (ok) {
+      if (!ok) return { success: false, error: 'Sign-in required' };
+      var p = buildLaunchPayload(id);
+      return setDriverNameFor(id, p.driverName)
+        .then(function (nameResult) {
+          if (!nameResult.success) return { success: false, error: nameResult.error };
+          return launchOnlineWith(id, p.launchPayload, p.timerMinutes);
+        });
     });
   }
 
   function launchSelected() {
     ensureOperatorOrRedirect().then(function (ok) {
       if (!ok) return;
-    var ids = getSelectedIds().filter(function (id) { return id !== TEST_SIM_AGENT_ID; });
-    if (!ids.length) {
-      showToast('Select at least one rig.', 'warning');
-      return;
-    }
-    var invalid = [];
-    ids.forEach(function (id) {
-      var ojs = getOnlineJoinState(id);
-      if (!(ojs.selectedServerId || '').trim()) invalid.push(id + ': no server');
-      else if (ojs.carsStatus !== 'ready') invalid.push(id + ': cars not loaded');
-      else if (!(ojs.selectedCarId || '').trim()) invalid.push(id + ': no car');
-    });
-    if (invalid.length) {
-      showToast('Fix selection: ' + invalid.slice(0, 2).join('; ') + (invalid.length > 2 ? '…' : ''), 'warning');
-      return;
-    }
-    launchBusy = true;
-    var launchBtn = document.getElementById('launch-selected');
-    if (launchBtn) launchBtn.disabled = true;
-    ids.forEach(function (id) { batchState[id] = { action: 'launch', status: 'pending' }; });
-    updateBatchStatusEls();
-    ids.forEach(function (id) {
-      var ojs = getOnlineJoinState(id);
-      ojs.launchStatus = 'joining';
-      ojs.errorMessage = null;
-    });
-    runWithConcurrency(ids, applyAndLaunchOne, 3)
-      .then(function (results) {
-        ids.forEach(function (id, i) {
-          var r = results[i];
-          if (!batchState[id]) batchState[id] = { action: 'launch' };
-          batchState[id].status = r && r.success ? 'ok' : 'failed';
-          batchState[id].error = (r && r.error) || 'Unknown error';
-          var ojs = getOnlineJoinState(id);
-          ojs.launchStatus = r && r.success ? 'joined' : 'error';
-          if (r && !r.success) ojs.errorMessage = r.error;
-        });
-        updateBatchStatusEls();
-        var failed = ids.filter(function (id) { return !(batchState[id] && batchState[id].status === 'ok'); });
-        var ok = ids.length - failed.length;
-        if (failed.length) showToast('Launched ' + ok + '; failed: ' + failed.length, 'warning');
-        else showToast('Launched ' + ids.length + ' rig(s).', 'success');
-        launchBusy = false;
-        if (launchBtn) launchBtn.disabled = false;
-        scheduleFetchStatus('batch-launch');
-        return Promise.resolve();
-      })
-      .catch(function (err) {
-        ids.forEach(function (id) {
-          if (batchState[id]) { batchState[id].status = 'failed'; batchState[id].error = err.message || 'Request failed'; }
-          var ojs = getOnlineJoinState(id);
-          ojs.launchStatus = 'error';
-          ojs.errorMessage = err.message;
-        });
-        updateBatchStatusEls();
-        showToast('Launch failed: ' + err.message, 'error');
-        launchBusy = false;
-        if (launchBtn) launchBtn.disabled = false;
-        scheduleFetchStatus('batch-launch-error');
-        return Promise.resolve();
-      })
-      .then(function () {
-        setTimeout(function () {
-          ids.forEach(function (id) { delete batchState[id]; });
+      var ids = getSelectedIds().filter(function (id) { return id !== TEST_SIM_AGENT_ID; });
+      if (!ids.length) {
+        showToast('Select at least one rig.', 'warning');
+        return;
+      }
+      var invalid = [];
+      ids.forEach(function (id) {
+        var ojs = getOnlineJoinState(id);
+        if (!(ojs.selectedServerId || '').trim()) invalid.push(id + ': no server');
+        else if (ojs.carsStatus !== 'ready') invalid.push(id + ': cars not loaded');
+        else if (!(ojs.selectedCarId || '').trim()) invalid.push(id + ': no car');
+      });
+      if (invalid.length) {
+        showToast('Fix selection: ' + invalid.slice(0, 2).join('; ') + (invalid.length > 2 ? '…' : ''), 'warning');
+        return;
+      }
+
+      launchBusy = true;
+      var launchBtn = document.getElementById('launch-selected');
+      if (launchBtn) launchBtn.disabled = true;
+      ids.forEach(function (id) { batchState[id] = { action: 'launch', status: 'pending' }; });
+      updateBatchStatusEls();
+      ids.forEach(function (id) {
+        var ojs = getOnlineJoinState(id);
+        ojs.launchStatus = 'joining';
+        ojs.errorMessage = null;
+      });
+
+      // Read all payloads synchronously from DOM before any async work
+      var payloads = {};
+      ids.forEach(function (id) { payloads[id] = buildLaunchPayload(id); });
+
+      // Phase 1: set driver names for ALL sims simultaneously
+      Promise.all(ids.map(function (id) {
+        return setDriverNameFor(id, payloads[id].driverName);
+      }))
+        // Phase 2: fire launch_online for ALL sims simultaneously the instant names are done
+        .then(function (nameResults) {
+          return Promise.all(ids.map(function (id, i) {
+            if (!nameResults[i].success) {
+              return Promise.resolve({ success: false, error: nameResults[i].error });
+            }
+            return launchOnlineWith(id, payloads[id].launchPayload, payloads[id].timerMinutes);
+          }));
+        })
+        .then(function (results) {
+          ids.forEach(function (id, i) {
+            var r = results[i];
+            if (!batchState[id]) batchState[id] = { action: 'launch' };
+            batchState[id].status = r && r.success ? 'ok' : 'failed';
+            batchState[id].error = (r && r.error) || 'Unknown error';
+            var ojs = getOnlineJoinState(id);
+            ojs.launchStatus = r && r.success ? 'joined' : 'error';
+            if (r && !r.success) ojs.errorMessage = r.error;
+          });
           updateBatchStatusEls();
-        }, 5000);
-      })
-      .catch(function () {});
+          var failed = ids.filter(function (id) { return !(batchState[id] && batchState[id].status === 'ok'); });
+          var ok = ids.length - failed.length;
+          if (failed.length) showToast('Launched ' + ok + '; failed: ' + failed.length, 'warning');
+          else showToast('Launched ' + ids.length + ' rig(s).', 'success');
+          launchBusy = false;
+          if (launchBtn) launchBtn.disabled = false;
+          scheduleFetchStatus('batch-launch');
+          setTimeout(function () {
+            ids.forEach(function (id) { delete batchState[id]; });
+            updateBatchStatusEls();
+          }, 5000);
+        })
+        .catch(function (err) {
+          ids.forEach(function (id) {
+            if (batchState[id]) { batchState[id].status = 'failed'; batchState[id].error = err.message || 'Request failed'; }
+            var ojs = getOnlineJoinState(id);
+            ojs.launchStatus = 'error';
+            ojs.errorMessage = err.message;
+          });
+          updateBatchStatusEls();
+          showToast('Launch failed: ' + err.message, 'error');
+          launchBusy = false;
+          if (launchBtn) launchBtn.disabled = false;
+          scheduleFetchStatus('batch-launch-error');
+        });
     });
   }
 
