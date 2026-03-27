@@ -94,7 +94,7 @@ if (Test-Path "dist") {
         Remove-Item -Path "dist" -Recurse -Force -ErrorAction Stop
     } catch {
         Write-Host ""
-        Write-Host "ERROR: Cannot remove dist\ — a file is locked (is PitBoxController running?)" -ForegroundColor Red
+        Write-Host "ERROR: Cannot remove dist\ - a file is locked (is PitBoxController running?)" -ForegroundColor Red
         Write-Host "  Stop the PitBoxController service first, then re-run update.ps1." -ForegroundColor Yellow
         Write-Host "  Detail: $_" -ForegroundColor Gray
         exit 1
@@ -478,8 +478,8 @@ Write-Host ""
 Write-Host "Installation:" -ForegroundColor Cyan
 if (Test-Path "dist\PitBoxInstaller.exe") {
     Write-Host "  RECOMMENDED: Use the unified installer (PitBoxInstaller.exe or PitBoxInstaller_$version.exe)" -ForegroundColor White
-    Write-Host "  1. Run it on sim PC → Select 'Sim PC (Agent)'" -ForegroundColor White
-    Write-Host "  2. Run it on admin PC → Select 'Admin PC (Controller)'" -ForegroundColor White
+    Write-Host "  1. Run it on sim PC -> Select 'Sim PC (Agent)'" -ForegroundColor White
+    Write-Host "  2. Run it on admin PC -> Select 'Admin PC (Controller)'" -ForegroundColor White
     Write-Host "  The installer handles everything automatically!" -ForegroundColor Green
 } else {
     Write-Host "  Manual: Copy EXE files and use service scripts" -ForegroundColor Yellow
