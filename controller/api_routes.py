@@ -136,6 +136,7 @@ from controller.server_preset_helpers import (
     _prettify_car_id,
     _preset_ini_paths,
     _set_cached_preset_disk_state,
+    _get_server_join_host,
     _valid_server_id,
 )
 
