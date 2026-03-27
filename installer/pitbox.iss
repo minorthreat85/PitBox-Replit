@@ -66,6 +66,11 @@ Source: "..\dist\STOP.cmd"; DestDir: "{app}"; Components: controller; Flags: ign
 Source: "..\dist\PitBoxUpdater.exe"; DestDir: "{app}\updater"; Components: agent controller; Flags: ignoreversion
 #endif
 
+; PitBoxTray.exe (system tray launcher; optional - skip if not built)
+#ifexist "..\dist\PitBoxTray.exe"
+Source: "..\dist\PitBoxTray.exe"; DestDir: "{app}"; Components: controller; Flags: ignoreversion
+#endif
+
 ; Updater script (fallback for Settings -> Updates "Download update & restart"; must be at {app}\tools\update_pitbox.ps1)
 Source: "..\dist\tools\update_pitbox.ps1"; DestDir: "{app}\tools"; Components: controller; Flags: ignoreversion
 
@@ -92,7 +97,8 @@ Name: "C:\ProgramData\PitBox\logs"
 
 [Icons]
 ; Start Menu shortcuts
-Name: "{group}\PitBox Web UI"; Filename: "http://127.0.0.1:9630"; Components: controller
+Name: "{group}\PitBox"; Filename: "{app}\PitBoxTray.exe"; Components: controller
+Name: "{group}\PitBox Web UI"; Filename: "http://pitbox:9630"; Components: controller
 Name: "{group}\Start PitBox"; Filename: "{app}\START.cmd"; WorkingDir: "{app}"; Components: controller
 Name: "{group}\Stop PitBox"; Filename: "{app}\STOP.cmd"; WorkingDir: "{app}"; Components: controller
 Name: "{group}\Controller Logs"; Filename: "C:\ProgramData\PitBox\logs"; Components: controller
@@ -100,11 +106,15 @@ Name: "{group}\Update PitBox"; Filename: "powershell.exe"; Parameters: "-Executi
 Name: "{group}\{cm:UninstallProgram,{#MyAppName}}"; Filename: "{uninstallexe}"
 
 ; Desktop shortcuts
-Name: "{commondesktop}\PitBox Web UI"; Filename: "http://127.0.0.1:9630"; Components: controller; Tasks: openbrowser
+Name: "{commondesktop}\PitBox"; Filename: "{app}\PitBoxTray.exe"; Components: controller; Tasks: openbrowser
 Name: "{commondesktop}\Stop PitBox"; Filename: "{app}\STOP.cmd"; WorkingDir: "{app}"; Components: controller
 
 ; NOTE: Agent auto-start is via Scheduled Task (created in [Code]), NOT Startup folder.
 ; This ensures Agent runs as logged-in user - critical for AC to show game window.
+
+[Registry]
+; Register PitBoxTray to start with Windows (controller PC only)
+Root: HKCU; Subkey: "SOFTWARE\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "PitBox"; ValueData: """{app}\PitBoxTray.exe"""; Components: controller; Flags: uninsdeletevalue
 
 [Run]
 ; Note: Service installation and config creation happens in [Code] section
@@ -514,10 +524,15 @@ begin
         
         Sleep(3000); // Give controller time to fully start
         
-        // Open browser if selected
-        if WizardIsTaskSelected('openbrowser') then
+        // Launch system tray app (opens PitBox in an app window automatically)
+        if FileExists(ExpandConstant('{app}\PitBoxTray.exe')) then
         begin
-          Log('Opening web UI in browser at http://pitbox:9630/');
+          Log('Launching PitBox tray launcher');
+          ShellExec('open', ExpandConstant('{app}\PitBoxTray.exe'), '', ExpandConstant('{app}'), SW_HIDE, ewNoWait, ResultCode);
+        end
+        else if WizardIsTaskSelected('openbrowser') then
+        begin
+          Log('PitBoxTray.exe not found, opening browser directly');
           Exec('cmd.exe', '/c start http://pitbox:9630', '', SW_HIDE, ewNoWait, ResultCode);
         end;
       end;

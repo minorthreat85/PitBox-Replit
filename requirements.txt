@@ -27,8 +27,10 @@ uvicorn==0.32.0
 anyio
 fastapi
 httpx
+pillow
 psutil
 pydantic
 pydantic-settings
+pystray
 python-dotenv
 uvicorn

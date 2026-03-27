@@ -178,6 +178,20 @@ if ($LASTEXITCODE -ne 0) {
 
 Write-Host "  PitBoxController.exe built successfully (console=False for service)" -ForegroundColor Gray
 
+# Build System Tray Launcher
+Write-Host ""
+Write-Host "Building PitBoxTray.exe (system tray launcher)..." -ForegroundColor Green
+Write-Host "  (Requires pystray and Pillow in venv)" -ForegroundColor Gray
+
+& $buildPython -m PyInstaller PitBoxTray.spec --clean --noconfirm
+
+if ($LASTEXITCODE -eq 0 -and (Test-Path "dist\PitBoxTray.exe")) {
+    $traySize = (Get-Item "dist\PitBoxTray.exe").Length / 1MB
+    Write-Host "  PitBoxTray.exe built: $([math]::Round($traySize, 2)) MB" -ForegroundColor Gray
+} else {
+    Write-Host "  Warning: PitBoxTray.exe build failed (non-fatal, tray feature will be unavailable)" -ForegroundColor Yellow
+}
+
 # Build external updater (stdlib only; lives outside controller install)
 if (Test-Path "updater\pitbox_updater.py") {
     Write-Host ""
