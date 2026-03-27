@@ -39,6 +39,7 @@ try:
     from controller.api_routes import router as api_router, load_sim_assignments, BUILD_ID, discover_presets, PRESETS_DIR_DEBUG
     from controller.operator_auth import EMPLOYEE_COOKIE
     from controller.api_booking_routes import router as booking_router
+    from controller.booking_proxy import router as proxy_router
     from controller.service.event_store import ensure_events_dir, append_event as event_store_append
     from controller.common.event_log import make_event, LogCategory, LogLevel
 except Exception as _e:
@@ -203,6 +204,7 @@ def _check_port_available(host: str, port: int) -> bool:
     import socket
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             s.settimeout(1.0)
             s.bind((host, port))
             return True
@@ -382,6 +384,7 @@ async def add_pitbox_build_header(request, call_next):
 
 app.include_router(api_router)
 app.include_router(booking_router)
+app.include_router(proxy_router)
 
 
 # Static files: serve GUI at / and /app.js, /styles.css, etc.
