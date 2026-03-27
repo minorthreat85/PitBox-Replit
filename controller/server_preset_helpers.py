@@ -379,15 +379,24 @@ def _normalize_track_id_from_preset(track_raw: str) -> str:
     return ""
 
 
-def _build_favourite_server_cfg_snapshot(fav: dict[str, Any], server_id: str) -> dict[str, Any]:
+def _build_favourite_server_cfg_snapshot(
+    fav: dict[str, Any], server_id: str, *, skip_live_fetch: bool = False
+) -> dict[str, Any]:
     """
-    Build server_cfg-shaped snapshot for a favourite (Content Manager–style).
-    Seed from Favourites.txt (ip, port, name); resolve live via get_live_server_info.
+    Build server_cfg-shaped snapshot for a favourite (Content Manager-style).
+    Seed from Favourites.txt (ip, port, name); optionally resolve live via get_live_server_info.
+
+    skip_live_fetch=True: use seed data only (no network call). Use this on the launch path
+    so the blocking HTTP poll to the AC server does not add ~3-9 s before acs.exe starts.
     """
     host = (fav.get("ip") or "").strip() or ""
     seed_port = int(fav.get("port") or 0)
     name = (fav.get("name") or "").strip() or server_id
-    live = get_live_server_info(host, seed_port) if host and seed_port else {}
+
+    if skip_live_fetch or not host or not seed_port:
+        live: dict[str, Any] = {}
+    else:
+        live = get_live_server_info(host, seed_port)
     game_port = live.get("game_port") if live.get("game_port") is not None else seed_port
     http_port_val = live.get("http_port")
     cars_list = list(live.get("cars") or [])
@@ -412,9 +421,11 @@ def _build_favourite_server_cfg_snapshot(fav: dict[str, Any], server_id: str) ->
         server_section["HTTP_PORT"] = str(http_port_val)
     snapshot: dict[str, Any] = {"SERVER": server_section}
     logger.info(
-        "[live-server] race.ini favourite %s: raw_track=%r normalized_track=%r normalized_layout=%r -> TRACK=%r CONFIG_TRACK=%s",
-        server_id, raw_resolved_track or "(none)", track_id or "(none)", layout_raw or "(none)",
-        server_section.get("TRACK") or "(none)", server_section.get("CONFIG_TRACK") or "(omit)",
+        "[live-server] race.ini favourite %s (skip_live=%s): raw_track=%r normalized_track=%r "
+        "normalized_layout=%r -> TRACK=%r CONFIG_TRACK=%s",
+        server_id, skip_live_fetch, raw_resolved_track or "(none)", track_id or "(none)",
+        layout_raw or "(none)", server_section.get("TRACK") or "(none)",
+        server_section.get("CONFIG_TRACK") or "(omit)",
     )
     return snapshot
 
