@@ -192,65 +192,19 @@
             <!-- Booking sub-tab nav -->
             <nav class="ba-sub-nav">
                 <button type="button" class="ba-sub-tab active" data-ba-sub="list">Bookings</button>
-                <button type="button" class="ba-sub-tab" data-ba-sub="schedule">Schedule</button>
-                <button type="button" class="ba-sub-tab" data-ba-sub="checkin">Check-In</button>
                 <button type="button" class="ba-sub-tab" data-ba-sub="customers">Customers</button>
                 <button type="button" class="ba-sub-tab" data-ba-sub="memberships">Memberships</button>
                 <button type="button" class="ba-sub-tab" data-ba-sub="tiers">Tiers</button>
-                <button type="button" class="ba-sub-tab" data-ba-sub="analytics">Analytics</button>
             </nav>
 
-            <!-- Bookings List Panel -->
-            <div id="ba-panel-list" class="ba-panel">
-                <div class="ba-toolbar">
-                    <input type="date" id="ba-filter-date" class="ba-input">
-                    <select id="ba-filter-status" class="ba-select">
-                        <option value="">All Statuses</option>
-                        <option value="confirmed">Confirmed</option>
-                        <option value="checked_in">Checked In</option>
-                        <option value="pending_deposit">Pending Deposit</option>
-                        <option value="completed">Completed</option>
-                        <option value="cancelled">Cancelled</option>
-                        <option value="no_show">No Show</option>
-                    </select>
-                    <button type="button" id="ba-bookings-refresh" class="btn-secondary">Refresh</button>
-                    <button type="button" id="ba-walkin-open" class="btn-primary">+ Walk-In</button>
-                </div>
-                <div id="ba-bookings-error" class="ba-error"></div>
-                <div class="ba-table-wrap">
-                    <table class="ba-table" id="ba-bookings-table">
-                        <thead><tr>
-                            <th>Time</th><th>Customer</th><th>Racers</th><th>Duration</th><th>Sims</th><th>Status</th><th>Payment</th><th>Confirmation</th>
-                        </tr></thead>
-                        <tbody id="ba-bookings-tbody">
-                            <tr><td colspan="8"><div class="ba-loading">Loading&#8230;</div></td></tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            <!-- Schedule Panel -->
-            <div id="ba-panel-schedule" class="ba-panel hidden">
-                <div class="ba-toolbar">
-                    <button type="button" id="ba-schedule-prev" class="btn-secondary">&lsaquo; Prev</button>
-                    <input type="date" id="ba-schedule-date" class="ba-input">
-                    <button type="button" id="ba-schedule-next" class="btn-secondary">Next &rsaquo;</button>
-                </div>
-                <div id="ba-schedule-error" class="ba-error"></div>
-                <div id="ba-schedule-container" class="ba-schedule-wrap">
-                    <div class="ba-loading">Select a date to load schedule.</div>
-                </div>
-            </div>
-
-            <!-- Check-In Panel -->
-            <div id="ba-panel-checkin" class="ba-panel hidden">
-                <div class="ba-toolbar">
-                    <span class="ba-panel-title">Today&#39;s Check-Ins</span>
-                </div>
-                <div id="ba-checkin-error" class="ba-error"></div>
-                <div id="ba-checkin-list" class="ba-checkin-list">
-                    <div class="ba-loading">Loading&#8230;</div>
-                </div>
+            <!-- Bookings Panel: embeds full myfastestlap booking admin -->
+            <div id="ba-panel-list" class="ba-panel ba-panel--iframe">
+                <iframe
+                    id="ba-iframe"
+                    src="/proxy/booking/admin/bookings"
+                    title="Bookings Admin"
+                    style="flex:1;width:100%;border:none;min-height:0;"
+                ></iframe>
             </div>
 
             <!-- Customers Panel -->
@@ -308,71 +262,6 @@
                             <tr><td colspan="6"><div class="ba-loading">Loading&#8230;</div></td></tr>
                         </tbody>
                     </table>
-                </div>
-            </div>
-
-            <!-- Analytics Panel -->
-            <div id="ba-panel-analytics" class="ba-panel hidden">
-                <div class="ba-toolbar">
-                    <button type="button" class="btn-secondary ba-period-btn active" data-ba-period="7d">7 days</button>
-                    <button type="button" class="btn-secondary ba-period-btn" data-ba-period="30d">30 days</button>
-                    <button type="button" class="btn-secondary ba-period-btn" data-ba-period="90d">90 days</button>
-                </div>
-                <div id="ba-analytics-error" class="ba-error"></div>
-                <div id="ba-analytics-container"></div>
-                <div id="ba-analytics-kpis" class="ba-kpi-grid"></div>
-                <div id="ba-analytics-bars" class="ba-bars-wrap"></div>
-                <div id="ba-analytics-status" class="ba-status-wrap"></div>
-            </div>
-
-            <!-- Walk-In Modal -->
-            <div id="ba-walkin-modal" class="ba-overlay" aria-hidden="true">
-                <div class="ba-modal">
-                    <div class="ba-modal-header">
-                        <span class="ba-modal-title">New Walk-In Booking</span>
-                        <button type="button" id="ba-walkin-close" class="ba-modal-close" aria-label="Close">&times;</button>
-                    </div>
-                    <form id="ba-walkin-form" class="ba-modal-body">
-                        <div id="ba-walkin-error" class="ba-error"></div>
-                        <div class="ba-form-row">
-                            <label class="ba-label">Customer Name</label>
-                            <input type="text" id="ba-walkin-customer-name" class="ba-input" placeholder="Name">
-                        </div>
-                        <div class="ba-form-row">
-                            <label class="ba-label">Date</label>
-                            <input type="date" id="ba-walkin-date" class="ba-input">
-                        </div>
-                        <div class="ba-form-row">
-                            <label class="ba-label">Time</label>
-                            <input type="time" id="ba-walkin-time" class="ba-input" value="14:00">
-                        </div>
-                        <div class="ba-form-row">
-                            <label class="ba-label">Duration (min)</label>
-                            <input type="number" id="ba-walkin-duration" class="ba-input" value="60" min="15" step="15">
-                        </div>
-                        <div class="ba-form-row">
-                            <label class="ba-label">Racers</label>
-                            <input type="number" id="ba-walkin-racers" class="ba-input" value="1" min="1" max="8">
-                        </div>
-                        <div class="ba-modal-actions">
-                            <button type="button" id="ba-walkin-cancel" class="btn-secondary">Cancel</button>
-                            <button type="submit" id="ba-walkin-submit" class="btn-primary">Create Booking</button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-
-            <!-- Booking Detail Modal -->
-            <div id="ba-detail-modal" class="ba-overlay" aria-hidden="true">
-                <div class="ba-modal ba-modal--wide">
-                    <div class="ba-modal-header">
-                        <span class="ba-modal-title">Booking Detail</span>
-                        <button type="button" id="ba-detail-close" class="ba-modal-close" aria-label="Close">&times;</button>
-                    </div>
-                    <div id="ba-detail-body" class="ba-modal-body">
-                        <div class="ba-loading">Loading&#8230;</div>
-                    </div>
-                    <div id="ba-detail-error" class="ba-error ba-detail-error-bar"></div>
                 </div>
             </div>
 
@@ -489,7 +378,7 @@
                 </div>
             </div>
         </div>
-        <!-- Page: System Logs (event log with filters and expandable details) -->
+                <!-- Page: System Logs (event log with filters and expandable details) -->
         <div id="page-system-logs" class="content-page hidden" data-page="system-logs">
             <div class="page-header">
                 <h1 class="page-title">SYSTEM LOGS</h1>

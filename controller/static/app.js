@@ -315,7 +315,7 @@
     pageEl.setAttribute('data-ba-active-sub', sub);
 
     // Show/hide panels
-    var panels = { list: 'ba-panel-list', schedule: 'ba-panel-schedule', checkin: 'ba-panel-checkin', customers: 'ba-panel-customers', memberships: 'ba-panel-memberships', tiers: 'ba-panel-tiers', analytics: 'ba-panel-analytics' };
+    var panels = { list: 'ba-panel-list', customers: 'ba-panel-customers', memberships: 'ba-panel-memberships', tiers: 'ba-panel-tiers' };
     Object.keys(panels).forEach(function (key) {
       var el = document.getElementById(panels[key]);
       if (el) el.classList.toggle('hidden', key !== sub);
@@ -327,13 +327,9 @@
     });
 
     // Load data for the active panel
-    if (sub === 'list' && window.loadBookingsListPage) window.loadBookingsListPage();
-    if (sub === 'schedule' && window.loadSchedulePage) window.loadSchedulePage();
-    if (sub === 'checkin' && window.loadCheckinPage) window.loadCheckinPage();
     if (sub === 'customers' && window.loadCustomersPage) window.loadCustomersPage();
     if (sub === 'memberships' && window.loadMembershipsPage) window.loadMembershipsPage();
     if (sub === 'tiers' && window.loadTiersPage) window.loadTiersPage();
-    if (sub === 'analytics' && window.loadAnalyticsPage) window.loadAnalyticsPage();
   }
 
   function initBookingSubTabs() {
