@@ -2,16 +2,17 @@
 
 Puts a PitBox icon in the Windows system tray. Double-click or choose
 'Open PitBox' to launch the UI in a dedicated app window (no address bar,
-no port numbers visible). Requires pystray and Pillow.
+no port numbers visible).
+
+Requires pystray and Pillow when bundled by PyInstaller (see PitBoxTray.spec).
+All third-party imports are deferred inside functions so a missing module
+never crashes the EXE at startup -- it falls back to browser-only mode.
 """
 
 import os
 import subprocess
 import sys
 import webbrowser
-
-import pystray
-from PIL import Image, ImageDraw, ImageFont
 
 PITBOX_URL = "http://pitbox:9630/"
 APP_NAME = "PitBox"
@@ -33,12 +34,11 @@ def _find_browser():
     return None
 
 
-def _resource_path(filename: str) -> str:
+def _resource_path(filename):
     """Return absolute path to a bundled resource (works for PyInstaller exe and source)."""
     if hasattr(sys, "_MEIPASS"):
         return os.path.join(sys._MEIPASS, filename)
     here = os.path.dirname(os.path.abspath(__file__))
-    # running from source: look in assets/ relative to repo root
     candidate = os.path.join(here, "..", "assets", filename)
     if os.path.isfile(candidate):
         return os.path.normpath(candidate)
@@ -46,41 +46,45 @@ def _resource_path(filename: str) -> str:
 
 
 def _load_icon_image():
-    """Load pitbox.ico from bundled resources, fall back to generated icon."""
-    ico_path = _resource_path("pitbox.ico")
-    if os.path.isfile(ico_path):
-        try:
-            img = Image.open(ico_path)
-            img = img.convert("RGBA")
+    """Load pitbox.ico; fall back to a generated icon if PIL or the file isn't available."""
+    try:
+        from PIL import Image
+        ico_path = _resource_path("pitbox.ico")
+        if os.path.isfile(ico_path):
+            img = Image.open(ico_path).convert("RGBA")
             if img.size != (64, 64):
                 img = img.resize((64, 64), Image.LANCZOS)
             return img
-        except Exception:
-            pass
+    except Exception:
+        pass
     return _generate_icon(64)
 
 
 def _generate_icon(size=64):
-    """Fallback: generate a simple PitBox icon programmatically."""
-    import math
-    img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
-    d = ImageDraw.Draw(img)
-    pad = max(1, size // 16)
-    d.ellipse([pad, pad, size - pad - 1, size - pad - 1], fill=(22, 22, 30, 255))
-    d.ellipse([pad, pad, size - pad - 1, size - pad - 1],
-              outline=(0, 210, 100, 200), width=max(1, size // 24))
+    """Generate a simple PitBox icon; returns None if PIL is not available."""
     try:
-        font = ImageFont.truetype("arialbd.ttf", size // 3)
-    except Exception:
+        from PIL import Image, ImageDraw, ImageFont
+        img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+        d = ImageDraw.Draw(img)
+        pad = max(1, size // 16)
+        d.ellipse([pad, pad, size - pad - 1, size - pad - 1], fill=(22, 22, 30, 255))
+        d.ellipse([pad, pad, size - pad - 1, size - pad - 1],
+                  outline=(0, 210, 100, 200), width=max(1, size // 24))
         try:
-            font = ImageFont.truetype("arial.ttf", size // 3)
+            font = ImageFont.truetype("arialbd.ttf", size // 3)
         except Exception:
-            font = ImageFont.load_default()
-    d.text((size // 2, size // 2), "PB", fill=(255, 255, 255, 255), font=font, anchor="mm")
-    return img
+            try:
+                font = ImageFont.truetype("arial.ttf", size // 3)
+            except Exception:
+                font = ImageFont.load_default()
+        d.text((size // 2, size // 2), "PB", fill=(255, 255, 255, 255), font=font, anchor="mm")
+        return img
+    except Exception:
+        return None
 
 
 def open_pitbox_window():
+    """Open PitBox in an app-mode browser window (no address bar)."""
     browser = _find_browser()
     if browser:
         try:
@@ -102,8 +106,9 @@ def on_exit(icon, item):
     icon.stop()
 
 
-def main():
-    image = _load_icon_image()
+def _run_tray(image):
+    """Start the system tray icon. Raises ImportError if pystray is unavailable."""
+    import pystray
     menu = pystray.Menu(
         pystray.MenuItem(APP_NAME, on_open, default=True),
         pystray.Menu.SEPARATOR,
@@ -114,6 +119,22 @@ def main():
     icon = pystray.Icon(APP_NAME, image, APP_NAME, menu)
     open_pitbox_window()
     icon.run()
+
+
+def main():
+    image = _load_icon_image()
+
+    if image is not None:
+        try:
+            _run_tray(image)
+            return
+        except ImportError:
+            pass
+        except Exception:
+            pass
+
+    # Fallback: pystray unavailable or failed -- just open the browser
+    open_pitbox_window()
 
 
 if __name__ == "__main__":
