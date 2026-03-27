@@ -47,6 +47,117 @@ def _set_install_state(state: str, message: str, percent: int = 0) -> None:
     logger.info("Install state: %s — %s (%d%%)", state, message, percent)
 
 
+def _run_installer_windows(installer_path: Path, cwd: Path) -> None:
+    """
+    Run the Inno Setup installer on Windows.
+    Tries direct launch first (works when already elevated / running as SYSTEM).
+    If exit code 5 (access denied / PrivilegesRequired=admin without elevation),
+    falls back to ShellExecuteEx with 'runas' verb — shows a single UAC dialog,
+    no console window.  Sets _INSTALL_STATE to 'done' or 'error'.
+    """
+    args = "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART"
+    installer_str = str(installer_path)
+    cwd_str = str(cwd)
+
+    # --- Attempt 1: direct launch (no UAC) ---
+    try:
+        proc = subprocess.Popen(
+            [installer_str, "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART"],
+            cwd=cwd_str,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        proc.wait(timeout=300)
+        rc = proc.returncode
+        if rc == 0:
+            _set_install_state("done", "Install complete — PitBox is restarting…", 100)
+            return
+        if rc != 5:
+            _set_install_state("error", f"Installer exited with code {rc}")
+            return
+        logger.info("Installer returned code 5 (needs elevation); retrying via ShellExecuteEx runas")
+    except subprocess.TimeoutExpired:
+        try:
+            proc.kill()
+        except Exception:
+            pass
+        _set_install_state("error", "Installer timed out after 5 minutes")
+        return
+    except Exception as exc:
+        logger.warning("Direct install launch failed (%s); trying elevated launch", exc)
+
+    # --- Attempt 2: elevated via ShellExecuteEx (runas verb) → UAC prompt ---
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        SEE_MASK_NOCLOSEPROCESS = 0x00000040
+        SEE_MASK_NO_CONSOLE = 0x00008000
+        SW_HIDE = 0
+
+        class SHELLEXECUTEINFOW(ctypes.Structure):
+            _fields_ = [
+                ("cbSize", wintypes.DWORD),
+                ("fMask", wintypes.ULONG),
+                ("hwnd", wintypes.HWND),
+                ("lpVerb", wintypes.LPCWSTR),
+                ("lpFile", wintypes.LPCWSTR),
+                ("lpParameters", wintypes.LPCWSTR),
+                ("lpDirectory", wintypes.LPCWSTR),
+                ("nShow", ctypes.c_int),
+                ("hInstApp", wintypes.HINSTANCE),
+                ("lpIDList", ctypes.c_void_p),
+                ("lpClass", wintypes.LPCWSTR),
+                ("hkeyClass", wintypes.HKEY),
+                ("dwHotKey", wintypes.DWORD),
+                ("hIconOrMonitor", wintypes.HANDLE),
+                ("hProcess", wintypes.HANDLE),
+            ]
+
+        sei = SHELLEXECUTEINFOW()
+        sei.cbSize = ctypes.sizeof(sei)
+        sei.fMask = SEE_MASK_NOCLOSEPROCESS | SEE_MASK_NO_CONSOLE
+        sei.lpVerb = "runas"
+        sei.lpFile = installer_str
+        sei.lpParameters = args
+        sei.lpDirectory = cwd_str
+        sei.nShow = SW_HIDE
+
+        _set_install_state("installing", "Waiting for UAC approval… a prompt may appear.", 96)
+        ok = ctypes.windll.shell32.ShellExecuteExW(ctypes.byref(sei))
+        if not ok:
+            err = ctypes.windll.kernel32.GetLastError()
+            _set_install_state("error", f"ShellExecuteEx failed (error {err}) — try running PitBox as administrator")
+            return
+
+        h_proc = sei.hProcess
+        WAIT_TIMEOUT = 0x00000102
+        INFINITE = 0xFFFFFFFF
+        TIMEOUT_MS = 300_000  # 5 minutes
+
+        _set_install_state("installing", "Installing silently… PitBox will restart automatically.", 97)
+        result = ctypes.windll.kernel32.WaitForSingleObject(h_proc, TIMEOUT_MS)
+        if result == WAIT_TIMEOUT:
+            ctypes.windll.kernel32.TerminateProcess(h_proc, 1)
+            ctypes.windll.kernel32.CloseHandle(h_proc)
+            _set_install_state("error", "Installer timed out after 5 minutes")
+            return
+
+        exit_code = wintypes.DWORD(0)
+        ctypes.windll.kernel32.GetExitCodeProcess(h_proc, ctypes.byref(exit_code))
+        ctypes.windll.kernel32.CloseHandle(h_proc)
+
+        if exit_code.value == 0:
+            _set_install_state("done", "Install complete — PitBox is restarting…", 100)
+        else:
+            _set_install_state("error", f"Elevated installer exited with code {exit_code.value}")
+
+    except Exception as exc:
+        logger.exception("Elevated install failed: %s", exc)
+        _set_install_state("error", f"Could not launch elevated installer: {exc}")
+
+
 def _download_and_install(asset_url: str, expected_sha256: str, installer_filename: str) -> None:
     """
     Background thread: download Inno installer EXE, verify SHA-256, run silently.
@@ -92,26 +203,28 @@ def _download_and_install(asset_url: str, expected_sha256: str, installer_filena
 
         _set_install_state("installing", "Installing silently… PitBox will restart automatically.", 95)
         try:
-            # Ensure the downloaded EXE is executable (needed on Linux/Mac; no-op on Windows)
-            try:
-                installer_path.chmod(0o755)
-            except Exception:
-                pass
-            proc = subprocess.Popen(
-                [str(installer_path), "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART"],
-                cwd=str(tmp_dir),
-                stdin=subprocess.DEVNULL,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
-            proc.wait(timeout=300)
-            if proc.returncode == 0:
-                _set_install_state("done", "Install complete — PitBox is restarting…", 100)
+            installer_path.chmod(0o755)
+        except Exception:
+            pass
+        try:
+            if os.name == "nt":
+                _run_installer_windows(installer_path, tmp_dir)
             else:
-                _set_install_state("error", f"Installer exited with code {proc.returncode}")
+                proc = subprocess.Popen(
+                    [str(installer_path), "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART"],
+                    cwd=str(tmp_dir),
+                    stdin=subprocess.DEVNULL,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+                proc.wait(timeout=300)
+                if proc.returncode == 0:
+                    _set_install_state("done", "Install complete — PitBox is restarting…", 100)
+                else:
+                    _set_install_state("error", f"Installer exited with code {proc.returncode}")
         except subprocess.TimeoutExpired:
             try:
-                proc.kill()
+                proc.kill()  # type: ignore[name-defined]
             except Exception:
                 pass
             _set_install_state("error", "Installer timed out after 5 minutes")
