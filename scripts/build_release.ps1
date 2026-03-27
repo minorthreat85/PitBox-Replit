@@ -90,7 +90,15 @@ Write-Host ""
 # Clean dist and build directories (PowerShell safe)
 Write-Host "Cleaning build directories..." -ForegroundColor Green
 if (Test-Path "dist") {
-    Remove-Item -Path "dist" -Recurse -Force -ErrorAction SilentlyContinue
+    try {
+        Remove-Item -Path "dist" -Recurse -Force -ErrorAction Stop
+    } catch {
+        Write-Host ""
+        Write-Host "ERROR: Cannot remove dist\ — a file is locked (is PitBoxController running?)" -ForegroundColor Red
+        Write-Host "  Stop the PitBoxController service first, then re-run update.ps1." -ForegroundColor Yellow
+        Write-Host "  Detail: $_" -ForegroundColor Gray
+        exit 1
+    }
 }
 if (Test-Path "build") {
     Remove-Item -Path "build" -Recurse -Force -ErrorAction SilentlyContinue
