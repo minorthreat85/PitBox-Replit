@@ -367,6 +367,42 @@ begin
   Exec('netsh.exe', 'advfirewall firewall delete rule name="PitBox Agent"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
 end;
 
+// Add hosts file entry so controller is reachable at http://pitbox:9630/
+procedure AddHostsEntry();
+var
+  ResultCode: Integer;
+  Cmd: String;
+begin
+  Log('Adding hosts entry: 127.0.0.1 pitbox');
+  Cmd := '-NoProfile -ExecutionPolicy Bypass -Command "' +
+    '$h = ''C:\Windows\System32\drivers\etc\hosts''; ' +
+    'if (!(Select-String -Path $h -Pattern ''pitbox'' -Quiet)) ' +
+    '{ Add-Content $h ''127.0.0.1    pitbox'' }"';
+  if Exec('powershell.exe', Cmd, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
+  begin
+    if ResultCode = 0 then
+      Log('Hosts entry added: pitbox -> 127.0.0.1')
+    else
+      Log('Hosts entry script returned ' + IntToStr(ResultCode) + ' (non-fatal)');
+  end
+  else
+    Log('Could not run PowerShell for hosts entry (non-fatal)');
+end;
+
+// Remove pitbox hosts entry on uninstall
+procedure RemoveHostsEntry();
+var
+  ResultCode: Integer;
+  Cmd: String;
+begin
+  Log('Removing hosts entry for pitbox');
+  Cmd := '-NoProfile -ExecutionPolicy Bypass -Command "' +
+    '$h = ''C:\Windows\System32\drivers\etc\hosts''; ' +
+    '$lines = Get-Content $h | Where-Object { $_ -notmatch ''pitbox'' }; ' +
+    'Set-Content $h $lines"';
+  Exec('powershell.exe', Cmd, '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+end;
+
 // Start service
 function StartService(ServiceName: String): Boolean;
 var
@@ -468,6 +504,9 @@ begin
     // Controller: Install as Windows Service (admin PC only)
     if IsComponentSelected('controller') then
     begin
+      // Add hosts entry so the UI is reachable at http://pitbox:9630/
+      AddHostsEntry();
+
       if InstallControllerService() then
       begin
         // Start service
@@ -478,8 +517,8 @@ begin
         // Open browser if selected
         if WizardIsTaskSelected('openbrowser') then
         begin
-          Log('Opening web UI in browser');
-          Exec('cmd.exe', '/c start http://127.0.0.1:9630', '', SW_HIDE, ewNoWait, ResultCode);
+          Log('Opening web UI in browser at http://pitbox:9630/');
+          Exec('cmd.exe', '/c start http://pitbox:9630', '', SW_HIDE, ewNoWait, ResultCode);
         end;
       end;
     end;
@@ -495,13 +534,14 @@ begin
     RemoveAgentServiceIfExists();
     RemoveAgentScheduledTask();
     RemoveAgentFirewallRule();
-    
-    // Controller: Stop and remove service
+
+    // Controller: Stop and remove service, remove hosts entry
     if ServiceExists('PitBoxController') then
     begin
       Log('Uninstalling Controller service');
       RemoveService('PitBoxController');
     end;
+    RemoveHostsEntry();
   end;
 end;
 
