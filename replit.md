@@ -48,7 +48,7 @@ After every session where code changes are made:
 2. Skip `examples/controller_config.json` (contains secrets, flagged by GitHub's secret scanner).
 3. The user then pulls on their local Windows machine (`C:\Users\info\pitbox\`) and runs:
    ```
-   build_release.ps1 -Dev
+   .\scripts\build_release.ps1 -Dev
    ```
 
 **This push-and-rebuild step is always required after code changes.**
