@@ -873,39 +873,28 @@
                 </div>
                 <div id="sc-track-picker-current-track" class="sc-track-picker-current-track" aria-live="polite">Current track: —</div>
                 <div id="sc-track-picker-warning" class="sc-track-picker-warning hidden" role="alert"></div>
-                <div class="sc-track-picker-filters">
-                    <label class="sc-track-picker-filter-label" for="sc-track-picker-search">Search:</label>
-                    <input type="text" id="sc-track-picker-search" class="sc-track-picker-search" placeholder="Track name or id…" aria-label="Search tracks" />
-                    <label class="sc-track-picker-filter-label" for="sc-track-picker-country">Country:</label>
-                    <select id="sc-track-picker-country" class="sc-track-picker-filter-select" aria-label="Filter by country"><option value="All">All</option></select>
-                </div>
             </div>
             <div class="sc-track-picker-body">
                 <div class="sc-track-picker-detail">
                     <div class="sc-track-picker-detail-image-wrap">
                         <img id="sc-track-picker-detail-img" class="sc-track-picker-detail-img" src="" alt="" />
+                        <img id="sc-track-picker-detail-map" class="sc-track-picker-detail-map" src="" alt="" />
                         <div id="sc-track-picker-detail-fallback" class="sc-track-picker-detail-fallback">—</div>
                     </div>
                     <div class="sc-track-picker-detail-layouts" id="sc-track-picker-detail-layouts"></div>
+                    <div class="sc-track-picker-tags" id="sc-track-picker-tags"></div>
                     <div class="sc-track-picker-detail-info">
-                        <div class="sc-track-hero-info-section">
-                            <h4 class="sc-track-hero-info-heading">Track</h4>
-                            <div class="sc-track-hero-info-rows">
-                                <div class="sc-track-hero-info-row"><span class="sc-track-hero-info-label">Name</span><span id="sc-track-picker-info-name" class="sc-track-hero-info-value">—</span></div>
-                                <div class="sc-track-hero-info-row"><span class="sc-track-hero-info-label">Layout</span><span id="sc-track-picker-info-layout" class="sc-track-hero-info-value">—</span></div>
-                            </div>
-                        </div>
-                        <div class="sc-track-hero-info-section" id="sc-track-picker-description-wrap">
-                            <h4 class="sc-track-hero-info-heading">Description</h4>
-                            <div id="sc-track-picker-description" class="sc-track-hero-info-description">—</div>
-                        </div>
-                        <div class="sc-track-hero-info-section">
-                            <h4 class="sc-track-hero-info-heading">Details</h4>
-                            <div class="sc-track-hero-info-rows" id="sc-track-picker-details"></div>
+                        <div class="sc-track-picker-meta" id="sc-track-picker-details"></div>
+                        <div id="sc-track-picker-description-wrap">
+                            <div id="sc-track-picker-description" class="sc-track-picker-description"></div>
                         </div>
                     </div>
                 </div>
                 <div class="sc-track-picker-list-wrap">
+                    <div class="sc-track-picker-list-search">
+                        <input type="text" id="sc-track-picker-search" class="sc-track-picker-search" placeholder="Filter…" aria-label="Search tracks" />
+                        <select id="sc-track-picker-country" class="sc-track-picker-filter-select" aria-label="Filter by country"><option value="All">All</option></select>
+                    </div>
                     <div class="sc-track-picker-list" id="sc-track-picker-list" role="listbox" aria-label="Tracks"></div>
                 </div>
             </div>

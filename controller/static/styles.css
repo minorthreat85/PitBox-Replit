@@ -1276,7 +1276,7 @@ a.pitbox-operator-banner-signin:hover {
 .sc-track-picker-detail-img {
     width: 100%;
     height: 100%;
-    object-fit: contain;
+    object-fit: cover;
     display: block;
 }
 .sc-track-picker-detail-img[src=""] { display: none; }
@@ -1307,12 +1307,16 @@ a.pitbox-operator-banner-signin:hover {
     flex: 1;
     min-width: 0;
     overflow-y: auto;
-    padding: 8px;
+    display: flex;
+    flex-direction: column;
 }
 .sc-track-picker-list {
     display: flex;
     flex-direction: column;
     gap: 2px;
+    flex: 1;
+    overflow-y: auto;
+    padding: 6px;
 }
 .sc-track-picker-item {
     padding: 10px 12px;
@@ -1333,6 +1337,66 @@ a.pitbox-operator-banner-signin:hover {
     gap: 10px;
     padding: 14px 20px;
     border-top: 1px solid var(--border-gray);
+}
+.sc-track-picker-detail-map {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    pointer-events: none;
+}
+.sc-track-picker-detail-map[src=""] { display: none; }
+.sc-track-picker-tags {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+.sc-track-picker-tag {
+    font-size: 0.72rem;
+    padding: 2px 8px;
+    border-radius: 12px;
+    background: rgba(255,255,255,0.08);
+    color: var(--text-gray);
+    border: 1px solid rgba(255,255,255,0.15);
+    text-transform: capitalize;
+    white-space: nowrap;
+}
+.sc-track-picker-list-search {
+    display: flex;
+    gap: 8px;
+    padding: 10px 10px 8px;
+    border-bottom: 1px solid var(--border-gray);
+    align-items: center;
+    flex-shrink: 0;
+}
+.sc-track-picker-list-search .sc-track-picker-search { flex: 1; min-width: 0; width: auto; }
+.sc-track-picker-meta {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 3px 12px;
+    font-size: 0.82rem;
+    margin-bottom: 8px;
+    align-items: baseline;
+}
+.sc-track-picker-meta-label {
+    color: var(--text-muted);
+    white-space: nowrap;
+    font-size: 0.78rem;
+}
+.sc-track-picker-meta-value {
+    color: var(--text-white);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.sc-track-picker-description {
+    font-size: 0.82rem;
+    color: var(--text-gray);
+    line-height: 1.5;
+    max-height: 80px;
+    overflow-y: auto;
+    white-space: pre-line;
 }
 .sc-main-two-col {
     display: grid;

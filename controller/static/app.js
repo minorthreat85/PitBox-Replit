@@ -2567,24 +2567,22 @@
     var tr = trackPickerState.selectedTrack;
     var idx = trackPickerState.selectedLayoutIndex;
     var detailImg = document.getElementById('sc-track-picker-detail-img');
+    var detailMapImg = document.getElementById('sc-track-picker-detail-map');
     var detailFallback = document.getElementById('sc-track-picker-detail-fallback');
     var detailLayouts = document.getElementById('sc-track-picker-detail-layouts');
-    var pickerName = document.getElementById('sc-track-picker-info-name');
-    var pickerLayout = document.getElementById('sc-track-picker-info-layout');
-    var pickerDescription = document.getElementById('sc-track-picker-description');
-    var pickerDescriptionWrap = document.getElementById('sc-track-picker-description-wrap');
+    var tagsEl = document.getElementById('sc-track-picker-tags');
     var pickerDetails = document.getElementById('sc-track-picker-details');
+    var pickerDescription = document.getElementById('sc-track-picker-description');
     var titleEl = document.getElementById('sc-track-picker-title');
-    var emptyVal = '—';
     if (!tr) {
       if (titleEl) titleEl.textContent = 'Select track';
       if (detailImg) { detailImg.src = ''; detailImg.style.display = 'none'; }
+      if (detailMapImg) detailMapImg.src = '';
       if (detailFallback) { detailFallback.style.display = 'flex'; detailFallback.textContent = '—'; }
       if (detailLayouts) detailLayouts.innerHTML = '';
-      if (pickerName) pickerName.textContent = emptyVal;
-      if (pickerLayout) pickerLayout.textContent = emptyVal;
-      if (pickerDescription) pickerDescription.innerHTML = '<p class="sc-track-hero-info-para">' + escapeHtml(emptyVal) + '</p>';
+      if (tagsEl) tagsEl.innerHTML = '';
       if (pickerDetails) pickerDetails.innerHTML = '';
+      if (pickerDescription) pickerDescription.textContent = '';
       return;
     }
     var layout = (tr.layouts && tr.layouts[idx]) || (tr.layouts && tr.layouts[0]) || null;
@@ -2592,20 +2590,25 @@
     var name = layout ? (layout.name || tr.name || formatTrackName(tr.track_id)) : (tr.name || formatTrackName(tr.track_id));
     if (titleEl) titleEl.textContent = name || formatTrackName(tr.track_id) || '—';
     var previewUrl = API_BASE + '/tracks/' + encodeURIComponent(tr.track_id) + '/layouts/' + encodeURIComponent(layoutId) + '/preview';
+    var outlineUrl = API_BASE + '/tracks/' + encodeURIComponent(tr.track_id) + '/layouts/' + encodeURIComponent(layoutId) + '/outline';
     if (detailImg) {
       detailImg.src = previewUrl;
       detailImg.alt = name;
       detailImg.style.display = '';
       detailImg.onerror = function () { this.style.display = 'none'; if (detailFallback) detailFallback.style.display = 'flex'; };
     }
+    if (detailMapImg) {
+      detailMapImg.src = outlineUrl;
+      detailMapImg.onerror = function () { this.src = ''; };
+    }
     if (detailFallback) detailFallback.style.display = 'none';
     if (detailLayouts && tr.layouts && tr.layouts.length) {
       detailLayouts.innerHTML = tr.layouts.map(function (l, i) {
         var lid = l.layout_id || 'default';
         var mapUrl = API_BASE + '/tracks/' + encodeURIComponent(tr.track_id) + '/layouts/' + encodeURIComponent(lid) + '/map';
-        var previewUrl = API_BASE + '/tracks/' + encodeURIComponent(tr.track_id) + '/layouts/' + encodeURIComponent(lid) + '/preview';
+        var prevUrl = API_BASE + '/tracks/' + encodeURIComponent(tr.track_id) + '/layouts/' + encodeURIComponent(lid) + '/preview';
         var activeClass = i === idx ? ' active' : '';
-        return '<div class="sc-track-layout-thumb' + activeClass + '" data-layout-index="' + i + '" role="button" tabindex="0"><img src="' + escapeHtml(mapUrl) + '" alt="" onerror="if(this.src!==\'' + escapeHtml(previewUrl) + '\'){this.src=\'' + escapeHtml(previewUrl) + '\';}" /></div>';
+        return '<div class="sc-track-layout-thumb' + activeClass + '" data-layout-index="' + i + '" role="button" tabindex="0"><img src="' + escapeHtml(mapUrl) + '" alt="" onerror="if(this.src!==\'' + escapeHtml(prevUrl) + '\'){this.src=\'' + escapeHtml(prevUrl) + '\';}" /></div>';
       }).join('');
       detailLayouts.querySelectorAll('.sc-track-layout-thumb').forEach(function (thumb) {
         thumb.addEventListener('click', function () {
@@ -2616,50 +2619,51 @@
         });
       });
     } else if (detailLayouts) detailLayouts.innerHTML = '';
-    if (pickerName) pickerName.textContent = name || emptyVal;
-    if (pickerLayout) pickerLayout.textContent = formatLayoutName(layoutId);
-    if (pickerDescription) pickerDescription.innerHTML = '<p class="sc-track-hero-info-para">' + escapeHtml(emptyVal) + '</p>';
-    if (pickerDetails) pickerDetails.innerHTML = '';
+    var cats = (tr.categories && tr.categories.length) ? tr.categories : (tr.tags && tr.tags.length ? tr.tags : []);
+    if (tagsEl) {
+      tagsEl.innerHTML = cats.length ? cats.map(function (c) {
+        return '<span class="sc-track-picker-tag">' + escapeHtml(String(c)) + '</span>';
+      }).join('') : '';
+    }
+    var layoutDisplay = (layoutId && layoutId !== 'default') ? formatLayoutName(layoutId) : '';
+    if (pickerDetails) {
+      var initRows = layoutDisplay
+        ? '<div class="sc-track-picker-meta-label">Layout</div><div class="sc-track-picker-meta-value">' + escapeHtml(layoutDisplay) + '</div>'
+        : '';
+      pickerDetails.innerHTML = initRows;
+    }
+    if (pickerDescription) pickerDescription.textContent = '';
     pitboxFetch(API_BASE + '/tracks/' + encodeURIComponent(tr.track_id) + '/layouts/' + encodeURIComponent(layoutId) + '/info')
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (info) {
         if (!info || !tr) return;
-        if (pickerName) pickerName.textContent = info.name || name || emptyVal;
-        if (pickerLayout) pickerLayout.textContent = (info.layout_name && String(info.layout_name).trim()) ? String(info.layout_name).trim() : formatLayoutName(layoutId);
-        if (pickerDescription) {
-          var rawDesc = info.description;
-          var formatted = formatTrackDescription(rawDesc);
-          var displayText = (formatted != null && formatted !== '') ? formatted : 'No description available.';
-          if (displayText.indexOf('\n\n') !== -1) {
-            var parts = displayText.split(/\n\n/);
-            pickerDescription.innerHTML = parts.map(function (p) {
-              return '<p class="sc-track-hero-info-para">' + escapeHtml(p) + '</p>';
-            }).join('');
-          } else {
-            pickerDescription.innerHTML = '<p class="sc-track-hero-info-para">' + escapeHtml(displayText) + '</p>';
-          }
-        }
+        if (titleEl) titleEl.textContent = info.name || name || '—';
+        var layoutName = (info.layout_name && String(info.layout_name).trim()) ? String(info.layout_name).trim() : layoutDisplay;
         if (pickerDetails) {
-          var detailLabels = { country: 'Country', city: 'City', length_km: 'Length', length: 'Length', pits: 'Pits', author: 'Author', year: 'Year' };
-          var detailOrder = ['country', 'city', 'length_km', 'length', 'pits', 'author', 'year'];
-          var html = [];
-          for (var i = 0; i < detailOrder.length; i++) {
-            var key = detailOrder[i];
-            if (key === 'length' && info.length_km != null && info.length_km !== '') continue;
+          var rows = [];
+          if (layoutName) rows.push('<div class="sc-track-picker-meta-label">Layout</div><div class="sc-track-picker-meta-value">' + escapeHtml(layoutName) + '</div>');
+          var fields = [['country','Country'],['city','City'],['length_km','Length'],['pits','Pits'],['year','Year'],['author','Author']];
+          for (var i = 0; i < fields.length; i++) {
+            var key = fields[i][0], label = fields[i][1];
             var val = info[key];
             if (val === undefined || val === null || val === '') continue;
             if (key === 'length_km') val = val + ' km';
-            else if (key === 'length' && typeof val === 'number' && val >= 100) val = (val / 1000).toFixed(2) + ' km';
-            else if (key === 'length' && typeof val === 'number') val = val + ' m';
-            var label = detailLabels[key] || key;
-            html.push('<div class="sc-track-hero-info-row"><span class="sc-track-hero-info-label">' + escapeHtml(label) + '</span><span class="sc-track-hero-info-value">' + escapeHtml(String(val)) + '</span></div>');
+            rows.push('<div class="sc-track-picker-meta-label">' + escapeHtml(label) + '</div><div class="sc-track-picker-meta-value">' + escapeHtml(String(val)) + '</div>');
           }
-          pickerDetails.innerHTML = html.length ? html.join('') : '<div class="sc-track-hero-info-row"><span class="sc-track-hero-info-value">' + emptyVal + '</span></div>';
+          pickerDetails.innerHTML = rows.join('');
+        }
+        if (pickerDescription) {
+          var rawDesc = info.description;
+          var formatted = formatTrackDescription(rawDesc);
+          pickerDescription.textContent = (formatted != null && formatted !== '') ? formatted : '';
+        }
+        if (tagsEl && info.categories && info.categories.length) {
+          tagsEl.innerHTML = info.categories.map(function (c) {
+            return '<span class="sc-track-picker-tag">' + escapeHtml(String(c)) + '</span>';
+          }).join('');
         }
       })
-      .catch(function () {
-        if (pickerName && name) pickerName.textContent = name;
-      });
+      .catch(function () {});
   }
   function bindTrackPicker() {
     var hero = document.getElementById('sc-track-hero');
