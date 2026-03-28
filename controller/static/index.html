@@ -612,9 +612,18 @@
             <select id="sc-instance" class="sc-instance-select-hidden" aria-hidden="true" title="Current preset (synced from sidebar)"><option value="default">PitBox Test Server</option></select>
             <div class="sc-server-config-wrap">
                 <aside class="sc-presets-sidebar" aria-label="Server presets">
-                    <h2 class="sc-presets-sidebar-title">Presets</h2>
                     <div id="sc-presets-list" class="sc-presets-list" role="list" aria-live="polite">
                         <p class="sc-placeholder">Loading…</p>
+                    </div>
+                    <div class="sc-presets-footer">
+                        <span id="sc-presets-count" class="sc-presets-count"></span>
+                        <div class="sc-presets-footer-btns">
+                            <button type="button" id="sc-sidebar-folder" class="sc-sidebar-btn" title="Open preset folder">Folder</button>
+                            <button type="button" id="sc-sidebar-reload" class="sc-sidebar-btn" title="Reload presets">Reload</button>
+                            <button type="button" id="sc-sidebar-clone" class="sc-sidebar-btn" title="Clone selected preset">Clone</button>
+                            <button type="button" id="sc-sidebar-restart" class="sc-sidebar-btn" title="Restart server">Restart</button>
+                            <button type="button" id="sc-sidebar-stop" class="sc-sidebar-btn" title="Stop server">Stop</button>
+                        </div>
                     </div>
                 </aside>
                 <div class="sc-server-config-main">
@@ -678,6 +687,13 @@
                                             <div class="sc-track-hero-layouts" id="sc-track-hero-layouts"></div>
                                             <h3 id="sc-track-hero-name" class="sc-track-hero-name">—</h3>
                                         </div>
+                                        <div class="sc-car-hero-panel" id="sc-car-hero-panel">
+                                            <div class="sc-car-hero-image-wrap">
+                                                <img id="sc-car-hero-img" class="sc-car-hero-img" src="" alt="" />
+                                                <div id="sc-car-hero-fallback" class="sc-car-hero-fallback">— no car —</div>
+                                            </div>
+                                            <h3 id="sc-car-hero-name" class="sc-car-hero-name">—</h3>
+                                        </div>
                                         <div class="sc-track-hero-info" id="sc-track-hero-info">
                                             <div class="sc-track-hero-info-section">
                                                 <h4 class="sc-track-hero-info-heading">Track</h4>
@@ -704,12 +720,17 @@
                                     <h3 class="sc-section-title">Server settings</h3>
                                     <div class="sc-main-two-col">
                                         <div class="sc-main-col">
+                                            <div class="sc-field sc-field-slider sc-capacity-field">
+                                                <label>Capacity: <span id="sc-max-clients-val">24</span></label>
+                                                <input type="range" id="sc-max-clients" class="sc-slider" data-ini="SERVER" data-key="MAX_CLIENTS" min="1" max="50" value="24">
+                                                <span id="sc-capacity-hint" class="sc-capacity-hint"></span>
+                                            </div>
                                             <div class="sc-field"><label>Server name:</label><input type="text" id="sc-name" class="sc-input" data-ini="SERVER" data-key="NAME" placeholder="AC_Server"></div>
                                             <div class="sc-field"><label>Password:</label><input type="text" id="sc-password" class="sc-input" data-ini="SERVER" data-key="PASSWORD" placeholder="None"></div>
                                             <div class="sc-field"><label>Admin password:</label><input type="text" id="sc-admin-password" class="sc-input" data-ini="SERVER" data-key="ADMIN_PASSWORD" placeholder="None"></div>
                                             <label class="sc-checkbox"><input type="checkbox" id="sc-register-lobby" data-ini="SERVER" data-key="REGISTER_TO_LOBBY"> Public server (show in lobby)</label>
                                             <label class="sc-checkbox"><input type="checkbox" id="sc-integrity" data-ini="SERVER" data-key="DISABLE_INTEGRITY"> Disable integrity verification (not recommended)</label>
-                                            <div class="sc-field"><label>Welcome msg file:</label><input type="text" id="sc-welcome-file" class="sc-input" data-ini="SERVER" data-key="WELCOME_MESSAGE_FILE"></div>
+                                            <div class="sc-field sc-field-file-row"><label>Welcome msg file:</label><input type="text" id="sc-welcome-file" class="sc-input" data-ini="SERVER" data-key="WELCOME_MESSAGE_FILE"><button type="button" id="sc-welcome-file-browse" class="sc-inline-btn" title="Browse">Change</button></div>
                                             <div class="sc-field"><label>Welcome message:</label><textarea id="sc-welcome-msg" class="sc-textarea" data-ini="SERVER" data-key="WELCOME_MESSAGE" rows="2"></textarea></div>
                                         </div>
                                         <div class="sc-main-col">
@@ -717,7 +738,11 @@
                                             <div class="sc-field"><label>TCP port:</label><input type="number" id="sc-tcp-port" class="sc-input sc-input-num" data-ini="SERVER" data-key="TCP_PORT" min="1" max="65535"></div>
                                             <div class="sc-field"><label>HTTP port:</label><input type="number" id="sc-http-port" class="sc-input sc-input-num" data-ini="SERVER" data-key="HTTP_PORT" min="1" max="65535"></div>
                                             <div class="sc-field sc-field-slider"><label>Packets: <span id="sc-packets-val">18</span> Hz</label><input type="range" id="sc-packets" class="sc-slider" data-ini="SERVER" data-key="CLIENT_SEND_INTERVAL_HZ" min="1" max="30" value="18"></div>
+                                            <div class="sc-field sc-field-slider"><label>Threads: <span id="sc-num-threads-val">4</span></label><input type="range" id="sc-num-threads" class="sc-slider" data-ini="SERVER" data-key="NUM_THREADS" min="2" max="16" value="4"></div>
                                             <div class="sc-field"><label>Manager description:</label><input type="text" id="sc-manager-desc" class="sc-input" data-ini="SERVER" data-key="MANAGER_DESCRIPTION" placeholder="None"></div>
+                                            <div class="sc-cm-server-status">
+                                                <span id="sc-cm-status-badge" class="sc-cm-status-badge sc-cm-status-stopped">● Server is stopped</span>
+                                            </div>
                                         </div>
                                     </div>
                                 </section>

@@ -1690,12 +1690,13 @@
           var activeClass = presetId === currentId ? ' sc-preset-item-active' : '';
           var displayName = presetNames[presetId] || presetId;
           return '<div class="sc-preset-item' + (running ? ' running' : '') + activeClass + '" data-server-id="' + escapeHtml(presetId) + '" draggable="true" role="listitem" tabindex="0" aria-selected="' + (presetId === currentId) + '" title="Click to select · Double-click to start/stop · Drag to reorder">' +
-            '<span class="sc-preset-dot ' + (running ? 'running' : 'stopped') + '" aria-hidden="true"></span>' +
             '<span class="sc-preset-name">' + escapeHtml(displayName) + '</span>' +
-            '<button type="button" class="sc-preset-gear" data-server-id="' + escapeHtml(presetId) + '" title="Open folder in Explorer" aria-label="Open preset folder">&#9881;</button>' +
+            '<span class="sc-preset-dot ' + (running ? 'running' : 'stopped') + '" aria-hidden="true"></span>' +
             '</div>';
         });
         sidebarList.innerHTML = items.join('');
+        var countEl = document.getElementById('sc-presets-count');
+        if (countEl) countEl.textContent = items.length + ' preset' + (items.length === 1 ? '' : 's');
         var serverListClickTimeout = null;
         sidebarList.querySelectorAll('.sc-preset-item').forEach(function (row) {
           var id = row.getAttribute('data-server-id');
@@ -1758,18 +1759,10 @@
             serverConfigData.presets = newOrder;
             scheduleAcServerStatusRefresh(250);
           });
-          var gearBtn = row.querySelector('.sc-preset-gear');
-          if (gearBtn) {
-            gearBtn.addEventListener('click', function (e) {
-              e.preventDefault();
-              e.stopPropagation();
-              doServerConfigPost('/server-config/open-preset-folder', 'Open folder', id);
-            });
-          }
         });
         sidebarList.addEventListener('keydown', function (e) {
           var row = e.target.closest && e.target.closest('.sc-preset-item');
-          if (!row || e.target.closest('.sc-preset-gear')) return;
+          if (!row) return;
           var list = row.parentNode;
           var items = list ? [].slice.call(list.querySelectorAll('.sc-preset-item')) : [];
           var idx = items.indexOf(row);
@@ -1800,6 +1793,7 @@
   function fillScStatusFromServers(servers) {
     var stateEl = document.getElementById('sc-status-state');
     var detailEl = document.getElementById('sc-status-detail');
+    var cmBadge = document.getElementById('sc-cm-status-badge');
     var inst = document.getElementById('sc-instance');
     var sid = (inst && inst.value) ? String(inst.value).trim() : '';
     if (!stateEl) return;
@@ -1807,6 +1801,7 @@
       stateEl.textContent = 'No preset';
       stateEl.className = 'sc-status-badge sc-status-muted';
       if (detailEl) detailEl.textContent = '';
+      if (cmBadge) { cmBadge.textContent = '\u25cf Server is stopped'; cmBadge.className = 'sc-cm-status-badge sc-cm-status-stopped'; }
       return;
     }
     var list = Array.isArray(servers) ? servers : [];
@@ -1820,10 +1815,35 @@
         if (row.tcp_port != null) ports.push('TCP ' + row.tcp_port);
         detailEl.textContent = 'PID ' + row.pid + (ports.length ? ' · ' + ports.join(' · ') : '');
       }
+      if (cmBadge) { cmBadge.textContent = '\u25cf Server is running'; cmBadge.className = 'sc-cm-status-badge sc-cm-status-running'; }
     } else {
       stateEl.textContent = 'Stopped';
       stateEl.className = 'sc-status-badge sc-status-stopped';
       if (detailEl) detailEl.textContent = '';
+      if (cmBadge) { cmBadge.textContent = '\u25cf Server is stopped'; cmBadge.className = 'sc-cm-status-badge sc-cm-status-stopped'; }
+    }
+  }
+
+  function updateCarHero(carsValue) {
+    var imgEl = document.getElementById('sc-car-hero-img');
+    var nameEl = document.getElementById('sc-car-hero-name');
+    var fallbackEl = document.getElementById('sc-car-hero-fallback');
+    if (!imgEl) return;
+    var firstCar = (carsValue || '').split(';')[0].trim() || '';
+    if (!firstCar) {
+      imgEl.src = '';
+      if (nameEl) nameEl.textContent = '\u2014';
+      if (fallbackEl) fallbackEl.style.display = '';
+      return;
+    }
+    if (fallbackEl) fallbackEl.style.display = 'none';
+    imgEl.src = API_BASE + '/cars/' + encodeURIComponent(firstCar) + '/preview';
+    imgEl.onerror = function () {
+      imgEl.src = '';
+      if (fallbackEl) fallbackEl.style.display = '';
+    };
+    if (nameEl) {
+      nameEl.textContent = resolveCarName(firstCar) || firstCar;
     }
   }
   function updateScStatusPanel() {
@@ -2932,6 +2952,9 @@
     setIniControl('sc-cars', s.CARS);
     if (typeof updateCarsSelected === 'function') updateCarsSelected();
     updateTrackHero(combined);
+    updateCarHero(s.CARS);
+    setIniControl('sc-max-clients', s.MAX_CLIENTS);
+    setIniControl('sc-num-threads', s.NUM_THREADS);
     setIniControl('sc-udp-port', s.UDP_PORT);
     setIniControl('sc-tcp-port', s.TCP_PORT);
     setIniControl('sc-http-port', s.HTTP_PORT);
@@ -3066,6 +3089,8 @@
   }
   function updateSliderLabels() {
     var pairs = [
+      ['sc-max-clients', 'sc-max-clients-val', null],
+      ['sc-num-threads', 'sc-num-threads-val', null],
       ['sc-packets', 'sc-packets-val', null],
       ['sc-kick-quorum', 'sc-kick-quorum-val', null],
       ['sc-vote-quorum', 'sc-vote-quorum-val', null],
@@ -4065,6 +4090,46 @@
       });
     }
     if (reloadBtn) reloadBtn.addEventListener('click', loadServerConfigPage);
+    function getActiveSid() {
+      var i = document.getElementById('sc-instance');
+      return (i && i.value) ? String(i.value).trim() : (serverConfigData.server_id || 'default');
+    }
+    var sidebarFolderBtn = document.getElementById('sc-sidebar-folder');
+    var sidebarReloadBtn = document.getElementById('sc-sidebar-reload');
+    var sidebarCloneBtn = document.getElementById('sc-sidebar-clone');
+    var sidebarRestartBtn = document.getElementById('sc-sidebar-restart');
+    var sidebarStopBtn = document.getElementById('sc-sidebar-stop');
+    if (sidebarFolderBtn && !sidebarFolderBtn.dataset.bound) {
+      sidebarFolderBtn.dataset.bound = '1';
+      sidebarFolderBtn.addEventListener('click', function () { doServerConfigPost('/server-config/open-preset-folder', 'Open folder', getActiveSid()); });
+    }
+    if (sidebarReloadBtn && !sidebarReloadBtn.dataset.bound) {
+      sidebarReloadBtn.dataset.bound = '1';
+      sidebarReloadBtn.addEventListener('click', loadServerConfigPage);
+    }
+    if (sidebarCloneBtn && !sidebarCloneBtn.dataset.bound) {
+      sidebarCloneBtn.dataset.bound = '1';
+      sidebarCloneBtn.addEventListener('click', function () {
+        var sid = getActiveSid();
+        if (!sid) return;
+        doServerConfigPost('/server-config/clone-preset', 'Clone', sid, function () { loadServerConfigPage(); });
+      });
+    }
+    if (sidebarRestartBtn && !sidebarRestartBtn.dataset.bound) {
+      sidebarRestartBtn.dataset.bound = '1';
+      sidebarRestartBtn.addEventListener('click', function () { doServerConfigPost('/server-config/restart', 'Restart', getActiveSid()); });
+    }
+    if (sidebarStopBtn && !sidebarStopBtn.dataset.bound) {
+      sidebarStopBtn.dataset.bound = '1';
+      sidebarStopBtn.addEventListener('click', function () { doServerConfigPost('/server-config/stop', 'Stop', getActiveSid()); });
+    }
+    var welcomeFileBrowse = document.getElementById('sc-welcome-file-browse');
+    if (welcomeFileBrowse && !welcomeFileBrowse.dataset.bound) {
+      welcomeFileBrowse.dataset.bound = '1';
+      welcomeFileBrowse.addEventListener('click', function () {
+        if (typeof showToast === 'function') showToast('Browse: edit the welcome file path directly in the field above.', 'info');
+      });
+    }
   }
   function bindServerConfigPreset() {
     var presetSelect = document.getElementById('sc-preset');
