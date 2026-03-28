@@ -112,6 +112,14 @@ class ControllerConfig(BaseModel):
     employee_password: Optional[str] = Field(default=None, description="Password for Employee Control mobile login. Set to enable /employee and hotkey API.")
     # Update channel: GitHub Releases for update checks.
     update_channel: Optional[UpdateChannelConfig] = Field(default=None, description="Update channel config for GitHub Releases")
+    # Lounge branding & defaults
+    lounge_name: Optional[str] = Field(default=None, description="Display name for this sim lounge (e.g. 'Fastest Lap Racing')")
+    default_preset: Optional[str] = Field(default=None, description="Default server preset ID (auto-selected when joining a sim)")
+    # Polling & performance tuning
+    agent_poll_interval_ms: Optional[int] = Field(default=None, description="Agent polling interval in ms (500-60000). Overrides poll_interval_sec when set.")
+    # AC paths (UI convenience; mirrors ac_server_root and ac_server_presets_root)
+    ac_server_exe: Optional[str] = Field(default=None, description="Path to acServer.exe (convenience alias for ac_server_root)")
+    ac_presets_root: Optional[str] = Field(default=None, description="Server presets root folder (convenience alias for ac_server_presets_root)")
 
     @field_validator('agents')
     @classmethod

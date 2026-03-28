@@ -2093,6 +2093,11 @@ class ConfigPutBody(BaseModel):
     ui_port: Optional[int] = None
     allow_lan_ui: Optional[bool] = None
     ac_server_cfg_path: Optional[str] = None
+    ac_server_exe: Optional[str] = None
+    ac_presets_root: Optional[str] = None
+    lounge_name: Optional[str] = None
+    default_preset: Optional[str] = None
+    agent_poll_interval_ms: Optional[int] = None
     update_channel: Optional[UpdateChannelConfig] = None
 
 
@@ -2106,7 +2111,8 @@ def _is_localhost(request: Request) -> bool:
 async def put_controller_config(request: Request, body: ConfigPutBody, _: None = Depends(require_operator)):
     """
     Merge partial config updates. Restricted to localhost for security.
-    When from localhost: allows ui_host, ui_port, allow_lan_ui, ac_server_cfg_path, update_channel.
+    When from localhost: allows ui_host, ui_port, allow_lan_ui, ac_server_cfg_path, ac_server_exe, ac_presets_root,
+    lounge_name, default_preset, agent_poll_interval_ms, update_channel.
     Logs remote addr and changed keys.
     """
     if not _is_localhost(request):
@@ -2126,8 +2132,8 @@ async def put_controller_config(request: Request, body: ConfigPutBody, _: None =
         return {"ok": True, "message": "No changes"}
     new_data = config.model_dump()
     for k, v in updates.items():
-        if k in ("ui_host", "ui_port", "allow_lan_ui", "ac_server_cfg_path", "update_channel"):
-            if v is not None or k in ("ac_server_cfg_path", "update_channel"):
+        if k in ("ui_host", "ui_port", "allow_lan_ui", "ac_server_cfg_path", "ac_server_exe", "ac_presets_root", "lounge_name", "default_preset", "agent_poll_interval_ms", "update_channel"):
+            if v is not None or k in ("ac_server_cfg_path", "ac_server_exe", "ac_presets_root", "lounge_name", "default_preset", "agent_poll_interval_ms", "update_channel"):
                 new_data[k] = v
     changed_keys = [k for k in updates if new_data.get(k) != config.model_dump().get(k)]
     logger.info(
