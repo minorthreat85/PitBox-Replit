@@ -4759,7 +4759,11 @@
     if (!thumb) return;
     var ojs = getOnlineJoinState(agentId);
     var agent = currentAgents.filter(function (a) { return a.agent_id === agentId; })[0];
-    thumb.innerHTML = getSimCardThumbContent(agent, ojs);
+    var newContent = getSimCardThumbContent(agent, ojs);
+    if (simCardThumbCache[agentId] !== newContent) {
+      simCardThumbCache[agentId] = newContent;
+      thumb.innerHTML = newContent;
+    }
   }
 
   function updateBatchStatusEls() {
@@ -4877,6 +4881,7 @@
     }
   }
 
+  var simCardThumbCache = {}; /* Cache previous thumb content to avoid DOM churn and preserve dropdowns */
   function updateSimCardsStatus(agents) {
     if (!grid || !agents || !agents.length) return;
     agents.forEach(function (a) {
@@ -4906,7 +4911,11 @@
       var thumb = card.querySelector('.sim-card-thumb');
       if (thumb) {
         var ojs = getOnlineJoinState(a.agent_id);
-        thumb.innerHTML = getSimCardThumbContent(a, ojs);
+        var newContent = getSimCardThumbContent(a, ojs);
+        if (simCardThumbCache[id] !== newContent) {
+          simCardThumbCache[id] = newContent;
+          thumb.innerHTML = newContent;
+        }
       }
     });
     updateSessionTimeDisplays();
@@ -4917,6 +4926,7 @@
     if (!agents || !agents.length) {
       grid.innerHTML = '<p class="status-text">No rigs enrolled. Turn on Enrollment Mode, then start PitBox on each sim to add them.</p>';
       lastSimCardsAgentIds = null;
+      simCardThumbCache = {};
       return;
     }
     var opLocked = operatorControlBlocked();
@@ -4926,6 +4936,7 @@
       return;
     }
     lastSimCardsAgentIds = agentIdsKey;
+    simCardThumbCache = {};
     currentAgents = agents;
     var onlyTestCard = agents.length === 1 && agents[0].agent_id === TEST_SIM_AGENT_ID;
     var allUnreachable = !onlyTestCard && agents.every(function (a) { return !a.online; });
