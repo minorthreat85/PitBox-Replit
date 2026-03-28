@@ -1067,7 +1067,7 @@ a.pitbox-operator-banner-signin:hover {
     overflow: hidden;
 }
 .sc-track-hero-layouts .sc-track-layout-thumb.active { border-color: var(--color-red-primary); }
-.sc-track-hero-layouts .sc-track-layout-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.sc-track-hero-layouts .sc-track-layout-thumb img { width: 100%; height: 100%; object-fit: contain; }
 .sc-track-hero-name {
     font-size: 1.25rem;
     font-weight: 700;
@@ -1295,6 +1295,7 @@ a.pitbox-operator-banner-signin:hover {
     border-radius: 4px; cursor: pointer; overflow: hidden;
 }
 .sc-track-picker-detail-layouts .sc-track-layout-thumb.active { border-color: var(--color-red-primary); }
+.sc-track-picker-detail-layouts .sc-track-layout-thumb img { width: 100%; height: 100%; object-fit: contain; }
 .sc-track-picker-detail-info {
     margin-top: 12px;
     font-size: 0.9rem;

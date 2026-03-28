@@ -2602,9 +2602,10 @@
     if (detailLayouts && tr.layouts && tr.layouts.length) {
       detailLayouts.innerHTML = tr.layouts.map(function (l, i) {
         var lid = l.layout_id || 'default';
-        var url = API_BASE + '/tracks/' + encodeURIComponent(tr.track_id) + '/layouts/' + encodeURIComponent(lid) + '/preview';
+        var mapUrl = API_BASE + '/tracks/' + encodeURIComponent(tr.track_id) + '/layouts/' + encodeURIComponent(lid) + '/map';
+        var previewUrl = API_BASE + '/tracks/' + encodeURIComponent(tr.track_id) + '/layouts/' + encodeURIComponent(lid) + '/preview';
         var activeClass = i === idx ? ' active' : '';
-        return '<div class="sc-track-layout-thumb' + activeClass + '" data-layout-index="' + i + '" role="button" tabindex="0"><img src="' + escapeHtml(url) + '" alt="" /></div>';
+        return '<div class="sc-track-layout-thumb' + activeClass + '" data-layout-index="' + i + '" role="button" tabindex="0"><img src="' + escapeHtml(mapUrl) + '" alt="" onerror="if(this.src!==\'' + escapeHtml(previewUrl) + '\'){this.src=\'' + escapeHtml(previewUrl) + '\';}" /></div>';
       }).join('');
       detailLayouts.querySelectorAll('.sc-track-layout-thumb').forEach(function (thumb) {
         thumb.addEventListener('click', function () {
