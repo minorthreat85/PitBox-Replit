@@ -566,6 +566,26 @@ a.pitbox-operator-banner-signin:hover {
     color: var(--text-muted);
     margin-top: 0.75rem;
 }
+.config-section {
+    margin-bottom: 24px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border-gray);
+}
+.config-section:last-child { border-bottom: none; margin-bottom: 16px; }
+.config-section-heading {
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-muted);
+    margin: 0 0 12px 0;
+}
+.config-hint-inline {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-top: 4px;
+}
 .settings-access-segmented {
     display: inline-flex;
     border: 1px solid var(--border-gray);

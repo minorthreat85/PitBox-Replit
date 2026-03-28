@@ -3828,16 +3828,37 @@
     var portEl = document.getElementById('settings-config-ui-port');
     var localBtn = document.getElementById('settings-access-local');
     var lanBtn = document.getElementById('settings-access-lan');
+    var acServerEl = document.getElementById('settings-ac-server-exe');
+    var acPresetsEl = document.getElementById('settings-ac-presets-root');
+    var loungeEl = document.getElementById('settings-lounge-name');
+    var defaultPresetEl = document.getElementById('settings-default-preset');
+    var pollIntervalEl = document.getElementById('settings-agent-poll-interval');
     if (portEl) portEl.value = '';
+    if (acServerEl) acServerEl.value = '';
+    if (acPresetsEl) acPresetsEl.value = '';
+    if (loungeEl) loungeEl.value = '';
+    if (pollIntervalEl) pollIntervalEl.value = '';
     if (localBtn && lanBtn) {
       localBtn.classList.add('settings-access-opt-active');
       lanBtn.classList.remove('settings-access-opt-active');
+    }
+    if (defaultPresetEl) {
+      var presets = serverConfigData.server_ids || [];
+      var names = serverConfigData.preset_names || {};
+      defaultPresetEl.innerHTML = '<option value="">—</option>' + presets.map(function (id) {
+        return '<option value="' + escapeHtml(id) + '">' + escapeHtml(names[id] || id) + '</option>';
+      }).join('');
     }
     pitboxFetch(API_BASE + '/config')
       .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('Status ' + r.status)); })
       .then(function (data) {
         var c = data.config || {};
         if (portEl) portEl.value = c.ui_port != null ? String(c.ui_port) : '';
+        if (acServerEl) acServerEl.value = c.ac_server_exe || '';
+        if (acPresetsEl) acPresetsEl.value = c.ac_presets_root || '';
+        if (loungeEl) loungeEl.value = c.lounge_name || '';
+        if (defaultPresetEl) defaultPresetEl.value = c.default_preset || '';
+        if (pollIntervalEl) pollIntervalEl.value = c.agent_poll_interval_ms != null ? String(c.agent_poll_interval_ms) : '';
         if (localBtn && lanBtn) {
           if (c.allow_lan_ui) {
             lanBtn.classList.add('settings-access-opt-active');
@@ -3874,9 +3895,22 @@
     btn.addEventListener('click', function () {
       var portEl = document.getElementById('settings-config-ui-port');
       var lanBtn = document.getElementById('settings-access-lan');
+      var acServerEl = document.getElementById('settings-ac-server-exe');
+      var acPresetsEl = document.getElementById('settings-ac-presets-root');
+      var loungeEl = document.getElementById('settings-lounge-name');
+      var defaultPresetEl = document.getElementById('settings-default-preset');
+      var pollIntervalEl = document.getElementById('settings-agent-poll-interval');
       var updates = {};
       if (portEl && portEl.value !== '') updates.ui_port = parseInt(portEl.value, 10);
       updates.allow_lan_ui = !!(lanBtn && lanBtn.classList.contains('settings-access-opt-active'));
+      if (acServerEl && acServerEl.value.trim()) updates.ac_server_exe = acServerEl.value.trim();
+      if (acPresetsEl && acPresetsEl.value.trim()) updates.ac_presets_root = acPresetsEl.value.trim();
+      if (loungeEl && loungeEl.value.trim()) updates.lounge_name = loungeEl.value.trim();
+      if (defaultPresetEl && defaultPresetEl.value.trim()) updates.default_preset = defaultPresetEl.value.trim();
+      if (pollIntervalEl && pollIntervalEl.value !== '') {
+        var ms = parseInt(pollIntervalEl.value, 10);
+        if (!isNaN(ms) && ms >= 500 && ms <= 60000) updates.agent_poll_interval_ms = ms;
+      }
       pitboxFetch(API_BASE + '/config', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },

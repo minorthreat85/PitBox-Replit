@@ -555,18 +555,50 @@
                 <button type="button" class="settings-tab" data-tab="updates" role="tab">Updates</button>
             </nav>
             <div id="settings-panel-config" class="settings-panel" data-tab="config">
-                <h3 class="sc-section-title">Controller config</h3>
                 <div class="settings-config-main">
-                    <div class="config-form-row">
-                        <label class="config-label">Access</label>
-                        <div class="settings-access-segmented" role="group" aria-label="Network access">
-                            <button type="button" class="settings-access-opt settings-access-opt-active" id="settings-access-local" data-value="local">Local only</button>
-                            <button type="button" class="settings-access-opt" id="settings-access-lan" data-value="lan">LAN</button>
+                    <div class="config-section">
+                        <h4 class="config-section-heading">Network</h4>
+                        <div class="config-form-row">
+                            <label class="config-label">Access</label>
+                            <div class="settings-access-segmented" role="group" aria-label="Network access">
+                                <button type="button" class="settings-access-opt settings-access-opt-active" id="settings-access-local" data-value="local">Local only</button>
+                                <button type="button" class="settings-access-opt" id="settings-access-lan" data-value="lan">LAN</button>
+                            </div>
+                        </div>
+                        <div class="config-form-row">
+                            <label for="settings-config-ui-port" class="config-label">UI port</label>
+                            <input type="number" id="settings-config-ui-port" class="config-input config-input-num" min="1" max="65535" placeholder="9630" aria-label="UI port">
                         </div>
                     </div>
-                    <div class="config-form-row">
-                        <label for="settings-config-ui-port" class="config-label">UI port</label>
-                        <input type="number" id="settings-config-ui-port" class="config-input config-input-num" min="1" max="65535" placeholder="9630" aria-label="UI port">
+                    <div class="config-section">
+                        <h4 class="config-section-heading">Paths</h4>
+                        <div class="config-form-row">
+                            <label for="settings-ac-server-exe" class="config-label">acServer.exe</label>
+                            <input type="text" id="settings-ac-server-exe" class="config-input" placeholder="C:\Path\to\acServer.exe" aria-label="acServer.exe path">
+                        </div>
+                        <div class="config-form-row">
+                            <label for="settings-ac-presets-root" class="config-label">Server presets root</label>
+                            <input type="text" id="settings-ac-presets-root" class="config-input" placeholder="C:\AC\server\presets" aria-label="Server presets root folder">
+                        </div>
+                    </div>
+                    <div class="config-section">
+                        <h4 class="config-section-heading">Lounge</h4>
+                        <div class="config-form-row">
+                            <label for="settings-lounge-name" class="config-label">Lounge name</label>
+                            <input type="text" id="settings-lounge-name" class="config-input" placeholder="My Racing Lounge" aria-label="Lounge display name">
+                        </div>
+                        <div class="config-form-row">
+                            <label for="settings-default-preset" class="config-label">Default server preset</label>
+                            <select id="settings-default-preset" class="config-input" aria-label="Default server preset"></select>
+                        </div>
+                    </div>
+                    <div class="config-section">
+                        <h4 class="config-section-heading">Performance</h4>
+                        <div class="config-form-row">
+                            <label for="settings-agent-poll-interval" class="config-label">Agent poll interval (ms)</label>
+                            <input type="number" id="settings-agent-poll-interval" class="config-input config-input-num" min="500" max="60000" step="500" placeholder="2000" aria-label="Agent polling interval in milliseconds">
+                            <span class="config-hint-inline">How often to check enrolled rigs (500ms–60s)</span>
+                        </div>
                     </div>
                     <button type="button" id="settings-config-save" class="btn-primary config-save-btn">Save</button>
                     <p class="settings-config-hint">Restart required for access/port changes.</p>
@@ -642,7 +674,6 @@
                             <button type="button" class="sc-tab" data-tab="conditions" role="tab">CONDITIONS</button>
                             <button type="button" class="sc-tab" data-tab="sessions" role="tab">SESSIONS</button>
                             <button type="button" class="sc-tab" data-tab="blacklist" role="tab">BLACKLIST</button>
-                            <button type="button" class="sc-tab" data-tab="settings" role="tab">CONTROLLER</button>
                             <button type="button" class="sc-tab" data-tab="advanced" role="tab">ADVANCED</button>
                             <button type="button" class="sc-tab" data-tab="details" role="tab">DETAILS</button>
                         </nav>
@@ -849,9 +880,6 @@
                         <p class="sc-placeholder">One GUID or identifier per line. Saved to <code>blacklist.txt</code> in the server folder.</p>
                         <div class="sc-field"><label>Blacklist entries:</label><textarea id="sc-blacklist-text" class="sc-textarea sc-blacklist-text" rows="12" placeholder="GUID or line per entry"></textarea></div>
                         <button type="button" id="sc-blacklist-save" class="sc-header-btn sc-header-btn-primary">Save blacklist</button>
-                    </div>
-                    <div id="sc-panel-settings" class="sc-panel hidden" data-tab="settings">
-                        <p class="config-hint">Controller config moved to <a href="/settings" class="nav-link-inline">Settings</a>.</p>
                     </div>
                     <div id="sc-panel-advanced" class="sc-panel hidden" data-tab="advanced">
                         <p class="sc-advanced-intro">Advanced options matching the classic AC dedicated server / <a href="https://github.com/jo3stevens/ACServerManager/blob/master/frontend/advanced.html" target="_blank" rel="noopener noreferrer">ACServerManager Advanced</a> page. Voting fields stay on the Rules tab.</p>
