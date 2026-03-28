@@ -332,15 +332,32 @@ async def start_ac(request: StartRequest):
 
 
 def _write_time_limited_test_ini(max_running_time_minutes: int) -> None:
-    """Write time_limited_test.ini with [SETTINGS] MAX_RUNNING_TIME=<minutes>. Uses atomic write."""
+    """Write time_limited_test.ini with [SETTINGS] MAX_RUNNING_TIME=<minutes>.
+    Skips the write entirely if the file already contains the same value.
+    Uses atomic write when a change is needed.
+    """
     import tempfile
     import os
     from agent.config import get_config, get_time_limited_test_ini_path
     config = get_config()
     path = get_time_limited_test_ini_path(config)
     value = max(0, int(max_running_time_minutes))
-    content = "[SETTINGS]\nMAX_RUNNING_TIME=" + str(value) + "\n"
     path = path.resolve()
+    # Read current value; skip write if unchanged
+    try:
+        if path.exists():
+            with open(str(path), "r", encoding="utf-8", errors="replace") as _f:
+                for _line in _f:
+                    _line = _line.strip()
+                    if _line.upper().startswith("MAX_RUNNING_TIME"):
+                        _parts = _line.split("=", 1)
+                        if len(_parts) == 2 and int(_parts[1].strip()) == value:
+                            logger.debug("time_limited_test.ini already has MAX_RUNNING_TIME=%s, skipping write", value)
+                            return
+                        break
+    except Exception:
+        pass  # Unreadable; proceed with write
+    content = "[SETTINGS]\nMAX_RUNNING_TIME=" + str(value) + "\n"
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp = tempfile.mkstemp(dir=path.parent, prefix="time_limited_test.", suffix=".ini")
     try:
