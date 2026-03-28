@@ -5199,9 +5199,8 @@
       return r.json();
     });
     var serversPromise = pitboxFetch(API_BASE + '/servers').then(function (r) { return r.ok ? r.json() : []; }).catch(function () { return []; });
-    return Promise.all([statusPromise, serversPromise]).then(function (arr) {
-      var data = arr[0];
-      serverList = Array.isArray(arr[1]) ? arr[1] : [];
+
+    function applyStatusData(data) {
       lastFetchTime = Date.now();
       var pollSec = data.poll_interval_sec;
       if (typeof pollSec === 'number' && pollSec > 0 && isFinite(pollSec)) {
@@ -5277,12 +5276,24 @@
         ]).then(function (arr) { renderCommandCenterDashboard(data, arr[0], arr[1]); });
       }
       return data;
-    })
-      .catch(function (err) {
-        if (lastUpdateEl) lastUpdateEl.textContent = 'Last update: error';
-        // showToast('Failed to load status: ' + err.message, 'error'); // disabled for now
-        throw err;
-      });
+    }
+
+    var statusHandled = statusPromise.then(function (data) {
+      return applyStatusData(data);
+    }).catch(function (err) {
+      if (lastUpdateEl) lastUpdateEl.textContent = 'Last update: error';
+      throw err;
+    });
+
+    serversPromise.then(function (servers) {
+      serverList = Array.isArray(servers) ? servers : [];
+      if (currentAgents && currentAgents.length > 0) {
+        lastSimCardsAgentIds = null;
+        renderSimCards(currentAgents);
+      }
+    });
+
+    return statusHandled;
   }
 
   /**
