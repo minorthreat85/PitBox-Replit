@@ -1554,7 +1554,7 @@ async def get_server_details(server_id: str, _: None = Depends(require_operator_
         port = int(fav.get("port") or 0)
         host = (fav.get("ip") or "").strip()
         join_addr = f"{host}:{port}" if host else None
-        live = get_live_server_info(host or "", port)
+        live = await asyncio.to_thread(get_live_server_info, host or "", port)
         cars_list = list(live.get("cars") or [])
         track_id = (live.get("track") or {}).get("id") or live.get("track_id") or None
         track_config = (live.get("track") or {}).get("config") or live.get("layout") or None
@@ -1795,7 +1795,7 @@ _PRESETS_DISK_STATE_BATCH_MAX = 64
 @router.get("/preset/{preset_id}/disk_state")
 async def get_preset_disk_state(preset_id: str, _: None = Depends(require_operator_if_password_configured)):
     """Same as _compute_preset_disk_state with short TTL cache."""
-    out = _disk_state_payload_for_id(preset_id)
+    out = await asyncio.to_thread(_disk_state_payload_for_id, preset_id)
     if out is None:
         raise HTTPException(status_code=400, detail="Invalid preset_id")
     return out
@@ -1806,6 +1806,8 @@ async def get_presets_disk_state(ids: str = "", _: None = Depends(require_operat
     """
     Batch disk_state for multiple presets (comma-separated ids).
     Reuses the same 5s per-preset cache as GET /preset/{id}/disk_state.
+    Runs all preset lookups concurrently so a slow favourite-server live-fetch
+    on one entry does not delay the others.
     """
     raw = [x.strip() for x in (ids or "").split(",") if x.strip()]
     seen: set[str] = set()
@@ -1817,11 +1819,14 @@ async def get_presets_disk_state(ids: str = "", _: None = Depends(require_operat
         ordered.append(x)
     if len(ordered) > _PRESETS_DISK_STATE_BATCH_MAX:
         ordered = ordered[:_PRESETS_DISK_STATE_BATCH_MAX]
-    results: dict[str, dict[str, Any]] = {}
-    for pid in ordered:
-        payload = _disk_state_payload_for_id(pid)
-        if payload is not None:
-            results[pid] = payload
+    payloads = await asyncio.gather(
+        *[asyncio.to_thread(_disk_state_payload_for_id, pid) for pid in ordered]
+    )
+    results: dict[str, dict[str, Any]] = {
+        pid: payload
+        for pid, payload in zip(ordered, payloads)
+        if payload is not None
+    }
     return {"results": results}
 
 
@@ -1860,7 +1865,7 @@ async def get_server_summary(server_id: str, _: None = Depends(require_operator_
     if fav:
         host = (fav.get("ip") or "").strip()
         port = int(fav.get("port") or 0)
-        live = get_live_server_info(host, port)
+        live = await asyncio.to_thread(get_live_server_info, host, port)
         cars_list = list(live.get("cars") or [])
         track = live.get("track") or {}
         if not track and (live.get("track_id") or live.get("layout")):
