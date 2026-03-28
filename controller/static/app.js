@@ -5287,6 +5287,13 @@
 
     serversPromise.then(function (servers) {
       serverList = Array.isArray(servers) ? servers : [];
+      if (serverList.length > 0 && displayServerIds && displayServerIds.length > 0) {
+        var sortedIds = serverList.map(function (s) { return s.id; });
+        var sortedSet = {};
+        sortedIds.forEach(function (id) { sortedSet[id] = true; });
+        var extras = displayServerIds.filter(function (id) { return !sortedSet[id]; });
+        displayServerIds = sortedIds.concat(extras);
+      }
       if (currentAgents && currentAgents.length > 0) {
         lastSimCardsAgentIds = null;
         renderSimCards(currentAgents);

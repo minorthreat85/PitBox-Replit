@@ -1527,6 +1527,7 @@ async def list_servers(_: None = Depends(require_operator_if_password_configured
                 "tcp_port": None, "udp_port": None, "http_port": None, "join_addr": None,
                 "ip": None, "port": None, "source": "preset",
             })
+    result.sort(key=lambda x: (x.get("name") or x.get("id") or "").strip().lower())
     return result
 
 
