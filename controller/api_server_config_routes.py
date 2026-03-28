@@ -417,6 +417,7 @@ def _ensure_preset_list_cache() -> tuple[list[str], dict[str, str]]:
                         preset_names[sid] = sid
                 except Exception:
                     preset_names[sid] = sid
+        server_ids.sort(key=lambda sid: preset_names.get(sid, sid).strip().lower())
         _preset_list_cache = (now, server_ids, preset_names)
     return _preset_list_cache[1], _preset_list_cache[2]
 
