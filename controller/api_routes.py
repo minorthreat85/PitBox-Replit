@@ -2865,7 +2865,7 @@ def _resolve_track_outline_content(track_id: str, layout: Optional[str]) -> Opti
 def _find_track_outline(track_id: str, layout: Optional[str]) -> Optional[Path]:
     """
     Resolve track outline/preview from cache then AC CONTENT (content/tracks/<track_id>/).
-    Search order: cache → layout dir → base ui → track root.
+    Search order: layout-specific cache → layout content dir → base cache (fallback) → base ui → track root.
     Per-tier order: outline.png, outline_cropped.png, map.png (track root: outline.png, map.png only).
     Returns first existing .png path.
     """
@@ -2874,18 +2874,21 @@ def _find_track_outline(track_id: str, layout: Optional[str]) -> Optional[Path]:
     layout_norm = _normalize_layout(layout)
     if not tid:
         return None
-    # Try cache first (CM/AC cache may have outline.png or preview.png)
-    cache_dir = _track_cache_dir(tid, layout or "")
+    # Try cache first — layout-specific subdir when a layout is given, base dir otherwise.
+    cache_dir = _track_cache_dir(tid, layout_norm)  # None → base dir, layout_norm → layout subdir
     for name in ("outline.png", "preview.png", "outline_cropped.png", "map.png"):
         p = cache_dir / name
         if p.is_file():
             return p
+    # If a layout was given and the layout cache was empty, also check the base cache dir as
+    # a fallback (CM stores outlines at the track level without a layout subfolder).
     if layout_norm:
-        cache_dir_layout = _track_cache_dir(tid, layout_norm)
-        for name in ("outline.png", "preview.png", "outline_cropped.png", "map.png"):
-            p = cache_dir_layout / name
-            if p.is_file():
-                return p
+        base_cache_dir = _track_cache_dir(tid, None)
+        if base_cache_dir != cache_dir:
+            for name in ("outline.png", "preview.png", "outline_cropped.png", "map.png"):
+                p = base_cache_dir / name
+                if p.is_file():
+                    return p
     tracks_dir = _tracks_dir()
     track_root = tracks_dir / tid
     if not track_root.is_dir():
@@ -2926,31 +2929,31 @@ def _find_track_outline(track_id: str, layout: Optional[str]) -> Optional[Path]:
 
 
 def _find_track_map(track_id: str, layout: Optional[str]) -> Optional[Path]:
-    """Resolve map.png only (for overlay on track preview). Same path order as outline: cache → ui/<layout>/ → ui/ → track root."""
+    """Resolve map.png only (for overlay on track preview).
+    When a specific layout is given, only check that layout's directory — never fall back to the
+    base ui/map.png (which belongs to a different layout and would show the wrong track shape).
+    Falls back to ui/map.png / root only when no layout is specified.
+    """
     tid = _safe_track_id(track_id)
     layout_norm = _normalize_layout(layout)
     if not tid:
         return None
-    cache_dir = _track_cache_dir(tid, layout or "")
-    for p in (cache_dir / "map.png",):
-        if p.is_file():
-            return p
-    if layout_norm:
-        cache_dir_layout = _track_cache_dir(tid, layout_norm)
-        if (cache_dir_layout / "map.png").is_file():
-            return cache_dir_layout / "map.png"
+    # Cache check — use the layout-specific cache dir when a layout is present.
+    cache_dir = _track_cache_dir(tid, layout_norm)  # None → base dir, layout_norm → layout subdir
+    if (cache_dir / "map.png").is_file():
+        return cache_dir / "map.png"
     tracks_dir = _tracks_dir()
     track_root = tracks_dir / tid
     if not track_root.is_dir():
         return None
-    candidates: list[Path] = []
     if layout_norm:
-        candidates.append(track_root / "ui" / layout_norm / "map.png")
-    candidates.extend([
-        track_root / "ui" / "map.png",
-        track_root / "map.png",
-    ])
-    for p in candidates:
+        # Only check the layout-specific map; do NOT fall back to ui/map.png (wrong layout).
+        p = track_root / "ui" / layout_norm / "map.png"
+        if p.is_file() and p.suffix.lower() == ".png":
+            return p
+        return None
+    # No layout: try base ui/ then track root.
+    for p in (track_root / "ui" / "map.png", track_root / "map.png"):
         if p.is_file() and p.suffix.lower() == ".png":
             return p
     return None
@@ -2962,8 +2965,8 @@ def _find_track_base(track_id: str, layout: Optional[str]) -> Optional[Path]:
     layout_norm = _normalize_layout(layout)
     if not tid:
         return None
-    # Cache: outline, outline_cropped, preview (no map)
-    cache_dir = _track_cache_dir(tid, layout or "")
+    # Cache: layout-specific subdir first; fall back to base cache dir for layout searches.
+    cache_dir = _track_cache_dir(tid, layout_norm)  # None → base dir, layout_norm → layout subdir
     for name in ("outline.png", "preview.png", "outline_cropped.png"):
         p = cache_dir / name
         if p.is_file():
@@ -2973,15 +2976,16 @@ def _find_track_base(track_id: str, layout: Optional[str]) -> Optional[Path]:
         if p.is_file():
             return p
     if layout_norm:
-        cache_dir_layout = _track_cache_dir(tid, layout_norm)
-        for name in ("outline.png", "preview.png", "outline_cropped.png"):
-            p = cache_dir_layout / name
-            if p.is_file():
-                return p
-        for ext in (".png", ".jpg", ".jpeg"):
-            p = cache_dir_layout / ("preview" + ext)
-            if p.is_file():
-                return p
+        base_cache_dir = _track_cache_dir(tid, None)
+        if base_cache_dir != cache_dir:
+            for name in ("outline.png", "preview.png", "outline_cropped.png"):
+                p = base_cache_dir / name
+                if p.is_file():
+                    return p
+            for ext in (".png", ".jpg", ".jpeg"):
+                p = base_cache_dir / ("preview" + ext)
+                if p.is_file():
+                    return p
     tracks_dir = _tracks_dir()
     track_root = tracks_dir / tid
     if not track_root.is_dir():
@@ -3017,18 +3021,22 @@ def _find_track_preview(track_id: str, layout: Optional[str]) -> Optional[Path]:
     if not tid:
         return None
     layout_norm = _normalize_layout(layout)
-    # 0) CM/AC cache: Documents/Assetto Corsa/cache/tracks/<track_id>/[layout]/preview.*
-    cache_dir = _track_cache_dir(tid, layout or "")
+    # 0) CM/AC cache: layout-specific subdir first, then base dir as fallback.
+    # CM stores previews at the base cache level (no layout subfolder) in most cases.
+    cache_dir = _track_cache_dir(tid, layout_norm)  # None → base dir, layout_norm → layout subdir
     for name in ("preview.png", "preview.jpg", "preview.jpeg"):
         p = cache_dir / name
         if p.is_file():
             return p
     if layout_norm:
-        cache_dir_layout = _track_cache_dir(tid, layout_norm)
-        for name in ("preview.png", "preview.jpg", "preview.jpeg"):
-            p = cache_dir_layout / name
-            if p.is_file():
-                return p
+        # Also check the base cache dir — CM typically stores track previews there
+        # regardless of layout (no layout-specific subfolder in CM cache).
+        base_cache_dir = _track_cache_dir(tid, None)
+        if base_cache_dir != cache_dir:
+            for name in ("preview.png", "preview.jpg", "preview.jpeg"):
+                p = base_cache_dir / name
+                if p.is_file():
+                    return p
     tracks_dir = _tracks_dir()
     track_root = tracks_dir / tid
     if not track_root.is_dir():
