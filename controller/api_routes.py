@@ -112,6 +112,7 @@ from controller.telemetry_models import AgentStatusBody, TelemetryTickBody
 from controller.telemetry_store import ingest_telemetry, ingest_status, build_timing_snapshot
 from controller.updater import (
     apply_controller_update,
+    apply_dev_pull_update,
     clear_update_cache,
     get_update_status,
     get_updater_status,
@@ -1988,6 +1989,31 @@ async def post_update_run_installer(_: None = Depends(require_operator)):
     return {"ok": True, "message": msg}
 
 
+@router.post("/update/dev-pull")
+async def post_update_dev_pull(request: Request, _: None = Depends(require_operator)):
+    """
+    Dev-mode update: stop service → git pull → build → copy exe → restart.
+    Requires dev_repo_path set in controller config. Windows only.
+    Equivalent to running update.ps1 from the command line, triggered from the UI.
+    """
+    if not _is_localhost(request):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Dev pull update is only allowed from localhost",
+        )
+    cfg = get_config()
+    repo_path = getattr(cfg, "dev_repo_path", None)
+    if not repo_path:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Dev repo path not configured. Set it in Settings → Config → Paths.",
+        )
+    ok, msg = apply_dev_pull_update(repo_path)
+    if not ok:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg)
+    return {"ok": True, "message": msg}
+
+
 @router.get("/config")
 async def get_controller_config(_: None = Depends(require_operator)):
     """Return current controller config and path (tokens masked for display). Operator or localhost-only per require_operator."""
@@ -2098,6 +2124,7 @@ class ConfigPutBody(BaseModel):
     lounge_name: Optional[str] = None
     default_preset: Optional[str] = None
     agent_poll_interval_ms: Optional[int] = None
+    dev_repo_path: Optional[str] = None
     update_channel: Optional[UpdateChannelConfig] = None
 
 
@@ -2132,8 +2159,8 @@ async def put_controller_config(request: Request, body: ConfigPutBody, _: None =
         return {"ok": True, "message": "No changes"}
     new_data = config.model_dump()
     for k, v in updates.items():
-        if k in ("ui_host", "ui_port", "allow_lan_ui", "ac_server_cfg_path", "ac_server_exe", "ac_presets_root", "lounge_name", "default_preset", "agent_poll_interval_ms", "update_channel"):
-            if v is not None or k in ("ac_server_cfg_path", "ac_server_exe", "ac_presets_root", "lounge_name", "default_preset", "agent_poll_interval_ms", "update_channel"):
+        if k in ("ui_host", "ui_port", "allow_lan_ui", "ac_server_cfg_path", "ac_server_exe", "ac_presets_root", "lounge_name", "default_preset", "agent_poll_interval_ms", "dev_repo_path", "update_channel"):
+            if v is not None or k in ("ac_server_cfg_path", "ac_server_exe", "ac_presets_root", "lounge_name", "default_preset", "agent_poll_interval_ms", "dev_repo_path", "update_channel"):
                 new_data[k] = v
     changed_keys = [k for k in updates if new_data.get(k) != config.model_dump().get(k)]
     logger.info(

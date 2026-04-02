@@ -773,3 +773,83 @@ def run_unified_installer_update() -> tuple[bool, str]:
     )
     t.start()
     return True, "Download started — progress visible in the Updates panel."
+
+
+def apply_dev_pull_update(repo_path: str) -> tuple[bool, str]:
+    """
+    Dev-mode in-app update: spawns a detached PowerShell script that stops the
+    PitBoxController service, runs git pull + build_release.ps1 -Dev, copies the
+    built exe to the install dir, and restarts the service.
+
+    Equivalent to running update.ps1 manually, but triggered from the PitBox UI.
+    Only meaningful on the dev machine where the source repo lives.
+    """
+    if os.name != "nt":
+        return False, "Dev pull update is only supported on Windows."
+
+    rp = Path(repo_path)
+    if not rp.exists():
+        return False, f"Dev repo path not found: {repo_path}"
+
+    update_ps1 = rp / "update.ps1"
+    build_ps1 = rp / "scripts" / "build_release.ps1"
+
+    if not update_ps1.exists() and not build_ps1.exists():
+        return False, (
+            f"Neither update.ps1 nor scripts/build_release.ps1 found in {repo_path}. "
+            "Check your Dev Repo Path in Settings."
+        )
+
+    repo_str = str(rp).replace("'", "''")
+
+    # If update.ps1 exists, run it directly (it handles stop → pull → build → copy → start)
+    if update_ps1.exists():
+        update_ps1_str = str(update_ps1).replace("'", "''")
+        launcher_ps = f"""
+$ErrorActionPreference = 'SilentlyContinue'
+Start-Sleep -Seconds 2
+& powershell.exe -ExecutionPolicy Bypass -NonInteractive -File '{update_ps1_str}'
+"""
+    else:
+        # Fallback: inline the logic
+        launcher_ps = f"""
+$ErrorActionPreference = 'SilentlyContinue'
+Start-Sleep -Seconds 2
+Stop-Service -Name 'PitBoxController' -Force
+Start-Sleep -Seconds 3
+Set-Location '{repo_str}'
+git pull
+& '{repo_str}\\scripts\\build_release.ps1' -Dev
+$src = '{repo_str}\\dist\\PitBoxController.exe'
+$dst = 'C:\\PitBox\\installed\\bin\\PitBoxController.exe'
+if (Test-Path $src) {{ Copy-Item $src $dst -Force }}
+Start-Service -Name 'PitBoxController'
+"""
+
+    try:
+        tmp_dir = Path(tempfile.mkdtemp(prefix="pitbox_devupd_"))
+        launcher_path = tmp_dir / "dev_pull.ps1"
+        launcher_path.write_text(launcher_ps, encoding="utf-8")
+
+        DETACHED_PROCESS = 0x00000008
+        CREATE_NEW_PROCESS_GROUP = 0x00000200
+
+        subprocess.Popen(
+            [
+                "powershell.exe",
+                "-WindowStyle", "Hidden",
+                "-ExecutionPolicy", "Bypass",
+                "-NonInteractive",
+                "-File", str(launcher_path),
+            ],
+            cwd=str(rp),
+            creationflags=DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            close_fds=True,
+        )
+        _set_install_state("installing", "Pulling & rebuilding — PitBox will restart in ~30 seconds…", 10)
+        return True, "Dev pull started — PitBox will restart automatically."
+    except Exception as exc:
+        return False, f"Failed to launch dev pull: {exc}"

@@ -580,6 +580,10 @@
                             <label for="settings-ac-presets-root" class="config-label">Server presets root</label>
                             <input type="text" id="settings-ac-presets-root" class="config-input" placeholder="C:\AC\server\presets" aria-label="Server presets root folder">
                         </div>
+                        <div class="config-form-row">
+                            <label for="settings-dev-repo-path" class="config-label">Dev repo path</label>
+                            <input type="text" id="settings-dev-repo-path" class="config-input" placeholder="C:\Path\to\PitBox-Replit" aria-label="Path to PitBox source repo (for in-app pull &amp; rebuild)">
+                        </div>
                     </div>
                     <div class="config-section">
                         <h4 class="config-section-heading">Lounge</h4>
@@ -618,6 +622,11 @@
                             <p id="updates-progress-message"></p>
                             <p id="updates-progress-percent" class="settings-updates-muted"></p>
                         </div>
+                    </div>
+                    <div id="updates-dev-pull-area" class="updates-dev-pull-area hidden">
+                        <div class="updates-dev-divider"><span>Developer</span></div>
+                        <button type="button" id="updates-btn-dev-pull" class="btn-secondary updates-dev-pull-btn">Pull &amp; rebuild</button>
+                        <p class="settings-updates-hint">Pulls latest code from GitHub, builds, and restarts PitBox &mdash; same as running <code>update.ps1</code>.</p>
                     </div>
                     <div class="updates-check-info">
                         <p class="settings-updates-meta"><span class="settings-updates-label">Last checked:</span> <span id="updates-last-checked">—</span></p>

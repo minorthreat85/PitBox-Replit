@@ -120,6 +120,7 @@ class ControllerConfig(BaseModel):
     # AC paths (UI convenience; mirrors ac_server_root and ac_server_presets_root)
     ac_server_exe: Optional[str] = Field(default=None, description="Path to acServer.exe (convenience alias for ac_server_root)")
     ac_presets_root: Optional[str] = Field(default=None, description="Server presets root folder (convenience alias for ac_server_presets_root)")
+    dev_repo_path: Optional[str] = Field(default=None, description="Path to the PitBox source repo on this machine (for in-app pull & rebuild dev updates)")
 
     @field_validator('agents')
     @classmethod
