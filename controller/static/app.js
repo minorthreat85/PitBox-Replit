@@ -4944,6 +4944,34 @@
     var activeEl = document.activeElement;
     var activeCard = activeEl && activeEl.closest ? activeEl.closest('.sim-card') : null;
     var activeAgentId = activeCard ? activeCard.getAttribute('data-agent-id') : null;
+    /* Save form field values before re-render to restore them after */
+    var savedFormValues = {};
+    if (grid) {
+      grid.querySelectorAll('.sim-card-dropdown').forEach(function (sel) {
+        var agentId = sel.getAttribute('data-agent-id');
+        if (agentId) {
+          if (!savedFormValues[agentId]) savedFormValues[agentId] = {};
+          var className = sel.className;
+          if (className.includes('preset-server')) savedFormValues[agentId].server = sel.value;
+          else if (className.includes('preset-steering')) savedFormValues[agentId].steering = sel.value;
+          else if (className.includes('preset-shifting')) savedFormValues[agentId].shifting = sel.value;
+        }
+      });
+      grid.querySelectorAll('.sim-card-driver-input').forEach(function (inp) {
+        var agentId = inp.getAttribute('data-agent-id');
+        if (agentId) {
+          if (!savedFormValues[agentId]) savedFormValues[agentId] = {};
+          savedFormValues[agentId].driver = inp.value;
+        }
+      });
+      grid.querySelectorAll('.sim-card-timer-input').forEach(function (inp) {
+        var agentId = inp.getAttribute('data-agent-id');
+        if (agentId) {
+          if (!savedFormValues[agentId]) savedFormValues[agentId] = {};
+          savedFormValues[agentId].timer = inp.value;
+        }
+      });
+    }
     grid.innerHTML = agents.map(function (a, i) {
       var kind = statusKind(a);
       var num = i + 1;
@@ -5290,6 +5318,32 @@
     });
     updateSessionTimeDisplays();
     updateBatchStatusEls();
+    /* Restore form field values to prevent dropdown closures during re-renders */
+    Object.keys(savedFormValues).forEach(function (agentId) {
+      var saved = savedFormValues[agentId];
+      var card = grid.querySelector('.sim-card[data-agent-id="' + (window.CSS && window.CSS.escape ? window.CSS.escape(agentId) : agentId) + '"]');
+      if (!card) return;
+      if (saved.server !== undefined) {
+        var serverSelect = card.querySelector('.preset-server');
+        if (serverSelect && serverSelect.value !== saved.server) serverSelect.value = saved.server;
+      }
+      if (saved.steering !== undefined) {
+        var steeringSelect = card.querySelector('.preset-steering');
+        if (steeringSelect && steeringSelect.value !== saved.steering) steeringSelect.value = saved.steering;
+      }
+      if (saved.shifting !== undefined) {
+        var shiftingSelect = card.querySelector('.preset-shifting');
+        if (shiftingSelect && shiftingSelect.value !== saved.shifting) shiftingSelect.value = saved.shifting;
+      }
+      if (saved.driver !== undefined) {
+        var driverInput = card.querySelector('.sim-card-driver-input');
+        if (driverInput && driverInput.value !== saved.driver) driverInput.value = saved.driver;
+      }
+      if (saved.timer !== undefined) {
+        var timerInput = card.querySelector('.sim-card-timer-input');
+        if (timerInput && timerInput.value !== saved.timer) timerInput.value = saved.timer;
+      }
+    });
   }
 
   function updateLastUpdateText() {
