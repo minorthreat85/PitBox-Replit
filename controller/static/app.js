@@ -4906,8 +4906,6 @@
         }
         if (badge) { badge.textContent = ''; badge.className = 'sim-card-countdown-badge hidden'; }
       }
-      var infoEl = card.querySelector('.sim-card-info');
-      if (infoEl) infoEl.innerHTML = '';
       var thumb = card.querySelector('.sim-card-thumb');
       if (thumb) {
         var ojs = getOnlineJoinState(a.agent_id);
