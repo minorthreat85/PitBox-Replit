@@ -3417,33 +3417,95 @@ button:disabled {
     background-color: var(--bg-panel);
 }
 
-.sim-card-presets-row {
+/* Config Row 1: Steering, Shifting, Timer */
+.sim-card-config-row-1 {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: 1fr 1.45fr 110px;
     gap: 12px;
     align-items: end;
+    padding-top: 12px;
+    border-top: 1px solid var(--border-gray);
 }
-@media (max-width: 640px) {
-    .sim-card-presets-row {
-        grid-template-columns: 1fr;
-    }
-}
-.sim-card-preset-col {
+.sim-card-config-row-1 > div {
     min-width: 0;
 }
-.sim-card-preset-col .sim-card-label {
+.sim-card-config-row-1 .sim-card-label {
     display: block;
     margin-bottom: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    letter-spacing: 0.05em;
 }
-.sim-card-preset-col .sim-card-dropdown,
-.sim-card-preset-col .sim-card-driver-input,
-.sim-card-preset-col .sim-card-timer-input {
+.sim-card-config-row-1 .sim-card-dropdown {
     width: 100%;
     box-sizing: border-box;
 }
 
-.sim-card-timer-col {
+/* Config Row 2: Session Name, Reset Rig */
+.sim-card-config-row-2 {
+    display: grid;
+    grid-template-columns: 1fr 120px;
+    gap: 12px;
+    align-items: end;
+    margin-top: 12px;
+}
+.sim-card-config-row-2 > div {
     min-width: 0;
+}
+.sim-card-config-row-2 .sim-card-label {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    letter-spacing: 0.05em;
+}
+.sim-card-config-row-2 .sim-card-driver-input {
+    width: 100%;
+    box-sizing: border-box;
+}
+.sim-card-config-row-2 .btn-card-reset {
+    padding: 8px 12px;
+    font-size: 0.8rem;
+}
+
+/* Action Row 1: Launch Session, End Session */
+.sim-card-action-row-1 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-top: 12px;
+}
+.sim-card-action-row-1 button {
+    padding: 8px 12px;
+    font-size: 0.8rem;
+}
+
+/* Action Row 2: Remove (full width) */
+.sim-card-action-row-2 {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0;
+    margin-top: 12px;
+}
+.sim-card-action-row-2 .btn-card-remove {
+    padding: 8px 12px;
+    font-size: 0.8rem;
+    width: 100%;
+}
+
+/* Legacy classes - kept for backward compatibility */
+.sim-card-presets-row {
+    display: none;
+}
+.sim-card-preset-col {
+    display: none;
+}
+.sim-card-buttons {
+    display: none;
 }
 .sim-card-timer-input {
     background: var(--bg-dark);
