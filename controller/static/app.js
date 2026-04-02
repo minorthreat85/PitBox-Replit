@@ -5519,7 +5519,11 @@
     });
 
     serversPromise.then(function (servers) {
-      serverList = Array.isArray(servers) ? servers : [];
+      var newServerList = Array.isArray(servers) ? servers : [];
+      var oldIds = (serverList || []).map(function (s) { return s.id; }).join(',');
+      var newIds = newServerList.map(function (s) { return s.id; }).join(',');
+      var serverListChanged = oldIds !== newIds;
+      serverList = newServerList;
       if (serverList.length > 0 && displayServerIds && displayServerIds.length > 0) {
         var sortedIds = serverList.map(function (s) { return s.id; });
         var sortedSet = {};
@@ -5527,7 +5531,7 @@
         var extras = displayServerIds.filter(function (id) { return !sortedSet[id]; });
         displayServerIds = sortedIds.concat(extras);
       }
-      if (currentAgents && currentAgents.length > 0) {
+      if (serverListChanged && currentAgents && currentAgents.length > 0) {
         lastSimCardsAgentIds = null;
         renderSimCards(currentAgents);
       }
