@@ -5069,7 +5069,7 @@
               '<div><label class="sim-card-label">Timer</label><input type="number" class="sim-card-timer-input" data-agent-id="' + escapeHtml(a.agent_id) + '" value="' + (sessionTimerMinutesByAgent[a.agent_id] !== undefined ? String(Math.max(0, parseInt(sessionTimerMinutesByAgent[a.agent_id], 10) || 0)) : '0') + '" min="0" step="1" placeholder="0" title="Session time limit in minutes (0 = no limit)"' + presetDis + '></div>' +
             '</div>' +
             '<div class="sim-card-config-row-2">' +
-              '<div><label class="sim-card-label">Session Name</label><input type="text" class="sim-card-driver-input" data-agent-id="' + escapeHtml(a.agent_id) + '" value="' + escapeHtml(driverValue) + '" placeholder="Driver name" title="Driver name"' + presetDis + '></div>' +
+              '<div><label class="sim-card-label">Driver Name</label><input type="text" class="sim-card-driver-input" data-agent-id="' + escapeHtml(a.agent_id) + '" value="' + escapeHtml(driverValue) + '" placeholder="Driver name" title="Driver name"' + presetDis + '></div>' +
               '<button type="button" class="btn-secondary btn-card-reset" data-agent-id="' + agentId + '"' + presetDis + '>Reset Rig</button>' +
             '</div>' +
             '<div class="sim-card-action-row-1">' +

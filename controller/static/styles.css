@@ -3420,7 +3420,7 @@ button:disabled {
 /* Config Row 1: Steering, Shifting, Timer */
 .sim-card-config-row-1 {
     display: grid;
-    grid-template-columns: 1fr 1.45fr 110px;
+    grid-template-columns: 1.2fr 1.2fr 80px;
     gap: 12px;
     align-items: end;
     padding-top: 12px;
