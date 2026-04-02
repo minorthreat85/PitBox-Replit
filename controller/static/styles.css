@@ -3417,11 +3417,11 @@ button:disabled {
     background-color: var(--bg-panel);
 }
 
-/* Config Row 1: Steering, Shifting, Timer */
+/* Config Row 1: Steering, Shifting, Driver Name, Timer */
 .sim-card-config-row-1 {
     display: grid;
-    grid-template-columns: 1.2fr 1.2fr 80px;
-    gap: 12px;
+    grid-template-columns: 1fr 1.3fr 1fr 72px;
+    gap: 10px;
     align-items: end;
     padding-top: 12px;
     border-top: 1px solid var(--border-gray);
@@ -3438,36 +3438,22 @@ button:disabled {
     color: var(--text-muted);
     letter-spacing: 0.05em;
 }
-.sim-card-config-row-1 .sim-card-dropdown {
+.sim-card-config-row-1 .sim-card-dropdown,
+.sim-card-config-row-1 .sim-card-driver-input,
+.sim-card-config-row-1 .sim-card-timer-input {
     width: 100%;
     box-sizing: border-box;
 }
 
-/* Config Row 2: Session Name, Reset Rig */
+/* Config Row 2: Reset Rig (full width) */
 .sim-card-config-row-2 {
-    display: grid;
-    grid-template-columns: 1fr 120px;
+    display: flex;
     gap: 12px;
-    align-items: end;
+    align-items: center;
     margin-top: 12px;
 }
-.sim-card-config-row-2 > div {
-    min-width: 0;
-}
-.sim-card-config-row-2 .sim-card-label {
-    display: block;
-    margin-bottom: 4px;
-    font-size: 0.75rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    color: var(--text-muted);
-    letter-spacing: 0.05em;
-}
-.sim-card-config-row-2 .sim-card-driver-input {
-    width: 100%;
-    box-sizing: border-box;
-}
 .sim-card-config-row-2 .btn-card-reset {
+    flex: 1;
     padding: 8px 12px;
     font-size: 0.8rem;
 }
@@ -3589,7 +3575,8 @@ button:disabled {
 }
 
 .sim-card-driver-input {
-    flex: 1;
+    width: 100%;
+    box-sizing: border-box;
     min-width: 0;
     background: var(--bg-dark);
     color: var(--text-white);
