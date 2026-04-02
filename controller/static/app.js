@@ -4198,6 +4198,15 @@
     shifting_presets: []
   };
   var lastSimCardsAgentIds = null;  /* only re-render grid when agent list changes (keeps dropdowns open) */
+
+  /* Extract all src= values from an HTML string — used to compare thumb content without triggering image reloads */
+  function thumbSrcKey(html) {
+    var srcs = [];
+    var re = /\bsrc="([^"]+)"/g;
+    var m;
+    while ((m = re.exec(html)) !== null) srcs.push(m[1]);
+    return srcs.join('|');
+  }
   var driverNames = {};
   var steeringPreset = {};  /* agent_id -> selected steering preset (AC savedsetups -> controls.ini) */
   var shiftingPreset = {};  /* agent_id -> selected shifting preset (CM .cmpreset -> assists.ini) */
@@ -4760,8 +4769,9 @@
     var ojs = getOnlineJoinState(agentId);
     var agent = currentAgents.filter(function (a) { return a.agent_id === agentId; })[0];
     var newContent = getSimCardThumbContent(agent, ojs);
-    if (simCardThumbCache[agentId] !== newContent) {
-      simCardThumbCache[agentId] = newContent;
+    var newKey = thumbSrcKey(newContent);
+    if (simCardThumbCache[agentId] !== newKey) {
+      simCardThumbCache[agentId] = newKey;
       thumb.innerHTML = newContent;
     }
   }
@@ -4910,8 +4920,9 @@
       if (thumb) {
         var ojs = getOnlineJoinState(a.agent_id);
         var newContent = getSimCardThumbContent(a, ojs);
-        if (simCardThumbCache[id] !== newContent) {
-          simCardThumbCache[id] = newContent;
+        var newKey = thumbSrcKey(newContent);
+        if (simCardThumbCache[id] !== newKey) {
+          simCardThumbCache[id] = newKey;
           thumb.innerHTML = newContent;
         }
       }
@@ -5012,6 +5023,8 @@
         return '<option value="' + escapeHtml(o.v) + '"' + sel + '>' + escapeHtml(o.label) + '</option>';
       }).join('');
       var ojs = getOnlineJoinState(a.agent_id);
+      var _thumbContent = getSimCardThumbContent(a, ojs);
+      simCardThumbCache[a.agent_id] = thumbSrcKey(_thumbContent);
       var agentOnline = !!a.online;
       var effectiveServerId = ojs.selectedServerId || displayAssignments[a.agent_id] || '';
       var serverById = new Map((serverList || []).map(function (s) { return [s.id, s]; }));
@@ -5051,7 +5064,7 @@
           '</div>' +
           '<div class="sim-card-batch-status hidden" data-agent-id="' + agentId + '" aria-live="polite"></div>' +
           '<div class="sim-card-thumb">' +
-            getSimCardThumbContent(a, ojs) +
+            _thumbContent +
           '</div>' +
           '<div class="sim-card-info" aria-hidden="true"></div>' +
           '<div class="sim-card-controls' + ctrlLockClass + '">' +
