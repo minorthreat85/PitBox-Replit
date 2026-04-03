@@ -615,6 +615,12 @@
                         <button type="button" id="updates-btn-dev-pull" class="btn-secondary updates-dev-pull-btn">Pull &amp; rebuild</button>
                         <p class="settings-updates-hint">Pulls latest code from GitHub, builds, and restarts PitBox &mdash; same as running <code>update.ps1</code>.</p>
                     </div>
+                    <div class="updates-push-agents-area">
+                        <div class="updates-dev-divider"><span>Sim Agents</span></div>
+                        <p class="settings-updates-hint">Push an update to all online sim agents. Each agent checks GitHub and launches its updater automatically.</p>
+                        <button type="button" id="updates-btn-push-agents" class="btn-secondary">Push update to all sims</button>
+                        <div id="updates-push-agents-result" class="updates-push-agents-result hidden"></div>
+                    </div>
                     <div class="updates-check-info">
                         <p class="settings-updates-meta"><span class="settings-updates-label">Last checked:</span> <span id="updates-last-checked">—</span></p>
                         <p id="updates-last-success-row" class="settings-updates-meta hidden"><span class="settings-updates-label">Last successful check:</span> <span id="updates-last-success">—</span></p>

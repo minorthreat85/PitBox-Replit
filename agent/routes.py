@@ -809,3 +809,64 @@ async def send_hotkey(request: HotkeyRequest):
             return {"success": True, "message": "Sent Ctrl+P"}
         return {"success": False, "message": "Failed to send hotkey (Windows only)"}
     raise HTTPException(status_code=400, detail="action must be toggle_manual or back_to_pits")
+
+@router.post("/update", dependencies=[Depends(verify_token)])
+async def trigger_update():
+    """Check for latest release on GitHub and launch PitBoxUpdater.exe if an update is available."""
+    from agent.update_check import check_for_update, launch_pitbox_updater
+    from pitbox_common.version import __version__ as CURRENT_VERSION
+
+    loop = asyncio.get_event_loop()
+    result = await loop.run_in_executor(None, check_for_update)
+
+    current = CURRENT_VERSION
+    latest = result.get("latest_version") or current
+
+    if result.get("error") and not result.get("latest_version"):
+        return {
+            "success": False,
+            "update_available": False,
+            "current_version": current,
+            "latest_version": None,
+            "message": result.get("error") or "Update check failed",
+        }
+
+    if not result.get("update_available"):
+        return {
+            "success": True,
+            "update_available": False,
+            "current_version": current,
+            "latest_version": latest,
+            "message": f"Already up to date ({current})",
+        }
+
+    installer_url = result.get("installer_url") or ""
+    installer_sha256 = result.get("installer_sha256") or ""
+
+    if not installer_url:
+        return {
+            "success": False,
+            "update_available": True,
+            "current_version": current,
+            "latest_version": latest,
+            "message": "Update available but no installer asset found in release",
+        }
+
+    launched = await loop.run_in_executor(
+        None, launch_pitbox_updater, installer_url, latest, installer_sha256
+    )
+    if launched:
+        return {
+            "success": True,
+            "update_available": True,
+            "current_version": current,
+            "latest_version": latest,
+            "message": f"Updater launched: {current} → {latest}",
+        }
+    return {
+        "success": False,
+        "update_available": True,
+        "current_version": current,
+        "latest_version": latest,
+        "message": "Update available but PitBoxUpdater.exe not found on this machine",
+    }

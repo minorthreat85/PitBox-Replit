@@ -754,6 +754,32 @@ a.pitbox-operator-banner-signin:hover {
 .updates-dev-repo-row {
     margin-bottom: 0.5rem;
 }
+.updates-push-agents-area {
+    margin-top: 1.5rem;
+    padding-top: 1rem;
+}
+.updates-push-agents-result {
+    margin-top: 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+.updates-push-agents-result.hidden { display: none; }
+.push-agents-row {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+    padding: 0.3rem 0;
+    border-bottom: 1px solid var(--border-gray);
+}
+.push-agents-row:last-child { border-bottom: none; }
+.push-agents-icon { font-weight: 700; width: 1rem; flex-shrink: 0; }
+.push-agents-ok .push-agents-icon { color: #4ade80; }
+.push-agents-err .push-agents-icon { color: var(--color-red-primary, #ef4444); }
+.push-agents-id { font-weight: 600; min-width: 5rem; flex-shrink: 0; }
+.push-agents-msg { color: var(--text-muted); flex: 1; }
+.push-agents-none { font-size: 0.85rem; color: var(--text-muted); margin: 0; }
 .input-error {
     border-color: var(--color-red-primary, #ef4444) !important;
     box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.25);
