@@ -313,6 +313,14 @@ a.pitbox-operator-banner-signin:hover {
 }
 
 /* Enrollment Mode toggle + countdown */
+.enrollment-settings-wrap {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+.enrollment-settings-wrap .enrollment-toggle-wrap {
+    margin: 0;
+}
 .enrollment-section {
     background: var(--bg-panel);
     border: 1px solid var(--border-gray);

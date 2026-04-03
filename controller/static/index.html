@@ -135,18 +135,6 @@
             </div>
         </div>
 
-        <!-- Enrollment Mode: toggle + countdown -->
-        <div id="enrollment-section" class="enrollment-section">
-            <div class="enrollment-header">
-                <label class="enrollment-toggle-wrap">
-                    <span class="enrollment-label">Enrollment Mode</span>
-                    <input type="checkbox" id="enrollment-toggle" class="enrollment-toggle" autocomplete="off">
-                    <span class="enrollment-switch"></span>
-                </label>
-                <span id="enrollment-countdown" class="enrollment-countdown hidden">10:00</span>
-            </div>
-            <p class="enrollment-hint">When ON, unpaired sims can auto-enroll for 10 minutes. Turn on, then start PitBox on each sim.</p>
-        </div>
 
         <!-- Connection banner -->
         <div id="connection-banner" class="connection-banner hidden" role="alert">
@@ -556,6 +544,20 @@
             </nav>
             <div id="settings-panel-config" class="settings-panel" data-tab="config">
                 <div class="settings-config-main">
+                    <div class="config-section">
+                        <h4 class="config-section-heading">Enrollment</h4>
+                        <div class="config-form-row">
+                            <label class="config-label">Enrollment Mode</label>
+                            <div class="enrollment-settings-wrap">
+                                <label class="enrollment-toggle-wrap">
+                                    <input type="checkbox" id="enrollment-toggle" class="enrollment-toggle" autocomplete="off">
+                                    <span class="enrollment-switch"></span>
+                                </label>
+                                <span id="enrollment-countdown" class="enrollment-countdown hidden">10:00</span>
+                            </div>
+                        </div>
+                        <p class="settings-updates-hint">When ON, unpaired sims can auto-enroll for 10 minutes. Turn on, then start PitBox on each sim.</p>
+                    </div>
                     <div class="config-section">
                         <h4 class="config-section-heading">Network</h4>
                         <div class="config-form-row">
