@@ -6204,15 +6204,26 @@
       delete sessionTimerMinutesByAgent[id];
       delete sessionStartTimeByAgent[id];
     }
-    var firstSteering = 'Race';
-    var firstShifting = 'H-Pattern';
     var agent = currentAgents.filter(function (a) { return a.agent_id === id; })[0];
-    var num = agent ? (currentAgents.indexOf(agent) + 1) : 1;
-    var defaultName = (agent && agent.display_name && String(agent.display_name).trim()) ? String(agent.display_name).trim() : ('Sim ' + num);
+    var steeringPresets = agent && Array.isArray(agent.steering_presets) ? agent.steering_presets : [];
+    var shiftingPresets = agent && Array.isArray(agent.shifting_presets) ? agent.shifting_presets : [];
+    var firstSteering = (function () {
+      var exact = steeringPresets.filter(function (p) { return p === 'Race'; })[0];
+      if (exact) return exact;
+      var label = steeringPresets.filter(function (p) { return presetDisplayLabel(p).toLowerCase() === 'race'; })[0];
+      if (label) return label;
+      return steeringPresets[0] || 'Race';
+    }());
+    var firstShifting = (function () {
+      var norm = function (p) { return p.replace(/\.cmpreset$/i, '').toLowerCase(); };
+      var exact = shiftingPresets.filter(function (p) { return norm(p) === 'h-pattern'; })[0];
+      if (exact) return exact.replace(/\.cmpreset$/i, '');
+      return shiftingPresets.length > 0 ? shiftingPresets[0].replace(/\.cmpreset$/i, '') : 'H-Pattern';
+    }());
     pitboxFetch(API_BASE + '/reset-rig', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sim_id: id, steering_preset: firstSteering, shifting_preset: firstShifting, display_name: defaultName })
+      body: JSON.stringify({ sim_id: id, steering_preset: firstSteering, shifting_preset: firstShifting, display_name: '' })
     })
       .then(function (r) {
         return r.json().then(function (data) {
@@ -6223,7 +6234,7 @@
       .then(function (data) {
         steeringPreset[id] = firstSteering;
         shiftingPreset[id] = firstShifting;
-        driverNames[id] = defaultName;
+        delete driverNames[id];
         var defaultServerId = DEFAULT_RESET_SERVER_ID;
         return pitboxFetch(API_BASE + '/assignments/' + encodeURIComponent(id), {
           method: 'POST',
