@@ -3740,15 +3740,12 @@
       if (pathInp) pathInp.classList.remove('input-error');
       btn.disabled = true;
       btn.textContent = 'Pulling & rebuilding…';
-      /* Save the path to config then run the pull */
-      pitboxFetch(API_BASE + '/config', {
-        method: 'PUT',
+      /* Send repo path directly in dev-pull body (saved server-side) */
+      pitboxFetch(API_BASE + '/update/dev-pull', {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ dev_repo_path: repoPath })
       })
-        .then(function () {
-          return pitboxFetch(API_BASE + '/update/dev-pull', { method: 'POST' });
-        })
         .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
         .then(function (res) {
           if (res.ok) {

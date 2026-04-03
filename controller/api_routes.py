@@ -2053,11 +2053,16 @@ async def post_update_run_installer(_: None = Depends(require_operator)):
     return {"ok": True, "message": msg}
 
 
+class DevPullBody(BaseModel):
+    """Optional body for POST /update/dev-pull. dev_repo_path overrides config value and is persisted."""
+    dev_repo_path: Optional[str] = None
+
+
 @router.post("/update/dev-pull")
-async def post_update_dev_pull(request: Request, _: None = Depends(require_operator)):
+async def post_update_dev_pull(request: Request, body: Optional[DevPullBody] = None, _: None = Depends(require_operator)):
     """
     Dev-mode update: stop service → git pull → build → copy exe → restart.
-    Requires dev_repo_path set in controller config. Windows only.
+    Accepts optional dev_repo_path in body (saves it to config). Windows only.
     Equivalent to running update.ps1 from the command line, triggered from the UI.
     """
     if not _is_localhost(request):
@@ -2065,13 +2070,32 @@ async def post_update_dev_pull(request: Request, _: None = Depends(require_opera
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Dev pull update is only allowed from localhost",
         )
+    if body is None:
+        body = DevPullBody()
     cfg = get_config()
-    repo_path = getattr(cfg, "dev_repo_path", None)
+    repo_path = (body.dev_repo_path or "").strip() or getattr(cfg, "dev_repo_path", None)
     if not repo_path:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Dev repo path not configured. Set it in Settings → Config → Paths.",
+            detail="Dev repo path not configured. Enter the path above and try again.",
         )
+    # Persist the repo path to config if it changed or was missing
+    if (body.dev_repo_path or "").strip() and (body.dev_repo_path or "").strip() != getattr(cfg, "dev_repo_path", None):
+        try:
+            config_path = get_config_path()
+            if config_path:
+                new_data = cfg.model_dump()
+                new_data["dev_repo_path"] = repo_path
+                new_cfg = cfg.__class__(**new_data)
+                path_obj = Path(config_path)
+                tmp = path_obj.with_suffix(path_obj.suffix + ".tmp")
+                path_obj.parent.mkdir(parents=True, exist_ok=True)
+                import json as _json
+                with open(tmp, "w", encoding="utf-8", newline="\n") as f:
+                    _json.dump(new_cfg.model_dump(), f, indent=2, ensure_ascii=False)
+                tmp.replace(path_obj)
+        except Exception as exc:
+            logger.warning("dev-pull: failed to persist dev_repo_path: %s", exc)
     ok, msg = apply_dev_pull_update(repo_path)
     if not ok:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg)
