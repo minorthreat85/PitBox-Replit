@@ -609,7 +609,22 @@
       var mode = ls.mode_kind || ls.mode || '—';
       var server = (ls.server_name && ls.server_name !== '—') ? ls.server_name : (ls.server && ls.server.name) ? ls.server.name : '—';
       var sessionTime = running && a.uptime_sec != null ? formatUptime(a.uptime_sec) : '—';
+      if (sessionStartTimeByAgent) {
+        if (running && a.uptime_sec != null) {
+          if (sessionStartTimeByAgent[a.agent_id] == null) sessionStartTimeByAgent[a.agent_id] = Date.now() - (a.uptime_sec * 1000);
+        } else {
+          delete sessionStartTimeByAgent[a.agent_id];
+        }
+      }
       var timeLeft = '—';
+      if (running) {
+        var _startMs = sessionStartTimeByAgent && sessionStartTimeByAgent[a.agent_id];
+        var _limitMin = sessionTimerMinutesByAgent && sessionTimerMinutesByAgent[a.agent_id];
+        if (_startMs != null && _limitMin != null && _limitMin > 0) {
+          var _remaining = _limitMin * 60 - (Date.now() - _startMs) / 1000;
+          timeLeft = _remaining > 0 ? formatMmSs(Math.floor(_remaining)) : 'Ended';
+        }
+      }
       var name = (a.display_name || a.agent_id || '').trim() || a.agent_id || '—';
       var steering = online ? (presetDisplayLabel(steeringPreset[a.agent_id] || '') || '—') : '—';
       var shifting = online ? (shiftingPreset[a.agent_id] || '—') : '—';
@@ -624,7 +639,7 @@
         '<td class="dashboard-cell dashboard-cell-steering">' + escapeHtml(steering) + '</td>' +
         '<td class="dashboard-cell dashboard-cell-shifting">' + escapeHtml(shifting) + '</td>' +
         '<td class="dashboard-cell dashboard-cell-session-time">' + escapeHtml(sessionTime) + '</td>' +
-        '<td class="dashboard-cell dashboard-cell-time-left">' + escapeHtml(timeLeft) + '</td>' +
+        '<td class="dashboard-cell dashboard-cell-time-left" data-dashboard-time-left="' + escapeHtml(a.agent_id) + '">' + escapeHtml(timeLeft) + '</td>' +
         '</tr>'
       );
     });
@@ -5040,7 +5055,23 @@
     else pill.appendChild(document.createTextNode(text));
   }
 
+  function updateDashboardTimeLeft() {
+    var cells = document.querySelectorAll('[data-dashboard-time-left]');
+    cells.forEach(function (cell) {
+      var id = cell.getAttribute('data-dashboard-time-left');
+      var startMs = sessionStartTimeByAgent[id];
+      var limitMin = sessionTimerMinutesByAgent[id];
+      if (startMs == null || limitMin == null || limitMin <= 0) {
+        cell.textContent = '—';
+        return;
+      }
+      var remaining = limitMin * 60 - (Date.now() - startMs) / 1000;
+      cell.textContent = remaining > 0 ? formatMmSs(Math.floor(remaining)) : 'Ended';
+    });
+  }
+
   function updateSessionTimeDisplays() {
+    updateDashboardTimeLeft();
     if (!grid) return;
     var ids = Object.keys(sessionStartTimeByAgent);
     for (var i = 0; i < ids.length; i++) {
