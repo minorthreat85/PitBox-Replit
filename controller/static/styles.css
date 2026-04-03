@@ -743,6 +743,13 @@ a.pitbox-operator-banner-signin:hover {
 .updates-dev-pull-btn {
     width: 100%;
 }
+.updates-dev-repo-row {
+    margin-bottom: 0.5rem;
+}
+.input-error {
+    border-color: var(--color-red-primary, #ef4444) !important;
+    box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.25);
+}
 .updates-progress {
     margin-top: 0.75rem;
     font-size: 0.9rem;

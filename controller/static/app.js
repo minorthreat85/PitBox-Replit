@@ -3689,14 +3689,14 @@
     if (updateStatusData) renderUpdatesPanel(updateStatusData);
     bindUpdatesApply();
     bindDevPullButton();
-    /* Show/hide dev pull area based on whether dev_repo_path is configured */
+    /* Load saved dev_repo_path into the inline input on the Updates tab */
     pitboxFetch(API_BASE + '/config')
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (data) {
-        var devArea = document.getElementById('updates-dev-pull-area');
-        if (!devArea) return;
-        var hasRepo = !!(data && data.config && data.config.dev_repo_path);
-        devArea.classList.toggle('hidden', !hasRepo);
+        var inp = document.getElementById('updates-dev-repo-path');
+        if (inp && data && data.config && data.config.dev_repo_path) {
+          inp.value = data.config.dev_repo_path;
+        }
       })
       .catch(function () {});
   }
@@ -3706,9 +3706,25 @@
     btn.dataset.devPullBound = '1';
     btn.addEventListener('click', function () {
       if (btn.disabled) return;
+      var pathInp = document.getElementById('updates-dev-repo-path');
+      var repoPath = pathInp ? pathInp.value.trim() : '';
+      if (!repoPath) {
+        if (pathInp) { pathInp.focus(); pathInp.classList.add('input-error'); }
+        showToast('Enter the repo path first (e.g. C:\\PitBox-Replit)', 'error');
+        return;
+      }
+      if (pathInp) pathInp.classList.remove('input-error');
       btn.disabled = true;
       btn.textContent = 'Pulling & rebuilding…';
-      pitboxFetch(API_BASE + '/update/dev-pull', { method: 'POST' })
+      /* Save the path to config then run the pull */
+      pitboxFetch(API_BASE + '/config', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dev_repo_path: repoPath })
+      })
+        .then(function () {
+          return pitboxFetch(API_BASE + '/update/dev-pull', { method: 'POST' });
+        })
         .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
         .then(function (res) {
           if (res.ok) {
@@ -3868,14 +3884,12 @@
     var lanBtn = document.getElementById('settings-access-lan');
     var acServerEl = document.getElementById('settings-ac-server-exe');
     var acPresetsEl = document.getElementById('settings-ac-presets-root');
-    var devRepoEl = document.getElementById('settings-dev-repo-path');
     var loungeEl = document.getElementById('settings-lounge-name');
     var defaultPresetEl = document.getElementById('settings-default-preset');
     var pollIntervalEl = document.getElementById('settings-agent-poll-interval');
     if (portEl) portEl.value = '';
     if (acServerEl) acServerEl.value = '';
     if (acPresetsEl) acPresetsEl.value = '';
-    if (devRepoEl) devRepoEl.value = '';
     if (loungeEl) loungeEl.value = '';
     if (pollIntervalEl) pollIntervalEl.value = '';
     if (localBtn && lanBtn) {
@@ -3896,7 +3910,6 @@
         if (portEl) portEl.value = c.ui_port != null ? String(c.ui_port) : '';
         if (acServerEl) acServerEl.value = c.ac_server_exe || '';
         if (acPresetsEl) acPresetsEl.value = c.ac_presets_root || '';
-        if (devRepoEl) devRepoEl.value = c.dev_repo_path || '';
         if (loungeEl) loungeEl.value = c.lounge_name || '';
         if (defaultPresetEl) defaultPresetEl.value = c.default_preset || '';
         if (pollIntervalEl) pollIntervalEl.value = c.agent_poll_interval_ms != null ? String(c.agent_poll_interval_ms) : '';
@@ -3938,7 +3951,6 @@
       var lanBtn = document.getElementById('settings-access-lan');
       var acServerEl = document.getElementById('settings-ac-server-exe');
       var acPresetsEl = document.getElementById('settings-ac-presets-root');
-      var devRepoEl = document.getElementById('settings-dev-repo-path');
       var loungeEl = document.getElementById('settings-lounge-name');
       var defaultPresetEl = document.getElementById('settings-default-preset');
       var pollIntervalEl = document.getElementById('settings-agent-poll-interval');
@@ -3947,7 +3959,6 @@
       updates.allow_lan_ui = !!(lanBtn && lanBtn.classList.contains('settings-access-opt-active'));
       if (acServerEl && acServerEl.value.trim()) updates.ac_server_exe = acServerEl.value.trim();
       if (acPresetsEl && acPresetsEl.value.trim()) updates.ac_presets_root = acPresetsEl.value.trim();
-      updates.dev_repo_path = devRepoEl ? devRepoEl.value.trim() : '';
       if (loungeEl && loungeEl.value.trim()) updates.lounge_name = loungeEl.value.trim();
       if (defaultPresetEl && defaultPresetEl.value.trim()) updates.default_preset = defaultPresetEl.value.trim();
       if (pollIntervalEl && pollIntervalEl.value !== '') {
