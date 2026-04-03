@@ -3777,7 +3777,9 @@
             var rows = results.map(function (r) {
               var icon = r.success ? '✓' : '✗';
               var cls = r.success ? 'push-agents-ok' : 'push-agents-err';
-              var msg = escapeHtml(r.message || (r.success ? 'OK' : 'Failed'));
+              var rawMsg = r.message || (r.success ? 'OK' : 'Failed');
+              if (!r.success && (rawMsg === 'Not Found' || rawMsg === 'HTTP 404')) rawMsg = 'Agent needs manual deploy first (endpoint not available on installed version)';
+              var msg = escapeHtml(rawMsg);
               var version = r.update_available
                 ? escapeHtml(' (' + (r.current_version || '?') + ' → ' + (r.latest_version || '?') + ')')
                 : (r.latest_version ? escapeHtml(' (v' + r.latest_version + ', up to date)') : '');
