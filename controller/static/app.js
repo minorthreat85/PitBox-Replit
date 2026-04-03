@@ -5959,44 +5959,6 @@
     scheduleFetchStatus('refresh');
     showToast('Refreshed.', 'success');
   });
-  var addCmRigForm = document.getElementById('add-cm-rig-form');
-  var addCmRigResult = document.getElementById('add-cm-rig-result');
-  if (addCmRigForm && addCmRigResult) {
-    addCmRigForm.addEventListener('submit', function (e) {
-      e.preventDefault();
-      var agentId = (document.getElementById('cm-rig-agent-id') && document.getElementById('cm-rig-agent-id').value || '').trim();
-      var host = (document.getElementById('cm-rig-host') && document.getElementById('cm-rig-host').value || '').trim();
-      var port = parseInt(document.getElementById('cm-rig-port') && document.getElementById('cm-rig-port').value, 10) || 11777;
-      var password = (document.getElementById('cm-rig-password') && document.getElementById('cm-rig-password').value || '').trim();
-      var displayName = (document.getElementById('cm-rig-display-name') && document.getElementById('cm-rig-display-name').value || '').trim();
-      addCmRigResult.classList.add('hidden');
-      ensureOperatorOrRedirect().then(function (ok) {
-        if (!ok) return;
-      pitboxFetch(API_BASE + '/rigs/cm', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ agent_id: agentId, host: host, cm_port: port, cm_password: password || undefined, display_name: displayName || undefined })
-      }).then(function (r) {
-        return r.json().then(function (data) {
-          if (r.ok) {
-            addCmRigResult.textContent = 'CM rig added or updated. Refresh to see the card.';
-            addCmRigResult.classList.remove('hidden');
-            if (typeof showToast === 'function') showToast('CM rig added.', 'success');
-            scheduleFetchStatus('cm-rig');
-          } else {
-            addCmRigResult.textContent = data.detail || data.message || 'Failed';
-            addCmRigResult.classList.remove('hidden');
-            if (typeof showToast === 'function') showToast(addCmRigResult.textContent, 'error');
-          }
-        });
-      }).catch(function (err) {
-        addCmRigResult.textContent = err.message || 'Request failed';
-        addCmRigResult.classList.remove('hidden');
-        if (typeof showToast === 'function') showToast(addCmRigResult.textContent, 'error');
-      });
-      });
-    });
-  }
   var dashboardRefreshBtn = document.getElementById('dashboard-refresh');
   if (dashboardRefreshBtn) {
     dashboardRefreshBtn.addEventListener('click', function () {

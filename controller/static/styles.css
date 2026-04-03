@@ -2577,51 +2577,6 @@ button:disabled {
     margin-left: 8px;
 }
 
-/* Add Content Manager rig (collapsible) */
-.add-cm-rig-section {
-    margin-bottom: 16px;
-    padding: 12px;
-    background: var(--bg-panel);
-    border: 1px solid var(--border-gray);
-    border-radius: 8px;
-}
-.add-cm-rig-summary {
-    cursor: pointer;
-    font-weight: 600;
-    font-size: 0.95rem;
-}
-.add-cm-rig-hint {
-    margin: 8px 0 12px;
-    font-size: 0.85rem;
-    color: var(--text-muted);
-}
-.add-cm-rig-form {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 12px 16px;
-}
-.add-cm-rig-form label {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 0.9rem;
-}
-.add-cm-rig-form input[type="text"],
-.add-cm-rig-form input[type="number"],
-.add-cm-rig-form input[type="password"] {
-    padding: 6px 10px;
-    min-width: 120px;
-}
-.add-cm-rig-result {
-    margin-top: 10px;
-    font-size: 0.9rem;
-    color: var(--text-muted);
-}
-.add-cm-rig-result.hidden {
-    display: none;
-}
-
 /* Rig cards section – large tactile cards */
 .rig-cards-section {
     margin-top: 8px;

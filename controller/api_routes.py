@@ -104,7 +104,7 @@ from controller.ac_paths import (
 from controller.discovery import get_discovered
 from controller.ini_io import read_ini, write_ini, write_ini_atomic, _ini_value
 from controller.enrollment import get_state as get_enrollment_state, is_enabled as enrollment_is_enabled, start_enrollment, stop_enrollment, verify_secret as enrollment_verify_secret
-from controller.enrolled_rigs import add as enrolled_add, add_cm as enrolled_add_cm, get as enrolled_get, get_all_ordered as enrolled_get_all_ordered, get_agent_id_by_display_name, get_display_name_for_rig, load as load_enrolled_rigs, remove as enrolled_remove
+from controller.enrolled_rigs import add as enrolled_add, get as enrolled_get, get_all_ordered as enrolled_get_all_ordered, get_agent_id_by_display_name, get_display_name_for_rig, load as load_enrolled_rigs, remove as enrolled_remove
 from controller.enrollment_broadcast import set_controller_url_provider, start as start_enrollment_broadcast
 from controller.common.event_log import LogCategory as EventLogCategory, LogLevel as EventLogLevel, make_event as make_log_event
 from controller.service.event_store import append_event as event_store_append
@@ -439,41 +439,6 @@ async def remove_agent(agent_id: str, _: None = Depends(require_operator)):
             pass
         return {"ok": True, "agent_id": canonical}
     raise HTTPException(status_code=404, detail="Agent not found")
-
-
-class AddCmRigBody(BaseModel):
-    """Add a rig that uses Content Manager remote control (no PitBox Agent on sim)."""
-    agent_id: str
-    host: str
-    cm_port: int = 11777
-    cm_password: Optional[str] = ""
-    display_name: Optional[str] = None
-
-
-@router.post("/rigs/cm")
-async def add_cm_rig(body: AddCmRigBody, _: None = Depends(require_operator)):
-    """Add or update a rig that uses Content Manager remote control API. Sim control only (presets, single-player sessions)."""
-    agent_id = (body.agent_id or "").strip()
-    host = (body.host or "").strip()
-    if not agent_id:
-        raise HTTPException(status_code=400, detail="agent_id required")
-    if not host:
-        raise HTTPException(status_code=400, detail="host required")
-    try:
-        enrolled_add_cm(
-            agent_id=agent_id,
-            host=host,
-            cm_port=body.cm_port or 11777,
-            cm_password=body.cm_password or "",
-            display_name=(body.display_name or "").strip() or None,
-        )
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    try:
-        event_store_append(make_log_event(EventLogLevel.INFO, EventLogCategory.RIG, "Controller", "CM rig added/updated", rig_id=agent_id, details={"host": host, "cm_port": body.cm_port}))
-    except Exception:
-        pass
-    return {"ok": True, "agent_id": agent_id, "message": "CM rig added or updated"}
 
 
 # ---- Employee Control (mobile): login + hotkey ----

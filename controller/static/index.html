@@ -151,21 +151,6 @@
             <span id="last-update" class="status-text">Last update: --</span>
         </div>
 
-        <!-- Add Content Manager rig (no PitBox Agent on sim) -->
-        <details class="add-cm-rig-section" id="add-cm-rig-details">
-            <summary class="add-cm-rig-summary">Add Content Manager rig</summary>
-            <p class="add-cm-rig-hint">Use when the sim runs Content Manager with Remote Control enabled (no PitBox Agent). Sim control only.</p>
-            <form id="add-cm-rig-form" class="add-cm-rig-form">
-                <label>Sim ID <input type="text" id="cm-rig-agent-id" name="agent_id" placeholder="e.g. Sim5" required></label>
-                <label>Host <input type="text" id="cm-rig-host" name="host" placeholder="192.168.1.10" required></label>
-                <label>CM port <input type="number" id="cm-rig-port" name="cm_port" value="11777" min="1" max="65535"></label>
-                <label>Password <input type="password" id="cm-rig-password" name="cm_password" placeholder="optional"></label>
-                <label>Display name <input type="text" id="cm-rig-display-name" name="display_name" placeholder="e.g. Sim 5"></label>
-                <button type="submit" class="btn-primary">Add / Update</button>
-            </form>
-            <p id="add-cm-rig-result" class="add-cm-rig-result hidden"></p>
-        </details>
-
         <!-- Sim rig cards -->
         <section class="rig-cards-section">
             <h2 class="section-title">SIMS</h2>
