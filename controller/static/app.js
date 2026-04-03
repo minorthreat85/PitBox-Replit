@@ -5346,7 +5346,7 @@
     });
     grid.querySelectorAll('.sim-card-driver-input').forEach(function (input) {
       var id = input.getAttribute('data-agent-id');
-      input.addEventListener('focus', function () { input.select(); });
+      input.addEventListener('focus', function () { input.value = ''; });
       input.addEventListener('input', function () { driverNames[id] = input.value; });
       input.addEventListener('change', function () {
         driverNames[id] = input.value;
