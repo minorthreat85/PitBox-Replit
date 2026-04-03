@@ -609,7 +609,7 @@
                 var calloutEl = document.getElementById('results-fastest-lap-callout');
                 if (calloutEl) {
                     if (fastestLapDriver && fastestLapTime) {
-                        calloutEl.textContent = '\u{1F7E3} Fastest Lap: ' + fastestLapDriver + ' \u2013 ' + fastestLapTime;
+                        calloutEl.innerHTML = '<span style="display:inline-block;width:12px;height:12px;background:#000;border:2px solid #FF0000;border-radius:50%;vertical-align:middle;margin-right:8px;"></span>Fastest Lap: ' + escapeHtml(fastestLapDriver) + ' \u2013 ' + escapeHtml(fastestLapTime);
                         calloutEl.style.display = 'block';
                     } else {
                         calloutEl.style.display = 'none';
