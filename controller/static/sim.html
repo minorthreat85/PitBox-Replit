@@ -550,7 +550,7 @@
                 }, 120000);
             }
 
-            function showResultsModal(results, trackName, sessionType, totalLaps) {
+            function showResultsModal(results, trackName, sessionType, totalLaps, localDriver) {
                 if (!resultsModalOverlay || !resultsModalTbody) return;
                 trackName = (trackName != null && String(trackName).trim()) ? String(trackName).trim() : '—';
                 sessionType = (sessionType && String(sessionType).trim()) ? String(sessionType).trim().toUpperCase() : '';
@@ -592,7 +592,9 @@
                     var lap = (r.lap != null && String(r.lap).trim()) ? escapeHtml(String(r.lap).trim()) : '—';
                     var totalTime = (r.total_time != null && String(r.total_time).trim() && r.total_time !== '—') ? escapeHtml(String(r.total_time).trim()) : '—';
                     var isFastest = fastestLapDriver && r.driver && String(r.driver).trim() === fastestLapDriver;
-                    var rowClass = 'results-table-row' + (pos === 1 ? ' p1' : '') + (isFastest ? ' fastest-lap-row' : '');
+                    var _driverName = r.driver ? String(r.driver).trim() : '';
+                    var isLocal = localDriver ? _driverName.toLowerCase() === String(localDriver).trim().toLowerCase() : pos === 1;
+                    var rowClass = 'results-table-row' + (isLocal ? ' p1' : '') + (isFastest ? ' fastest-lap-row' : '');
                     html += '<div class="' + rowClass + '">';
                     html += '<span class="col-pos">P' + pos + '</span>';
                     html += '<span class="col-driver">' + driver + '</span>';
@@ -939,7 +941,7 @@
                                 var key = JSON.stringify(data.race_results);
                                 if (key !== lastShownResultsKey) {
                                     lastShownResultsKey = key;
-                                    showResultsModal(data.race_results, data.race_track_name || data.track_name || null, data.race_session_type || null, data.race_total_laps || null);
+                                    showResultsModal(data.race_results, data.race_track_name || data.track_name || null, data.race_session_type || null, data.race_total_laps || null, data.race_local_driver || null);
                                 }
                                 return;
                             }
@@ -967,7 +969,7 @@
                             var key = JSON.stringify(data.race_results);
                             if (key !== lastShownResultsKey) {
                                 lastShownResultsKey = key;
-                                showResultsModal(data.race_results, data.race_track_name || data.track_name || null, data.race_session_type || null, data.race_total_laps || null);
+                                showResultsModal(data.race_results, data.race_track_name || data.track_name || null, data.race_session_type || null, data.race_total_laps || null, data.race_local_driver || null);
                             }
                         }
                     })
@@ -994,7 +996,8 @@
                 ];
                 var _previewLaps = { RACE: 8, QUALIFY: null, PRACTICE: null, HOTLAP: null }[_previewSession];
                 document.getElementById('results-modal-overlay').style.display = 'flex';
-                showResultsModal(_sampleResults, 'Monza GP', _previewSession, _previewLaps);
+                var _localDriver = 'Mike Torres';
+                showResultsModal(_sampleResults, 'Monza GP', _previewSession, _previewLaps, _localDriver);
             }
 
 
