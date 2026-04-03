@@ -984,10 +984,45 @@
             window.showResultsModal = showResultsModal;
             window.hideResultsModal = hideResultsModal;
 
-            // Escape key: close the kiosk window
-            document.addEventListener('keydown', function (e) {
-                if (e.key === 'Escape') { window.close(); }
-            });
+            // Escape key: hold for 5 seconds to close the kiosk window
+            (function () {
+                var _escTimer = null;
+                var _escBar = null;
+                var _escStart = 0;
+                var _escDuration = 5000;
+                var _escRaf = null;
+
+                function _createBar() {
+                    if (_escBar) return;
+                    _escBar = document.createElement('div');
+                    _escBar.style.cssText = 'position:fixed;bottom:0;left:0;width:0%;height:4px;background:#FF0000;z-index:99999;transition:none;';
+                    document.body.appendChild(_escBar);
+                }
+                function _removeBar() {
+                    if (_escBar) { _escBar.remove(); _escBar = null; }
+                    if (_escRaf) { cancelAnimationFrame(_escRaf); _escRaf = null; }
+                }
+                function _tick() {
+                    if (!_escBar) return;
+                    var pct = Math.min(100, (Date.now() - _escStart) / _escDuration * 100);
+                    _escBar.style.width = pct + '%';
+                    if (pct < 100) _escRaf = requestAnimationFrame(_tick);
+                }
+
+                document.addEventListener('keydown', function (e) {
+                    if (e.key !== 'Escape') return;
+                    if (e.repeat) return;
+                    _escStart = Date.now();
+                    _createBar();
+                    _escRaf = requestAnimationFrame(_tick);
+                    _escTimer = setTimeout(function () { window.close(); }, _escDuration);
+                });
+                document.addEventListener('keyup', function (e) {
+                    if (e.key !== 'Escape') return;
+                    if (_escTimer) { clearTimeout(_escTimer); _escTimer = null; }
+                    _removeBar();
+                });
+            })();
 
             // Preview mode: ?preview_results=1[&preview_session=RACE|QUALIFY|PRACTICE|HOTLAP]
             if (new URLSearchParams(window.location.search).get('preview_results') === '1') {
