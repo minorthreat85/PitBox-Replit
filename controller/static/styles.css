@@ -3835,6 +3835,7 @@ button:disabled {
     font-size: 0.85rem;
     margin-bottom: var(--space-md);
 }
+.cc-callout.hidden { display: none; }
 .cc-callout-warning {
     background: rgba(234,179,8,0.12);
     border: 1px solid rgba(234,179,8,0.4);
