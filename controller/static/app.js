@@ -611,6 +611,8 @@
       var sessionTime = running && a.uptime_sec != null ? formatUptime(a.uptime_sec) : '—';
       var timeLeft = '—';
       var name = (a.display_name || a.agent_id || '').trim() || a.agent_id || '—';
+      var steering = online ? (presetDisplayLabel(steeringPreset[a.agent_id] || '') || '—') : '—';
+      var shifting = online ? (shiftingPreset[a.agent_id] || '—') : '—';
       return (
         '<tr class="dashboard-row">' +
         '<td class="dashboard-cell dashboard-cell-sim"><span class="dashboard-sim-name">' + escapeHtml(name) + '</span></td>' +
@@ -619,6 +621,8 @@
         '<td class="dashboard-cell dashboard-cell-car">' + escapeHtml(car) + '</td>' +
         '<td class="dashboard-cell dashboard-cell-mode">' + escapeHtml(mode) + '</td>' +
         '<td class="dashboard-cell dashboard-cell-server">' + escapeHtml(server) + '</td>' +
+        '<td class="dashboard-cell dashboard-cell-steering">' + escapeHtml(steering) + '</td>' +
+        '<td class="dashboard-cell dashboard-cell-shifting">' + escapeHtml(shifting) + '</td>' +
         '<td class="dashboard-cell dashboard-cell-session-time">' + escapeHtml(sessionTime) + '</td>' +
         '<td class="dashboard-cell dashboard-cell-time-left">' + escapeHtml(timeLeft) + '</td>' +
         '</tr>'
@@ -631,6 +635,8 @@
       '<th class="dashboard-th">Car</th>' +
       '<th class="dashboard-th">Mode</th>' +
       '<th class="dashboard-th">Server</th>' +
+      '<th class="dashboard-th">Steering</th>' +
+      '<th class="dashboard-th">Shifting</th>' +
       '<th class="dashboard-th">Session time</th>' +
       '<th class="dashboard-th">Time left</th>' +
       '</tr></thead><tbody>' + rows.join('') + '</tbody></table>';
