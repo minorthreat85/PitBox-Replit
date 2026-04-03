@@ -3883,8 +3883,8 @@
       lanBtn.classList.remove('settings-access-opt-active');
     }
     if (defaultPresetEl) {
-      var presets = serverConfigData.server_ids || [];
-      var names = serverConfigData.preset_names || {};
+      var presets = (serverConfigData && serverConfigData.server_ids) || [];
+      var names = (serverConfigData && serverConfigData.preset_names) || {};
       defaultPresetEl.innerHTML = '<option value="">—</option>' + presets.map(function (id) {
         return '<option value="' + escapeHtml(id) + '">' + escapeHtml(names[id] || id) + '</option>';
       }).join('');
