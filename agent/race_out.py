@@ -1,15 +1,15 @@
 """
 Read and parse Assetto Corsa race_out.json from Documents\\Assetto Corsa\\out.
-Returns normalized results for the sim results modal (pos, driver, lap, gap).
+Returns normalized results for the sim results modal.
 """
 import json
 import logging
+import re
 from pathlib import Path
 from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
-# Default path when config has no ac_cfg (e.g. single-machine dev)
 DEFAULT_RACE_OUT_PATH = Path(r"C:\Users\info\Documents\Assetto Corsa\out\race_out.json")
 
 
@@ -42,6 +42,42 @@ def _ms_to_lap_str(ms: Any) -> str:
     return f"{minutes}:{seconds:02d}.{millis:03d}"
 
 
+def _ms_to_total_str(ms: Any) -> str:
+    """
+    Convert milliseconds total race time to readable string.
+    Under 1 hour: 'MM:SS'. 1+ hours: 'H:MM:SS'. Invalid/zero -> '—'.
+    """
+    if ms is None:
+        return "—"
+    try:
+        n = int(float(ms))
+    except (TypeError, ValueError):
+        return "—"
+    if n <= 0:
+        return "—"
+    total_s = n // 1000
+    hours = total_s // 3600
+    minutes = (total_s % 3600) // 60
+    seconds = total_s % 60
+    if hours > 0:
+        return f"{hours}:{minutes:02d}:{seconds:02d}"
+    return f"{minutes}:{seconds:02d}"
+
+
+def _fmt_car_name(raw: str) -> str:
+    """
+    Format a raw AC car model id into a readable name.
+    e.g. 'ferrari_458_italia' -> 'Ferrari 458 Italia'
+         'ks_porsche_911_gt3_r' -> 'Porsche 911 Gt3 R' (drops 'ks_' prefix)
+    """
+    if not raw or not isinstance(raw, str):
+        return "—"
+    s = raw.strip()
+    # Drop common prefix tags: ks_, rss_, sc_, etc.
+    s = re.sub(r'^(?:ks|rss|sc|rm|ta|gt|ruf|ac)_', '', s, flags=re.IGNORECASE)
+    return s.replace('_', ' ').title()
+
+
 def _first(*values: Any) -> Any:
     """Return the first non-None, non-empty value."""
     for v in values:
@@ -52,8 +88,14 @@ def _first(*values: Any) -> Any:
 
 def parse_race_out(race_out_path: Path) -> Optional[dict[str, Any]]:
     """
-    Parse AC race_out.json into { "results": [{ pos, driver, lap, gap }, ...], "track_name": str }.
-    Tolerates multiple JSON shapes (leaderboardLines, LeaderBoard, etc.). Returns None if missing/invalid.
+    Parse AC race_out.json into:
+      {
+        "results": [{ pos, driver, car, car_raw, laps, lap, total_time, gap }, ...],
+        "track_name": str,
+        "session_type": str,   # "RACE" | "QUALIFY" | "PRACTICE" | ""
+        "total_laps": int|None,
+      }
+    Tolerates multiple JSON shapes. Returns None if missing/invalid.
     """
     if not race_out_path.is_file():
         return None
@@ -68,10 +110,23 @@ def parse_race_out(race_out_path: Path) -> Optional[dict[str, Any]]:
     if not isinstance(data, dict):
         return None
 
+    # Session type: RACE / QUALIFY / PRACTICE / HOTLAP / etc.
+    session_type = str(
+        _first(data.get("Type"), data.get("type"), data.get("SessionType"), "") or ""
+    ).strip().upper()
+
+    # Configured laps
+    total_laps_raw = _first(data.get("RaceLaps"), data.get("race_laps"), data.get("Laps"))
+    try:
+        total_laps: Optional[int] = int(total_laps_raw) if total_laps_raw is not None else None
+    except (TypeError, ValueError):
+        total_laps = None
+
     # Track name: common keys
     track_name = (
         _first(
             data.get("trackName"),
+            data.get("TrackName"),
             data.get("track_name"),
             data.get("track"),
         )
@@ -82,7 +137,7 @@ def parse_race_out(race_out_path: Path) -> Optional[dict[str, Any]]:
     else:
         track_name = "—"
 
-    # Leaderboard array: try common keys
+    # Leaderboard array: try common keys (flat and nested)
     rows = _first(
         data.get("leaderboardLines"),
         data.get("LeaderBoard"),
@@ -97,18 +152,28 @@ def parse_race_out(race_out_path: Path) -> Optional[dict[str, Any]]:
             rows,
         )
     if not isinstance(rows, list) or len(rows) == 0:
-        return {"results": [], "track_name": track_name}
+        return {"results": [], "track_name": track_name, "session_type": session_type, "total_laps": total_laps}
 
     results = []
     for i, raw in enumerate(rows):
         if not isinstance(raw, dict):
             continue
+
+        # Nested AC format: { "car": {...}, "timing": {...} }
+        car_dict = raw.get("car") if isinstance(raw.get("car"), dict) else {}
+        timing_dict = raw.get("timing") if isinstance(raw.get("timing"), dict) else {}
+
+        # Position
         pos = _first(raw.get("position"), raw.get("pos"), raw.get("Position"), i + 1)
         if isinstance(pos, (int, float)):
             pos = int(pos)
         else:
             pos = i + 1
+
+        # Driver name: check nested car dict first, then flat
         driver = _first(
+            car_dict.get("DriverName"),
+            car_dict.get("driverName"),
             raw.get("driverName"),
             raw.get("driver_name"),
             raw.get("name"),
@@ -116,8 +181,22 @@ def parse_race_out(race_out_path: Path) -> Optional[dict[str, Any]]:
             raw.get("DriverName"),
         )
         driver = (driver or "—").strip() if isinstance(driver, str) else "—"
-        # Best lap: may be ms number or string; -1 = invalid
+
+        # Car model: nested car dict preferred
+        car_raw_val = _first(
+            car_dict.get("Model"),
+            car_dict.get("model"),
+            raw.get("carModel"),
+            raw.get("car_model"),
+            raw.get("model"),
+        )
+        car_raw = (car_raw_val or "").strip() if isinstance(car_raw_val, str) else ""
+        car = _fmt_car_name(car_raw) if car_raw else "—"
+
+        # Best lap: nested timing dict preferred
         best_raw = _first(
+            timing_dict.get("BestLap"),
+            timing_dict.get("bestLap"),
             raw.get("bestLap"),
             raw.get("best_lap"),
             raw.get("lapTime"),
@@ -127,6 +206,32 @@ def parse_race_out(race_out_path: Path) -> Optional[dict[str, Any]]:
             lap = "—"
         else:
             lap = _ms_to_lap_str(best_raw) if isinstance(best_raw, (int, float)) else (str(best_raw).strip() if best_raw else "—")
+
+        # Laps completed
+        laps_raw = _first(
+            timing_dict.get("LapCount"),
+            timing_dict.get("lapCount"),
+            raw.get("lapCount"),
+            raw.get("laps"),
+            raw.get("Laps"),
+            raw.get("numLaps"),
+        )
+        try:
+            laps: Optional[int] = int(laps_raw) if laps_raw is not None else None
+        except (TypeError, ValueError):
+            laps = None
+
+        # Total race time
+        total_raw = _first(
+            timing_dict.get("TotalTime"),
+            timing_dict.get("totalTime"),
+            raw.get("totalTime"),
+            raw.get("total_time"),
+            raw.get("TotalTime"),
+        )
+        total_time = _ms_to_total_str(total_raw)
+
+        # Gap to leader
         gap_raw = _first(
             raw.get("gap"),
             raw.get("Gap"),
@@ -134,7 +239,7 @@ def parse_race_out(race_out_path: Path) -> Optional[dict[str, Any]]:
             raw.get("gap_to_leader"),
         )
         if gap_raw is None or gap_raw == "":
-            gap = "—" if pos > 1 else "—"
+            gap = "—"
         elif isinstance(gap_raw, (int, float)):
             g = int(gap_raw)
             if g <= 0 and pos == 1:
@@ -143,6 +248,21 @@ def parse_race_out(race_out_path: Path) -> Optional[dict[str, Any]]:
                 gap = f"+{_ms_to_lap_str(gap_raw)}" if g > 0 else "—"
         else:
             gap = str(gap_raw).strip() or "—"
-        results.append({"pos": pos, "driver": driver, "lap": lap, "gap": gap})
 
-    return {"results": results, "track_name": track_name}
+        results.append({
+            "pos": pos,
+            "driver": driver,
+            "car": car,
+            "car_raw": car_raw,
+            "laps": laps,
+            "lap": lap,
+            "total_time": total_time,
+            "gap": gap,
+        })
+
+    return {
+        "results": results,
+        "track_name": track_name,
+        "session_type": session_type,
+        "total_laps": total_laps,
+    }

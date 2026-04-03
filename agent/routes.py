@@ -299,12 +299,18 @@ async def get_status():
         if parsed and parsed.get("results"):
             status["race_results"] = parsed["results"]
             status["race_track_name"] = (parsed.get("track_name") or "").strip() or "—"
+            status["race_session_type"] = (parsed.get("session_type") or "").strip() or ""
+            status["race_total_laps"] = parsed.get("total_laps")
         else:
             status["race_results"] = None
             status["race_track_name"] = None
+            status["race_session_type"] = None
+            status["race_total_laps"] = None
     except Exception:
         status["race_results"] = None
         status["race_track_name"] = None
+        status["race_session_type"] = None
+        status["race_total_laps"] = None
     return status
 
 

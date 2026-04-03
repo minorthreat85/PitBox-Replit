@@ -42,6 +42,8 @@ class AgentStatus:
     # Race results from agent race_out.json (for results modal)
     race_results: list | None = None
     race_track_name: str | None = None
+    race_session_type: str | None = None
+    race_total_laps: int | None = None
 
 
 # Global status cache
@@ -109,6 +111,8 @@ async def poll_single_agent(agent_id: str, host: str, port: int, token: str, cli
             control_mode=data.get("control_mode"),
             race_results=data.get("race_results") if isinstance(data.get("race_results"), list) else None,
             race_track_name=data.get("race_track_name") if isinstance(data.get("race_track_name"), str) else None,
+            race_session_type=data.get("race_session_type") if isinstance(data.get("race_session_type"), str) else None,
+            race_total_laps=data.get("race_total_laps") if isinstance(data.get("race_total_laps"), int) else None,
         )
         try:
             presets_resp = await client.get(f"{base_url}/presets/steering", headers=headers)

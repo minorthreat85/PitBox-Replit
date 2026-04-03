@@ -1046,6 +1046,10 @@ async def get_sim_state(agent_id: str):
             payload["race_results"] = agent_status.race_results
         if getattr(agent_status, "race_track_name", None) and isinstance(agent_status.race_track_name, str):
             payload["race_track_name"] = agent_status.race_track_name
+        if getattr(agent_status, "race_session_type", None) and isinstance(agent_status.race_session_type, str):
+            payload["race_session_type"] = agent_status.race_session_type
+        if getattr(agent_status, "race_total_laps", None) is not None:
+            payload["race_total_laps"] = agent_status.race_total_laps
     # Signal frontend to switch to results screen: race finished and sim has backed out (one-time per race)
     has_results = bool(payload.get("race_results") and len(payload["race_results"]) > 0)
     acs_running = (payload.get("process") or {}).get("acs_running") is True

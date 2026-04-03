@@ -348,7 +348,7 @@
         }
         .results-table-header {
             display: grid;
-            grid-template-columns: 80px 1fr 160px 120px;
+            grid-template-columns: 70px 1fr 1fr 60px 140px 130px;
             gap: 0;
             padding: 0.75rem 2rem; /* py-3 px-8 */
             font-size: 0.875rem;
@@ -365,13 +365,16 @@
             font-weight: 600;
             color: #FF0000;
         }
-        .results-table-header .col-gap { text-align: right; }
+        .results-table-header .col-laps { text-align: center; }
+        .results-table-header .col-total { text-align: right; }
+        .results-table-row .col-laps { text-align: center; font-variant-numeric: tabular-nums; }
+        .results-table-row .col-total { text-align: right; font-variant-numeric: tabular-nums; }
         .results-table-body {
             overflow-x: auto;
         }
         .results-table-row {
             display: grid;
-            grid-template-columns: 80px 1fr 160px 120px;
+            grid-template-columns: 70px 1fr 1fr 60px 140px 130px;
             gap: 0;
             padding: 1.1rem 2rem;
             align-items: center;
@@ -385,10 +388,24 @@
             font-weight: 600;
             box-shadow: inset 0 0 0 2px rgba(255,255,255,0.2);
         }
+        .results-table-row.fastest-lap-row .col-lap {
+            color: #c084fc; /* purple-400 */
+            font-weight: 700;
+        }
+        .results-table-row.p1.fastest-lap-row .col-lap {
+            color: #ffffff;
+            text-shadow: 0 0 8px rgba(192,132,252,0.8);
+        }
+        .results-table-row .col-car {
+            color: #9CA3AF;
+            font-size: 0.875rem;
+        }
+        .results-table-row.p1 .col-car {
+            color: rgba(255,255,255,0.85);
+        }
         .results-table-row .col-pos { font-weight: 700; }
         .results-table-row .col-driver { font-weight: 500; }
         .results-table-row .col-lap { font-variant-numeric: tabular-nums; }
-        .results-table-row .col-gap { text-align: right; font-variant-numeric: tabular-nums; }
         .results-modal-footer {
             display: flex;
             align-items: center;
@@ -449,8 +466,10 @@
                 <div class="results-table-header" role="row">
                     <span>Pos</span>
                     <span>Driver</span>
+                    <span>Car</span>
+                    <span class="col-laps">Laps</span>
                     <span>Best Lap</span>
-                    <span class="col-gap">Gap</span>
+                    <span class="col-total">Total Time</span>
                 </div>
                 <div class="results-table-body" id="results-modal-tbody" role="table" aria-label="Race results"></div>
             </div>
@@ -529,23 +548,57 @@
                 }, 120000);
             }
 
-            function showResultsModal(results, trackName) {
+            function showResultsModal(results, trackName, sessionType, totalLaps) {
                 if (!resultsModalOverlay || !resultsModalTbody) return;
                 trackName = (trackName != null && String(trackName).trim()) ? String(trackName).trim() : '—';
+                sessionType = (sessionType && String(sessionType).trim()) ? String(sessionType).trim().toUpperCase() : '';
                 resultsModalTrack.textContent = trackName;
+                var titleEl = document.getElementById('results-modal-title');
+                if (titleEl) {
+                    var titleMap = { RACE: 'RACE RESULTS', QUALIFY: 'QUALIFYING', HOTLAP: 'HOT LAP', PRACTICE: 'PRACTICE', DRIFT: 'DRIFT', DRAG: 'DRAG' };
+                    titleEl.textContent = titleMap[sessionType] || (sessionType || 'SESSION RESULTS');
+                }
+                var subtitleEl = resultsModalOverlay.querySelector('.subtitle');
+                if (subtitleEl) {
+                    var sub = 'Post-Race Results';
+                    if (totalLaps && Number(totalLaps) > 0) sub = Number(totalLaps) + ' Laps';
+                    subtitleEl.textContent = sub;
+                }
                 var rows = Array.isArray(results) ? results : [];
-                var html = '';
+                // Find true fastest lap: driver with lowest parsed best lap
                 var fastestLapDriver = '';
                 var fastestLapTime = '';
+                var fastestMs = Infinity;
+                for (var fi = 0; fi < rows.length; fi++) {
+                    var fr = rows[fi];
+                    var lapStr = (fr.lap != null) ? String(fr.lap).trim() : '';
+                    if (lapStr && lapStr !== '—') {
+                        var m = lapStr.match(/^(\d+):(\d+)\.(\d+)$/);
+                        if (m) {
+                            var ms = (parseInt(m[1], 10) * 60000) + (parseInt(m[2], 10) * 1000) + parseInt(m[3].padEnd(3, '0').slice(0, 3), 10);
+                            if (ms < fastestMs) { fastestMs = ms; fastestLapDriver = fr.driver ? String(fr.driver).trim() : ''; fastestLapTime = lapStr; }
+                        }
+                    }
+                }
+                var html = '';
                 for (var i = 0; i < rows.length; i++) {
                     var r = rows[i];
                     var pos = (r.pos != null) ? Number(r.pos) : (i + 1);
                     var driver = (r.driver != null && String(r.driver).trim()) ? escapeHtml(String(r.driver).trim()) : '—';
+                    var car = (r.car != null && String(r.car).trim() && r.car !== '—') ? escapeHtml(String(r.car).trim()) : '—';
+                    var lapsVal = (r.laps != null && r.laps !== '') ? escapeHtml(String(r.laps)) : '—';
                     var lap = (r.lap != null && String(r.lap).trim()) ? escapeHtml(String(r.lap).trim()) : '—';
-                    var gap = (r.gap != null && String(r.gap).trim()) ? escapeHtml(String(r.gap).trim()) : '—';
-                    if (pos === 1 && lap !== '—') { fastestLapDriver = r.driver != null ? String(r.driver).trim() : ''; fastestLapTime = r.lap != null ? String(r.lap).trim() : ''; }
-                    var p1Class = pos === 1 ? ' class="p1"' : '';
-                    html += '<div class="results-table-row' + p1Class + '"><span class="col-pos">P' + pos + '</span><span class="col-driver">' + driver + '</span><span class="col-lap">' + lap + '</span><span class="col-gap">' + gap + '</span></div>';
+                    var totalTime = (r.total_time != null && String(r.total_time).trim() && r.total_time !== '—') ? escapeHtml(String(r.total_time).trim()) : '—';
+                    var isFastest = fastestLapDriver && r.driver && String(r.driver).trim() === fastestLapDriver;
+                    var rowClass = 'results-table-row' + (pos === 1 ? ' p1' : '') + (isFastest ? ' fastest-lap-row' : '');
+                    html += '<div class="' + rowClass + '">';
+                    html += '<span class="col-pos">P' + pos + '</span>';
+                    html += '<span class="col-driver">' + driver + '</span>';
+                    html += '<span class="col-car">' + car + '</span>';
+                    html += '<span class="col-laps">' + lapsVal + '</span>';
+                    html += '<span class="col-lap">' + lap + '</span>';
+                    html += '<span class="col-total">' + totalTime + '</span>';
+                    html += '</div>';
                 }
                 if (!html) {
                     html = '<div class="results-table-row" style="grid-template-columns: 1fr; text-align:center; padding:2rem;">No results</div>';
@@ -554,7 +607,7 @@
                 var calloutEl = document.getElementById('results-fastest-lap-callout');
                 if (calloutEl) {
                     if (fastestLapDriver && fastestLapTime) {
-                        calloutEl.textContent = 'Fastest Lap: ' + fastestLapDriver + ' – ' + fastestLapTime;
+                        calloutEl.textContent = '\u{1F7E3} Fastest Lap: ' + fastestLapDriver + ' \u2013 ' + fastestLapTime;
                         calloutEl.style.display = 'block';
                     } else {
                         calloutEl.style.display = 'none';
@@ -564,7 +617,6 @@
                 if (footerLabel) footerLabel.textContent = 'Session Results';
                 resultsModalOverlay.classList.add('visible');
             }
-
             function hideResultsModal() {
                 if (resultsModalOverlay) resultsModalOverlay.classList.remove('visible');
             }
@@ -885,7 +937,7 @@
                                 var key = JSON.stringify(data.race_results);
                                 if (key !== lastShownResultsKey) {
                                     lastShownResultsKey = key;
-                                    showResultsModal(data.race_results, data.race_track_name || data.track_name || null);
+                                    showResultsModal(data.race_results, data.race_track_name || data.track_name || null, data.race_session_type || null, data.race_total_laps || null);
                                 }
                                 return;
                             }
@@ -913,7 +965,7 @@
                             var key = JSON.stringify(data.race_results);
                             if (key !== lastShownResultsKey) {
                                 lastShownResultsKey = key;
-                                showResultsModal(data.race_results, data.race_track_name || data.track_name || null);
+                                showResultsModal(data.race_results, data.race_track_name || data.track_name || null, data.race_session_type || null, data.race_total_laps || null);
                             }
                         }
                     })
