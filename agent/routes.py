@@ -877,6 +877,15 @@ async def trigger_update():
         "message": "Update available but PitBoxUpdater.exe not found on this machine",
     }
 
+@router.post("/close-display", dependencies=[Depends(verify_token)])
+async def close_display_endpoint():
+    """Kill the Chrome/Edge kiosk window that was launched for the sim display."""
+    from agent.sim_display import close_display
+    loop = asyncio.get_event_loop()
+    result = await loop.run_in_executor(None, close_display)
+    return result
+
+
 @router.post("/launch-display", dependencies=[Depends(verify_token)])
 async def launch_display_endpoint():
     """Launch Chrome/Edge in kiosk fullscreen mode pointing at the controller /sim page."""

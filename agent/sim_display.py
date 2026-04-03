@@ -10,6 +10,8 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
+_sim_display_proc: Optional[subprocess.Popen] = None
+
 _CHROME_PATHS = [
     r"C:\Program Files\Google\Chrome\Application\chrome.exe",
     r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
@@ -46,18 +48,65 @@ def launch_display(controller_url: str, agent_id: str, browser_path: Optional[st
         logger.error(msg)
         return {"success": False, "message": msg, "url": None, "browser": None}
 
+    global _sim_display_proc
     url = build_display_url(controller_url, agent_id)
     try:
-        subprocess.Popen(
+        proc = subprocess.Popen(
             [browser, "--kiosk", f"--app={url}"],
             close_fds=True,
         )
+        _sim_display_proc = proc
         logger.info("Launched sim display: %s via %s", url, browser)
         return {"success": True, "message": "Display launched", "url": url, "browser": browser}
     except Exception as e:
         msg = f"Failed to launch browser: {e}"
         logger.error(msg)
         return {"success": False, "message": msg, "url": url, "browser": browser}
+
+
+def close_display() -> dict:
+    """
+    Kill the browser window launched by launch_display.
+    Tries the tracked PID first; falls back to taskkill by image name on Windows.
+    """
+    import sys
+    global _sim_display_proc
+    killed = False
+    messages = []
+
+    if _sim_display_proc is not None:
+        pid = _sim_display_proc.pid
+        _sim_display_proc = None
+        try:
+            if sys.platform == "win32":
+                subprocess.run(["taskkill", "/F", "/T", "/PID", str(pid)], capture_output=True)
+            else:
+                import os, signal
+                os.kill(pid, signal.SIGTERM)
+            killed = True
+            messages.append(f"Killed display process (PID {pid})")
+            logger.info("Closed sim display process PID %s", pid)
+        except Exception as e:
+            messages.append(f"Could not kill PID {pid}: {e}")
+            logger.warning("Failed to kill sim display PID %s: %s", pid, e)
+
+    if sys.platform == "win32" and not killed:
+        for exe in ("chrome.exe", "msedge.exe"):
+            try:
+                r = subprocess.run(
+                    ["taskkill", "/F", "/T", "/IM", exe],
+                    capture_output=True, text=True,
+                )
+                if r.returncode == 0:
+                    killed = True
+                    messages.append(f"Killed {exe}")
+                    logger.info("Closed sim display via taskkill %s", exe)
+            except Exception as e:
+                logger.debug("taskkill %s failed: %s", exe, e)
+
+    if killed:
+        return {"success": True, "message": "; ".join(messages) or "Display closed"}
+    return {"success": False, "message": "No display process found to close"}
 
 
 def schedule_launch(controller_url: str, agent_id: str, delay_seconds: float = 5.0, browser_path: Optional[str] = None):

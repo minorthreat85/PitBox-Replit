@@ -3697,6 +3697,7 @@
     bindDevPullButton();
     bindPushAgentsButton();
     bindPushLaunchDisplayButton();
+    bindPushCloseDisplayButton();
     /* Load saved dev_repo_path into the inline input on the Updates tab */
     pitboxFetch(API_BASE + '/config')
       .then(function (r) { return r.ok ? r.json() : null; })
@@ -3836,6 +3837,49 @@
             btn.disabled = false;
             btn.textContent = 'Launch displays on all sims';
             showToast('Launch display failed: ' + (err.message || 'network error'), 'error');
+          });
+      });
+    });
+  }
+  function bindPushCloseDisplayButton() {
+    var btn = document.getElementById('updates-btn-push-close-display');
+    var resultEl = document.getElementById('updates-push-close-display-result');
+    if (!btn || btn.dataset.pushCloseDisplayBound === '1') return;
+    btn.dataset.pushCloseDisplayBound = '1';
+    btn.addEventListener('click', function () {
+      if (btn.disabled) return;
+      btn.disabled = true;
+      btn.textContent = 'Closing…';
+      if (resultEl) { resultEl.classList.add('hidden'); resultEl.innerHTML = ''; }
+      ensureOperatorOrRedirect().then(function (ok) {
+        if (!ok) { btn.disabled = false; btn.textContent = 'Close displays on all sims'; return; }
+        pitboxFetch(API_BASE + '/agents/push-close-display', { method: 'POST' })
+          .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+          .then(function (res) {
+            btn.disabled = false;
+            btn.textContent = 'Close displays on all sims';
+            if (!resultEl) return;
+            var results = (res.data && res.data.results) || [];
+            if (results.length === 0) {
+              resultEl.innerHTML = '<p class="push-agents-none">No online agents found.</p>';
+              resultEl.classList.remove('hidden');
+              return;
+            }
+            var rows = results.map(function (r) {
+              var icon = r.success ? '✓' : '✗';
+              var cls = r.success ? 'push-agents-ok' : 'push-agents-err';
+              var rawMsg = r.message || (r.success ? 'Closed' : 'Failed');
+              if (!r.success && (rawMsg === 'Not Found' || rawMsg === 'HTTP 404')) rawMsg = 'Agent needs manual deploy first (endpoint not available on installed version)';
+              var msg = escapeHtml(rawMsg);
+              return '<div class="push-agents-row ' + cls + '"><span class="push-agents-icon">' + icon + '</span><span class="push-agents-id">' + escapeHtml(r.agent_id) + '</span><span class="push-agents-msg">' + msg + '</span></div>';
+            }).join('');
+            resultEl.innerHTML = rows;
+            resultEl.classList.remove('hidden');
+          })
+          .catch(function (err) {
+            btn.disabled = false;
+            btn.textContent = 'Close displays on all sims';
+            showToast('Close display failed: ' + (err.message || 'network error'), 'error');
           });
       });
     });
