@@ -37,6 +37,28 @@ def build_display_url(controller_url: str, agent_id: str) -> str:
     return f"{base}/sim?agent_id={aid}"
 
 
+def _bring_to_foreground(pid: int, delay_ms: int = 2500) -> None:
+    """
+    On Windows, activate the launched browser window after delay_ms milliseconds.
+    Uses a hidden PowerShell process so it doesn't block the agent.
+    """
+    import sys
+    if sys.platform != "win32":
+        return
+    ps_cmd = (
+        f"Start-Sleep -Milliseconds {delay_ms}; "
+        f"$wshell = New-Object -ComObject wscript.shell; "
+        f"$wshell.AppActivate({pid})"
+    )
+    try:
+        subprocess.Popen(
+            ["powershell", "-NoProfile", "-WindowStyle", "Hidden", "-Command", ps_cmd],
+            close_fds=True,
+        )
+    except Exception as e:
+        logger.debug("bring_to_foreground failed: %s", e)
+
+
 def launch_display(controller_url: str, agent_id: str, browser_path: Optional[str] = None) -> dict:
     """
     Launch the sim display browser in kiosk fullscreen mode.
@@ -57,6 +79,7 @@ def launch_display(controller_url: str, agent_id: str, browser_path: Optional[st
         )
         _sim_display_proc = proc
         logger.info("Launched sim display: %s via %s", url, browser)
+        _bring_to_foreground(proc.pid)
         return {"success": True, "message": "Display launched", "url": url, "browser": browser}
     except Exception as e:
         msg = f"Failed to launch browser: {e}"
