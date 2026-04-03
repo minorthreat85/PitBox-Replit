@@ -980,8 +980,9 @@
             window.showResultsModal = showResultsModal;
             window.hideResultsModal = hideResultsModal;
 
-            // Preview mode: ?preview_results=1 auto-shows modal with sample data
+            // Preview mode: ?preview_results=1[&preview_session=RACE|QUALIFY|PRACTICE|HOTLAP]
             if (new URLSearchParams(window.location.search).get('preview_results') === '1') {
+                var _previewSession = (new URLSearchParams(window.location.search).get('preview_session') || 'RACE').toUpperCase();
                 var _sampleResults = [
                     { pos: 1, driver: 'James Wright', car: 'Ferrari 488 Gt3', car_raw: 'ferrari_488_gt3', laps: 8, lap: '1:43.521', total_time: '14:08', gap: '—' },
                     { pos: 2, driver: 'Sarah Chen', car: 'Lamborghini Huracan Gt3', car_raw: 'lamborghini_huracan_gt3', laps: 8, lap: '1:43.018', total_time: '14:10', gap: '+0:01.847' },
@@ -989,8 +990,9 @@
                     { pos: 4, driver: 'Emma Liu', car: 'Mclaren 650S Gt3', car_raw: 'mclaren_650s_gt3', laps: 8, lap: '1:45.337', total_time: '14:22', gap: '+0:14.560' },
                     { pos: 5, driver: 'Tom Bakker', car: 'Bmw M6 Gt3', car_raw: 'bmw_m6_gt3', laps: 7, lap: '1:46.891', total_time: '14:28', gap: '1 Lap' },
                 ];
+                var _previewLaps = { RACE: 8, QUALIFY: null, PRACTICE: null, HOTLAP: null }[_previewSession];
                 document.getElementById('results-modal-overlay').style.display = 'flex';
-                showResultsModal(_sampleResults, 'Monza GP', 'RACE', 8);
+                showResultsModal(_sampleResults, 'Monza GP', _previewSession, _previewLaps);
             }
 
 
