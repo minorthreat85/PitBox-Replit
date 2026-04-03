@@ -984,6 +984,11 @@
             window.showResultsModal = showResultsModal;
             window.hideResultsModal = hideResultsModal;
 
+            // Escape key: close the kiosk window
+            document.addEventListener('keydown', function (e) {
+                if (e.key === 'Escape') { window.close(); }
+            });
+
             // Preview mode: ?preview_results=1[&preview_session=RACE|QUALIFY|PRACTICE|HOTLAP]
             if (new URLSearchParams(window.location.search).get('preview_results') === '1') {
                 var _previewSession = (new URLSearchParams(window.location.search).get('preview_session') || 'RACE').toUpperCase();
