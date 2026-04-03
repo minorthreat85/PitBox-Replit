@@ -62,6 +62,8 @@ def create_default_config(config_path: Path):
         "token": "CHANGE_ME_IMMEDIATELY",
         "listen_host": "0.0.0.0",
         "port": None,
+        "auto_launch_display": False,
+        "display_launch_delay": 5.0,
         "paths": {
             "acs_exe": "C:\\Program Files (x86)\\Steam\\steamapps\\common\\assettocorsa\\acs.exe",
             "ac_cfg_dir": "%USERPROFILE%\\Documents\\Assetto Corsa\\cfg",
@@ -215,6 +217,20 @@ def main():
         except Exception as e:
             logger.debug("Update check not started: %s", e)
         
+        # Auto-launch sim display browser (if configured)
+        try:
+            if getattr(config, "auto_launch_display", False):
+                from agent.pairing import is_paired, get_controller_url as _get_ctrl_url
+                from agent.sim_display import schedule_launch
+                _ctrl_url = (_get_ctrl_url() if is_paired() else None) or getattr(config, "controller_url", None)
+                if _ctrl_url:
+                    _delay = float(getattr(config, "display_launch_delay", 5.0) or 5.0)
+                    schedule_launch(_ctrl_url, device_id, delay_seconds=_delay)
+                else:
+                    logger.warning("auto_launch_display=true but no controller_url available; skipping display launch")
+        except Exception as e:
+            logger.debug("Sim display auto-launch not started: %s", e)
+
         if not is_service_mode:
             print(f"\nPitBox Agent ({config.agent_id})")
             print(f"Listening on: {config.listen_host}:{effective_port}")

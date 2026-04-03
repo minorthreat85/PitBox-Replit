@@ -870,3 +870,27 @@ async def trigger_update():
         "latest_version": latest,
         "message": "Update available but PitBoxUpdater.exe not found on this machine",
     }
+
+@router.post("/launch-display", dependencies=[Depends(verify_token)])
+async def launch_display_endpoint():
+    """Launch Chrome/Edge in kiosk fullscreen mode pointing at the controller /sim page."""
+    from agent.sim_display import launch_display
+    from agent.config import get_config
+    from agent.identity import get_device_id
+    try:
+        from agent.pairing import is_paired, get_controller_url as _get_ctrl_url
+        ctrl_url = (_get_ctrl_url() if is_paired() else None)
+    except Exception:
+        ctrl_url = None
+    cfg = get_config()
+    if not ctrl_url:
+        ctrl_url = getattr(cfg, "controller_url", None) or ""
+    if not ctrl_url:
+        return {"success": False, "message": "No controller_url configured or paired"}
+    try:
+        agent_id = get_device_id()
+    except Exception:
+        agent_id = getattr(cfg, "agent_id", "unknown")
+    loop = asyncio.get_event_loop()
+    result = await loop.run_in_executor(None, lambda: launch_display(ctrl_url, agent_id))
+    return result

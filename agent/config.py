@@ -96,6 +96,8 @@ class AgentConfig(BaseModel):
     telemetry_enabled: bool = Field(default=False, description="If true, stream AC shared memory telemetry to Controller at telemetry_rate_hz.")
     telemetry_rate_hz: float = Field(default=10.0, description="Rate to emit telemetry_tick to Controller (10-20 Hz).")
     telemetry_read_hz: float = Field(default=20.0, description="Rate to read AC shared memory (e.g. 20 Hz).")
+    auto_launch_display: bool = Field(default=False, description="If true, auto-launch Chrome/Edge in kiosk fullscreen pointing at the controller /sim page on startup.")
+    display_launch_delay: float = Field(default=5.0, description="Seconds to wait after startup before launching the sim display browser.")
 
     @field_validator('token')
     @classmethod

@@ -519,7 +519,7 @@ async def push_agent_update(_: None = Depends(require_operator)):
     agent_ids: list[str] = []
     tasks = []
     for rig in enrolled:
-        agent_id = rig.get("id") or rig.get("agent_id") or ""
+        agent_id = (rig.get("agent_id") or "").strip()
         if not agent_id:
             continue
         backend = (rig.get("backend") or "agent").strip().lower()
@@ -530,6 +530,37 @@ async def push_agent_update(_: None = Depends(require_operator)):
             continue
         agent_ids.append(agent_id)
         tasks.append(send_agent_command(agent_id, "update", {}, timeout=45.0))
+    if not tasks:
+        return {"ok": True, "results": [], "message": "No online agents found"}
+    raw_results = await asyncio.gather(*tasks, return_exceptions=True)
+    results = []
+    for aid, raw in zip(agent_ids, raw_results):
+        if isinstance(raw, Exception):
+            results.append({"agent_id": aid, "success": False, "message": str(raw)})
+        else:
+            results.append({"agent_id": aid, **raw})
+    return {"ok": True, "results": results}
+
+
+@router.post("/agents/push-launch-display")
+async def push_launch_display(_: None = Depends(require_operator)):
+    """Send launch-display command to every online enrolled agent. Each agent opens Chrome/Edge in kiosk fullscreen mode on /sim."""
+    cache = get_status_cache()
+    enrolled = enrolled_get_all_ordered()
+    agent_ids: list[str] = []
+    tasks = []
+    for rig in enrolled:
+        agent_id = (rig.get("agent_id") or "").strip()
+        if not agent_id:
+            continue
+        backend = (rig.get("backend") or "agent").strip().lower()
+        if backend != "agent":
+            continue
+        status = cache.get(agent_id)
+        if not (status and getattr(status, "online", False)):
+            continue
+        agent_ids.append(agent_id)
+        tasks.append(send_agent_command(agent_id, "launch-display", {}, timeout=15.0))
     if not tasks:
         return {"ok": True, "results": [], "message": "No online agents found"}
     raw_results = await asyncio.gather(*tasks, return_exceptions=True)
