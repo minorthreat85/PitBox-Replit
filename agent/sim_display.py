@@ -21,6 +21,30 @@ _EDGE_PATHS = [
     r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
 ]
 
+# Dedicated kiosk profile so the main browser profile is unaffected.
+# Stored under %LOCALAPPDATA%\PitBox\kiosk-profile (falls back to TEMP).
+def _kiosk_profile_dir() -> Path:
+    import os
+    base = os.environ.get("LOCALAPPDATA") or os.environ.get("TEMP") or "C:\\Temp"
+    return Path(base) / "PitBox" / "kiosk-profile"
+
+
+def _clear_singleton_locks(profile_dir: Path) -> None:
+    """Remove stale Chrome/Edge singleton lock files left by force-kill."""
+    lock_names = (
+        "SingletonLock", "SingletonSocket", "SingletonCookie",
+        "lockfile", "Default\\SingletonLock", "Default\\SingletonSocket",
+        "Default\\SingletonCookie",
+    )
+    for name in lock_names:
+        p = profile_dir / name
+        if p.exists():
+            try:
+                p.unlink()
+                logger.debug("Removed stale lock: %s", p)
+            except Exception as e:
+                logger.debug("Could not remove lock %s: %s", p, e)
+
 
 def _find_browser() -> Optional[str]:
     """Return path to Chrome (preferred) or Edge, or None if neither found."""
@@ -62,6 +86,8 @@ def _bring_to_foreground(pid: int, delay_ms: int = 2500) -> None:
 def launch_display(controller_url: str, agent_id: str, browser_path: Optional[str] = None) -> dict:
     """
     Launch the sim display browser in kiosk fullscreen mode.
+    Uses a dedicated PitBox kiosk profile and clears stale lock files so
+    re-launch after close_display() always works cleanly.
     Returns dict with success, message, url, browser keys.
     """
     browser = browser_path or _find_browser()
@@ -72,13 +98,30 @@ def launch_display(controller_url: str, agent_id: str, browser_path: Optional[st
 
     global _sim_display_proc
     url = build_display_url(controller_url, agent_id)
+
+    profile_dir = _kiosk_profile_dir()
+    try:
+        profile_dir.mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+        logger.debug("Could not create kiosk profile dir %s: %s", profile_dir, e)
+    _clear_singleton_locks(profile_dir)
+
     try:
         proc = subprocess.Popen(
-            [browser, "--kiosk", f"--app={url}"],
+            [
+                browser,
+                "--kiosk",
+                f"--app={url}",
+                f"--user-data-dir={profile_dir}",
+                "--no-first-run",
+                "--disable-session-crashed-bubble",
+                "--disable-infobars",
+                "--noerrdialogs",
+            ],
             close_fds=True,
         )
         _sim_display_proc = proc
-        logger.info("Launched sim display: %s via %s", url, browser)
+        logger.info("Launched sim display: %s via %s (profile: %s)", url, browser, profile_dir)
         _bring_to_foreground(proc.pid)
         return {"success": True, "message": "Display launched", "url": url, "browser": browser}
     except Exception as e:
@@ -128,6 +171,11 @@ def close_display() -> dict:
                 logger.debug("taskkill %s failed: %s", exe, e)
 
     if killed:
+        # Clear stale lock files now so the next launch starts clean.
+        try:
+            _clear_singleton_locks(_kiosk_profile_dir())
+        except Exception:
+            pass
         return {"success": True, "message": "; ".join(messages) or "Display closed"}
     return {"success": False, "message": "No display process found to close"}
 
