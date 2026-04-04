@@ -443,7 +443,7 @@ def _asset_response(path: Path, media_type: str, request: Request):
 
 @app.get("/")
 async def index():
-    """Serve the main GUI (RIG CONTROL CENTER)."""
+    """Serve the main GUI with BUILD_ID-stamped asset URLs to bust browser cache."""
     index_path = STATIC_DIR / "index.html"
     if not index_path.exists():
         logger.error("index.html not found at %s (STATIC_DIR=%s)", index_path, STATIC_DIR)
@@ -452,7 +452,16 @@ async def index():
             status_code=404,
             detail=f"index.html not found at {index_path}. Check logs.",
         )
-    return FileResponse(index_path, media_type="text/html", headers=_no_cache_headers())
+    try:
+        html = index_path.read_text(encoding="utf-8")
+        # Inject build stamp into asset URLs so browsers always fetch fresh JS/CSS
+        for asset in ("/app.js", "/styles.css", "/booking-admin.css", "/booking-admin.js"):
+            html = html.replace(f'"{asset}"', f'"{asset}?v={BUILD_ID}"')
+            html = html.replace(f"'{asset}'", f"'{asset}?v={BUILD_ID}'")
+        from fastapi.responses import HTMLResponse
+        return HTMLResponse(content=html, headers=_no_cache_headers())
+    except Exception:
+        return FileResponse(index_path, media_type="text/html", headers=_no_cache_headers())
 
 
 @app.get("/status", response_class=PlainTextResponse)
