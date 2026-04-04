@@ -40,7 +40,6 @@ try:
     from controller.operator_auth import EMPLOYEE_COOKIE
     from controller.api_booking_routes import router as booking_router
     from controller.booking_proxy import router as proxy_router
-    from controller.api_mumble_routes import router as mumble_router
     from controller.service.event_store import ensure_events_dir, append_event as event_store_append
     from controller.common.event_log import make_event, LogCategory, LogLevel
 except Exception as _e:
@@ -54,6 +53,14 @@ except Exception as _e:
     except OSError:
         pass
     raise
+
+# Mumble router is optional — grpcio/protobuf may not be installed on all PCs.
+mumble_router = None
+try:
+    from controller.api_mumble_routes import router as mumble_router
+except Exception as _mumble_err:
+    import logging as _ml
+    _ml.getLogger(__name__).warning("Mumble integration unavailable: %s", _mumble_err)
 
 # Logging: always write to AppData logs dir. Create canonical dirs early.
 if not getattr(logging, "_pitbox_initialized", False):
@@ -386,7 +393,8 @@ async def add_pitbox_build_header(request, call_next):
 app.include_router(api_router)
 app.include_router(booking_router)
 app.include_router(proxy_router)
-app.include_router(mumble_router)
+if mumble_router is not None:
+    app.include_router(mumble_router)
 
 
 # Static files: serve GUI at / and /app.js, /styles.css, etc.
