@@ -936,9 +936,12 @@
                         <h1 class="page-title">MUMBLE</h1>
                         <p class="page-subtitle">Voice comms admin &mdash; channels, users, push to rigs</p>
                     </div>
-                    <div style="display:flex;gap:8px;align-items:center;">
-                        <span id="mumble-status-pill" class="pill pill-muted" style="font-size:.75rem;">Connecting&hellip;</span>
-                        <button type="button" id="mumble-btn-refresh" class="btn-secondary" style="padding:4px 12px;font-size:.8rem;">Refresh</button>
+                    <div>
+                        <div style="display:flex;gap:8px;align-items:center;">
+                            <span id="mumble-status-pill" class="pill pill-muted" style="font-size:.75rem;">Connecting&hellip;</span>
+                            <button type="button" id="mumble-btn-refresh" class="btn-secondary" style="padding:4px 12px;font-size:.8rem;">Refresh</button>
+                        </div>
+                        <small id="mumble-status-error" style="color:#e55;font-size:.7rem;display:none;"></small>
                     </div>
                 </div>
             </div>

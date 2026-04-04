@@ -6375,11 +6375,19 @@
     pitboxFetch(API_BASE + '/mumble/status')
       .then(function (r) { return r.json(); })
       .then(function (data) {
-        var pill = document.getElementById('mumble-status-pill');
+        var pill  = document.getElementById('mumble-status-pill');
+        var errEl = document.getElementById('mumble-status-error');
         if (data.connected) {
-          if (pill) { pill.textContent = 'Connected'; pill.className = 'pill pill-online'; }
+          if (pill)  { pill.textContent = 'Connected'; pill.className = 'pill pill-online'; }
+          if (errEl) { errEl.textContent = ''; errEl.style.display = 'none'; }
         } else {
-          if (pill) { pill.textContent = 'Disconnected'; pill.className = 'pill pill-offline'; }
+          if (pill)  { pill.textContent = 'Disconnected'; pill.className = 'pill pill-offline'; }
+          if (errEl && data.error) {
+            errEl.textContent = data.error;
+            errEl.style.display = 'block';
+          } else if (errEl) {
+            errEl.textContent = ''; errEl.style.display = 'none';
+          }
         }
         _mumbleChannels = data.channels || [];
         _mumbleUsers = data.users || [];
@@ -6388,8 +6396,10 @@
         populateMumbleChannelSelect(_mumbleChannels);
       })
       .catch(function () {
-        var pill = document.getElementById('mumble-status-pill');
-        if (pill) { pill.textContent = 'Error'; pill.className = 'pill pill-offline'; }
+        var pill  = document.getElementById('mumble-status-pill');
+        var errEl = document.getElementById('mumble-status-error');
+        if (pill)  { pill.textContent = 'Error'; pill.className = 'pill pill-offline'; }
+        if (errEl) { errEl.textContent = 'Could not reach controller API'; errEl.style.display = 'block'; }
       });
   }
 
