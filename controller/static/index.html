@@ -12,7 +12,7 @@
     <link rel="stylesheet" href="/booking-admin.css">
 </head>
 <body>
-    <aside class="sidebar" id="sidebar">
+<aside class="sidebar" id="sidebar">
         <div class="sidebar-header">
             <span class="sidebar-logo">PitBox</span>
         </div>
@@ -925,71 +925,82 @@
             </div>
         </div>
 
+        </div>
+        </div>
+
         <!-- Page: Mumble -->
         <div id="page-mumble" class="content-page hidden" data-page="mumble">
-            <div class="mumble-wrap" style="display:flex;flex-direction:column;flex:1;min-height:0;overflow-y:auto;padding:0 24px 24px;gap:16px;">
-                <header class="cc-header">
-                    <div class="cc-header-left">
-                        <h1 class="cc-title">MUMBLE</h1>
-                        <p class="cc-subtitle">Voice comms admin &mdash; channels, users, push to rigs</p>
+            <div class="page-header">
+                <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+                    <div>
+                        <h1 class="page-title">MUMBLE</h1>
+                        <p class="page-subtitle">Voice comms admin &mdash; channels, users, push to rigs</p>
                     </div>
-                    <div class="cc-header-right" style="display:flex;gap:8px;align-items:center;">
+                    <div style="display:flex;gap:8px;align-items:center;">
                         <span id="mumble-status-pill" class="pill pill-muted" style="font-size:.75rem;">Connecting&hellip;</span>
                         <button type="button" id="mumble-btn-refresh" class="btn-secondary" style="padding:4px 12px;font-size:.8rem;">Refresh</button>
                     </div>
-                </header>
-                <div class="mumble-push-row">
-                    <button type="button" id="mumble-btn-launch-all" class="btn-secondary">Launch Mumble on all rigs</button>
-                    <button type="button" id="mumble-btn-close-all" class="btn-secondary">Close Mumble on all rigs</button>
-                    <div id="mumble-push-result" class="mumble-push-result hidden"></div>
                 </div>
-                <div class="mumble-main" style="display:flex;gap:16px;flex:1 1 auto;min-height:220px;">
-                    <div class="mumble-panel mumble-channels-panel" style="flex:1 1 0;background:#18191c;border:1px solid #2a2b2f;border-radius:8px;display:flex;flex-direction:column;overflow:hidden;">
-                        <h3 class="mumble-panel-title">Channels</h3>
-                        <div id="mumble-channel-list" class="mumble-channel-list">
-                            <p class="mumble-placeholder">Loading&hellip;</p>
-                        </div>
-                    </div>
-                    <div class="mumble-panel mumble-users-panel" style="flex:1 1 0;background:#18191c;border:1px solid #2a2b2f;border-radius:8px;display:flex;flex-direction:column;overflow:hidden;">
-                        <h3 class="mumble-panel-title">Connected Users</h3>
-                        <div id="mumble-user-list" class="mumble-user-list">
-                            <p class="mumble-placeholder">Loading&hellip;</p>
-                        </div>
-                    </div>
-                </div>
-                <div class="mumble-message-row">
-                    <div class="mumble-message-fields">
-                        <select id="mumble-msg-channel" class="config-input mumble-msg-select" style="flex:0 0 180px;" title="Target channel">
-                            <option value="">All channels</option>
-                        </select>
-                        <input type="text" id="mumble-msg-text" class="config-input" placeholder="Message text&hellip;" style="flex:1;">
-                        <button type="button" id="mumble-btn-send-msg" class="btn-secondary">Send</button>
-                    </div>
-                </div>
-                <details class="mumble-config-section" id="mumble-config-details">
-                    <summary class="mumble-config-summary">Mumble Connection Settings</summary>
-                    <div class="mumble-config-form">
-                        <div class="config-form-row">
-                            <label class="config-label" for="mumble-cfg-host">Mumble host</label>
-                            <input type="text" id="mumble-cfg-host" class="config-input" placeholder="127.0.0.1">
-                        </div>
-                        <div class="config-form-row">
-                            <label class="config-label" for="mumble-cfg-port">gRPC port</label>
-                            <input type="number" id="mumble-cfg-port" class="config-input" placeholder="50051" style="width:100px;">
-                        </div>
-                        <div class="config-form-row">
-                            <label class="config-label" for="mumble-cfg-token">gRPC token</label>
-                            <input type="password" id="mumble-cfg-token" class="config-input" placeholder="Leave blank if not set" autocomplete="new-password">
-                        </div>
-                        <div class="config-form-row">
-                            <label class="config-label" for="mumble-cfg-exe">mumble.exe path<br><small class="config-label-hint">on sim PCs</small></label>
-                            <input type="text" id="mumble-cfg-exe" class="config-input" placeholder="C:\Program Files\Mumble\mumble.exe">
-                        </div>
-                        <button type="button" id="mumble-cfg-save" class="btn-secondary">Save settings</button>
-                        <p class="settings-updates-hint">gRPC port 50051 is the Mumble 1.4+ default. Token is optional unless Murmur requires one.</p>
-                    </div>
-                </details>
             </div>
+
+            <!-- Push to Rigs -->
+            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:16px;">
+                <button type="button" id="mumble-btn-launch-all" class="btn-secondary">Launch Mumble on all rigs</button>
+                <button type="button" id="mumble-btn-close-all" class="btn-secondary">Close Mumble on all rigs</button>
+                <div id="mumble-push-result" class="hidden" style="font-size:.8rem;color:var(--text-muted);width:100%;"></div>
+            </div>
+
+            <!-- Two columns: channels + users -->
+            <div style="display:flex;gap:16px;margin-bottom:16px;min-height:240px;">
+                <div style="flex:1 1 0;background:var(--card-bg,#18191c);border:1px solid var(--border-color,#2a2b2f);border-radius:8px;display:flex;flex-direction:column;overflow:hidden;">
+                    <div style="font-size:.7rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted);padding:10px 14px 6px;border-bottom:1px solid var(--border-color,#2a2b2f);">Channels</div>
+                    <div id="mumble-channel-list" style="flex:1;overflow-y:auto;padding:8px 0;">
+                        <p style="color:var(--text-muted);font-size:.8rem;padding:12px 14px;margin:0;">Loading&hellip;</p>
+                    </div>
+                </div>
+                <div style="flex:1 1 0;background:var(--card-bg,#18191c);border:1px solid var(--border-color,#2a2b2f);border-radius:8px;display:flex;flex-direction:column;overflow:hidden;">
+                    <div style="font-size:.7rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted);padding:10px 14px 6px;border-bottom:1px solid var(--border-color,#2a2b2f);">Connected Users</div>
+                    <div id="mumble-user-list" style="flex:1;overflow-y:auto;padding:8px 0;">
+                        <p style="color:var(--text-muted);font-size:.8rem;padding:12px 14px;margin:0;">Loading&hellip;</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Send message -->
+            <div style="border-top:1px solid var(--border-color,#2a2b2f);padding-top:12px;margin-bottom:16px;">
+                <div style="display:flex;gap:8px;align-items:center;">
+                    <select id="mumble-msg-channel" class="config-input" style="flex:0 0 180px;" title="Target channel">
+                        <option value="">All channels (root)</option>
+                    </select>
+                    <input type="text" id="mumble-msg-text" class="config-input" placeholder="Message text&hellip;" style="flex:1;">
+                    <button type="button" id="mumble-btn-send-msg" class="btn-secondary">Send</button>
+                </div>
+            </div>
+
+            <!-- Config section -->
+            <details style="border:1px solid var(--border-color,#2a2b2f);border-radius:6px;">
+                <summary style="font-size:.8rem;font-weight:600;color:var(--text-muted);cursor:pointer;padding:10px 14px;list-style:none;user-select:none;">Mumble Connection Settings</summary>
+                <div style="padding:12px 14px 14px;display:flex;flex-direction:column;gap:10px;">
+                    <div class="config-form-row">
+                        <label class="config-label" for="mumble-cfg-host">Mumble host</label>
+                        <input type="text" id="mumble-cfg-host" class="config-input" placeholder="127.0.0.1">
+                    </div>
+                    <div class="config-form-row">
+                        <label class="config-label" for="mumble-cfg-port">gRPC port</label>
+                        <input type="number" id="mumble-cfg-port" class="config-input" placeholder="50051" style="width:100px;">
+                    </div>
+                    <div class="config-form-row">
+                        <label class="config-label" for="mumble-cfg-token">gRPC token</label>
+                        <input type="password" id="mumble-cfg-token" class="config-input" placeholder="Leave blank if not set" autocomplete="new-password">
+                    </div>
+                    <div class="config-form-row">
+                        <label class="config-label" for="mumble-cfg-exe">mumble.exe path<br><small class="config-label-hint">on sim PCs</small></label>
+                        <input type="text" id="mumble-cfg-exe" class="config-input" placeholder="C:\Program Files\Mumble\mumble.exe">
+                    </div>
+                    <button type="button" id="mumble-cfg-save" class="btn-secondary">Save settings</button>
+                    <p class="settings-updates-hint">gRPC port 50051 is the Mumble 1.4+ default. Token is optional unless Murmur requires one.</p>
+                </div>
+            </details>
         </div>
 
     </main>
