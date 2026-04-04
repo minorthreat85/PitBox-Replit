@@ -614,6 +614,7 @@ _SPA_PATHS = {
     "/schedule",
     "/checkin",
     "/analytics",
+    "/mumble",
 }
 
 
@@ -653,10 +654,7 @@ async def spa_catchall(request: Request, path: str):
         return RedirectResponse(url="/sim" + qs, status_code=302)
     full = "/" + path.strip("/") if path else "/"
     if full in _SPA_PATHS:
-        index_path = STATIC_DIR / "index.html"
-        if not index_path.exists():
-            raise HTTPException(status_code=404, detail="index.html not found")
-        return FileResponse(index_path, media_type="text/html", headers=_no_cache_headers())
+        return await index()
     raise HTTPException(status_code=404, detail="Not found")
 
 
