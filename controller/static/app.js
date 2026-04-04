@@ -6511,16 +6511,52 @@
       .catch(function (e) { showToast('Kick failed: ' + (e.message || e), 'error'); });
   };
 
+  var _mumbleProtocol = 'ice';
+
+  window.mumbleSetProtocol = function mumbleSetProtocol(proto) {
+    _mumbleProtocol = proto;
+    var iceBtn  = document.getElementById('mumble-proto-ice');
+    var grpcBtn = document.getElementById('mumble-proto-grpc');
+    var iceF    = document.getElementById('mumble-ice-fields');
+    var grpcF   = document.getElementById('mumble-grpc-fields');
+    var hint    = document.getElementById('mumble-cfg-hint');
+    if (proto === 'grpc') {
+      if (iceBtn)  iceBtn.style.opacity  = '0.5';
+      if (grpcBtn) grpcBtn.style.opacity = '1';
+      if (grpcBtn) grpcBtn.style.outline = '2px solid var(--accent,#e02020)';
+      if (iceBtn)  iceBtn.style.outline  = 'none';
+      if (iceF)    iceF.style.display    = 'none';
+      if (grpcF)   grpcF.style.display   = '';
+      if (hint) hint.textContent = 'gRPC port 50051 is the Mumble 1.4+ default. Token is optional unless Murmur requires one.';
+    } else {
+      if (grpcBtn) grpcBtn.style.opacity = '0.5';
+      if (iceBtn)  iceBtn.style.opacity  = '1';
+      if (iceBtn)  iceBtn.style.outline  = '2px solid var(--accent,#e02020)';
+      if (grpcBtn) grpcBtn.style.outline = 'none';
+      if (grpcF)   grpcF.style.display   = 'none';
+      if (iceF)    iceF.style.display    = '';
+      if (hint) hint.textContent = 'ICE port 6502 is the Murmur default. Leave secret blank unless icesecretwrite is set in murmur.ini.';
+    }
+  }
+
   function fetchMumbleConfig() {
     pitboxFetch(API_BASE + '/mumble/config')
       .then(function (r) { return r.json(); })
       .then(function (cfg) {
-        var hostEl = document.getElementById('mumble-cfg-host');
-        var portEl = document.getElementById('mumble-cfg-port');
-        var exeEl  = document.getElementById('mumble-cfg-exe');
-        if (hostEl && cfg.mumble_host) hostEl.value = cfg.mumble_host;
-        if (portEl && cfg.mumble_grpc_port) portEl.value = cfg.mumble_grpc_port;
-        if (exeEl  && cfg.mumble_exe_path) exeEl.value = cfg.mumble_exe_path;
+        var proto = cfg.mumble_protocol || 'ice';
+        mumbleSetProtocol(proto);
+        var hostEl    = document.getElementById('mumble-cfg-host');
+        var icePortEl = document.getElementById('mumble-cfg-ice-port');
+        var secretEl  = document.getElementById('mumble-cfg-secret');
+        var portEl    = document.getElementById('mumble-cfg-port');
+        var tokenEl   = document.getElementById('mumble-cfg-token');
+        var exeEl     = document.getElementById('mumble-cfg-exe');
+        if (hostEl    && cfg.mumble_host)     hostEl.value    = cfg.mumble_host;
+        if (icePortEl && cfg.mumble_ice_port) icePortEl.value = cfg.mumble_ice_port;
+        if (secretEl  && cfg.mumble_secret)   secretEl.value  = cfg.mumble_secret;
+        if (portEl    && cfg.mumble_grpc_port) portEl.value   = cfg.mumble_grpc_port;
+        if (tokenEl   && cfg.mumble_token)    tokenEl.value   = cfg.mumble_token;
+        if (exeEl     && cfg.mumble_exe_path) exeEl.value     = cfg.mumble_exe_path;
       })
       .catch(function () {});
   }
@@ -6592,13 +6628,23 @@
 
     var btnSaveCfg = document.getElementById('mumble-cfg-save');
     if (btnSaveCfg) btnSaveCfg.addEventListener('click', function () {
-      var host  = (document.getElementById('mumble-cfg-host')  || {}).value || '';
-      var port  = parseInt((document.getElementById('mumble-cfg-port')  || {}).value || '50051', 10);
-      var token = (document.getElementById('mumble-cfg-token') || {}).value || '';
-      var exe   = (document.getElementById('mumble-cfg-exe')   || {}).value || '';
+      var host     = (document.getElementById('mumble-cfg-host')      || {}).value || '';
+      var icePort  = parseInt((document.getElementById('mumble-cfg-ice-port') || {}).value || '6502', 10);
+      var secret   = (document.getElementById('mumble-cfg-secret')   || {}).value || '';
+      var grpcPort = parseInt((document.getElementById('mumble-cfg-port')     || {}).value || '50051', 10);
+      var token    = (document.getElementById('mumble-cfg-token')    || {}).value || '';
+      var exe      = (document.getElementById('mumble-cfg-exe')      || {}).value || '';
       pitboxFetch(API_BASE + '/mumble/config', {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mumble_host: host, mumble_grpc_port: port, mumble_token: token, mumble_exe_path: exe })
+        body: JSON.stringify({
+          mumble_host: host,
+          mumble_protocol: _mumbleProtocol,
+          mumble_ice_port: icePort,
+          mumble_secret: secret,
+          mumble_grpc_port: grpcPort,
+          mumble_token: token,
+          mumble_exe_path: exe
+        })
       }).then(function () {
         showToast('Mumble settings saved.', 'success');
         fetchMumbleStatus();

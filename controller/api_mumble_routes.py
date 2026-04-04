@@ -217,6 +217,9 @@ async def push_close_mumble(_: None = Depends(require_operator)):
 
 class MumbleConfigBody(BaseModel):
     mumble_host: Optional[str] = None
+    mumble_protocol: Optional[str] = None
+    mumble_ice_port: Optional[int] = None
+    mumble_secret: Optional[str] = None
     mumble_grpc_port: Optional[int] = None
     mumble_token: Optional[str] = None
     mumble_exe_path: Optional[str] = None
@@ -229,6 +232,9 @@ async def get_mumble_config(_: None = Depends(require_operator)):
         cfg = get_config()
         return {
             "mumble_host": getattr(cfg, "mumble_host", None) or "127.0.0.1",
+            "mumble_protocol": getattr(cfg, "mumble_protocol", None) or "ice",
+            "mumble_ice_port": getattr(cfg, "mumble_ice_port", None) or 6502,
+            "mumble_secret": "" if not getattr(cfg, "mumble_secret", None) else "***",
             "mumble_grpc_port": getattr(cfg, "mumble_grpc_port", None) or 50051,
             "mumble_token": "" if not getattr(cfg, "mumble_token", None) else "***",
             "mumble_exe_path": getattr(cfg, "mumble_exe_path", None) or "",
@@ -247,6 +253,14 @@ async def put_mumble_config(body: MumbleConfigBody, _: None = Depends(require_op
         new_data = cfg.model_dump()
         if body.mumble_host is not None:
             new_data["mumble_host"] = body.mumble_host.strip() or "127.0.0.1"
+        if body.mumble_protocol is not None:
+            proto = body.mumble_protocol.strip().lower()
+            if proto in ("ice", "grpc"):
+                new_data["mumble_protocol"] = proto
+        if body.mumble_ice_port is not None:
+            new_data["mumble_ice_port"] = body.mumble_ice_port
+        if body.mumble_secret is not None and body.mumble_secret != "***":
+            new_data["mumble_secret"] = body.mumble_secret
         if body.mumble_grpc_port is not None:
             new_data["mumble_grpc_port"] = body.mumble_grpc_port
         if body.mumble_token is not None and body.mumble_token != "***":

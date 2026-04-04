@@ -982,23 +982,42 @@
                 <summary style="font-size:.8rem;font-weight:600;color:var(--text-muted);cursor:pointer;padding:10px 14px;list-style:none;user-select:none;">Mumble Connection Settings</summary>
                 <div style="padding:12px 14px 14px;display:flex;flex-direction:column;gap:10px;">
                     <div class="config-form-row">
-                        <label class="config-label" for="mumble-cfg-host">Mumble host</label>
+                        <label class="config-label">Protocol</label>
+                        <div style="display:flex;gap:8px;">
+                            <button type="button" id="mumble-proto-ice" class="btn-secondary" style="flex:1;" onclick="mumbleSetProtocol('ice')">ICE <small style="opacity:.7;">(Mumble 1.3+)</small></button>
+                            <button type="button" id="mumble-proto-grpc" class="btn-secondary" style="flex:1;" onclick="mumbleSetProtocol('grpc')">gRPC <small style="opacity:.7;">(Mumble 1.4+)</small></button>
+                        </div>
+                    </div>
+                    <div class="config-form-row">
+                        <label class="config-label" for="mumble-cfg-host">Host</label>
                         <input type="text" id="mumble-cfg-host" class="config-input" placeholder="127.0.0.1">
                     </div>
-                    <div class="config-form-row">
-                        <label class="config-label" for="mumble-cfg-port">gRPC port</label>
-                        <input type="number" id="mumble-cfg-port" class="config-input" placeholder="50051" style="width:100px;">
+                    <div id="mumble-ice-fields">
+                        <div class="config-form-row" style="margin-bottom:10px;">
+                            <label class="config-label" for="mumble-cfg-ice-port">ICE port</label>
+                            <input type="number" id="mumble-cfg-ice-port" class="config-input" placeholder="6502" style="width:100px;">
+                        </div>
+                        <div class="config-form-row">
+                            <label class="config-label" for="mumble-cfg-secret">ICE secret<br><small class="config-label-hint">icesecretwrite in murmur.ini</small></label>
+                            <input type="password" id="mumble-cfg-secret" class="config-input" placeholder="Leave blank if not set" autocomplete="new-password">
+                        </div>
                     </div>
-                    <div class="config-form-row">
-                        <label class="config-label" for="mumble-cfg-token">gRPC token</label>
-                        <input type="password" id="mumble-cfg-token" class="config-input" placeholder="Leave blank if not set" autocomplete="new-password">
+                    <div id="mumble-grpc-fields" style="display:none;">
+                        <div class="config-form-row" style="margin-bottom:10px;">
+                            <label class="config-label" for="mumble-cfg-port">gRPC port</label>
+                            <input type="number" id="mumble-cfg-port" class="config-input" placeholder="50051" style="width:100px;">
+                        </div>
+                        <div class="config-form-row">
+                            <label class="config-label" for="mumble-cfg-token">gRPC token</label>
+                            <input type="password" id="mumble-cfg-token" class="config-input" placeholder="Leave blank if not set" autocomplete="new-password">
+                        </div>
                     </div>
                     <div class="config-form-row">
                         <label class="config-label" for="mumble-cfg-exe">mumble.exe path<br><small class="config-label-hint">on sim PCs</small></label>
                         <input type="text" id="mumble-cfg-exe" class="config-input" placeholder="C:\Program Files\Mumble\mumble.exe">
                     </div>
                     <button type="button" id="mumble-cfg-save" class="btn-secondary">Save settings</button>
-                    <p class="settings-updates-hint">gRPC port 50051 is the Mumble 1.4+ default. Token is optional unless Murmur requires one.</p>
+                    <p id="mumble-cfg-hint" class="settings-updates-hint">ICE port 6502 is the Murmur default. Leave secret blank unless <code>icesecretwrite</code> is set in murmur.ini.</p>
                 </div>
             </details>
         </div>
