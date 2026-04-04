@@ -383,6 +383,8 @@
       if (window._logsPollTimer) { clearInterval(window._logsPollTimer); window._logsPollTimer = null; }
     }
     if (pageId === 'bookings') { initBookingSubTabs(); loadBookingSubPanel('list'); }
+    if (pageId === 'mumble') { loadMumblePage(); }
+    if (pageId !== 'mumble' && window._mumblePollTimer) { clearInterval(window._mumblePollTimer); window._mumblePollTimer = null; }
     if (pageId !== 'server-config' && sessionsRevisionPollTimer) {
       clearInterval(sessionsRevisionPollTimer);
       sessionsRevisionPollTimer = null;
@@ -405,6 +407,7 @@
     '/content': 'content',
     '/system-logs': 'system-logs',
     '/settings': 'settings',
+    '/mumble': 'mumble',
   };
   var SERVER_SCOPED_PAGES = ['server-config', 'entry-list', 'live-timing', 'content'];
   var REDIRECTS = {
@@ -6352,4 +6355,255 @@
     stopStatusPolling();
     startStatusPolling();
   });
+
+  // ── Mumble Page ──────────────────────────────────────────────────────────────
+
+  var _mumbleChannels = [];
+  var _mumbleUsers = [];
+  var _mumbleBound = false;
+
+  function loadMumblePage() {
+    bindMumbleButtons();
+    fetchMumbleStatus();
+    if (!window._mumblePollTimer) {
+      window._mumblePollTimer = setInterval(fetchMumbleStatus, 5000);
+    }
+    fetchMumbleConfig();
+  }
+
+  function fetchMumbleStatus() {
+    pitboxFetch(API_BASE + '/mumble/status')
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        var pill = document.getElementById('mumble-status-pill');
+        if (data.connected) {
+          if (pill) { pill.textContent = 'Connected'; pill.className = 'pill pill-online'; }
+        } else {
+          if (pill) { pill.textContent = 'Disconnected'; pill.className = 'pill pill-offline'; }
+        }
+        _mumbleChannels = data.channels || [];
+        _mumbleUsers = data.users || [];
+        renderMumbleChannels(_mumbleChannels, _mumbleUsers);
+        renderMumbleUsers(_mumbleUsers, _mumbleChannels);
+        populateMumbleChannelSelect(_mumbleChannels);
+      })
+      .catch(function () {
+        var pill = document.getElementById('mumble-status-pill');
+        if (pill) { pill.textContent = 'Error'; pill.className = 'pill pill-offline'; }
+      });
+  }
+
+  function _channelMap(channels) {
+    var m = {};
+    (channels || []).forEach(function (c) { m[c.id] = c; });
+    return m;
+  }
+
+  function renderMumbleChannels(channels, users) {
+    var el = document.getElementById('mumble-channel-list');
+    if (!el) return;
+    if (!channels || channels.length === 0) {
+      el.innerHTML = '<p class="mumble-placeholder">No channels found.</p>';
+      return;
+    }
+    var usersByChannel = {};
+    (users || []).forEach(function (u) {
+      var cid = u.channel_id;
+      if (!usersByChannel[cid]) usersByChannel[cid] = 0;
+      usersByChannel[cid]++;
+    });
+    var sorted = channels.slice().sort(function (a, b) {
+      var pa = a.parent_id == null ? -1 : a.parent_id;
+      var pb = b.parent_id == null ? -1 : b.parent_id;
+      if (pa !== pb) return pa - pb;
+      return (a.position || 0) - (b.position || 0);
+    });
+    var html = '';
+    sorted.forEach(function (c) {
+      var isSub = c.parent_id != null;
+      var count = usersByChannel[c.id] || 0;
+      var badge = count > 0 ? (' <span style="color:var(--accent-green,#48bb78);font-size:.7rem;">&#9679; ' + count + '</span>') : '';
+      var muteBtn = '<button type="button" class="btn-secondary" style="font-size:.7rem;padding:2px 7px;" onclick="window._mumbleMuteChannel(' + c.id + ', true)">Mute all</button>' +
+        '<button type="button" class="btn-secondary" style="font-size:.7rem;padding:2px 7px;" onclick="window._mumbleMuteChannel(' + c.id + ', false)">Unmute all</button>';
+      html += '<div class="mumble-channel-item' + (isSub ? ' mumble-channel-sub' : '') + '">' +
+        '<span class="mumble-channel-name">' + escapeHtml(c.name) + badge + '</span>' +
+        '<span style="display:flex;gap:4px;">' + muteBtn + '</span>' +
+        '</div>';
+    });
+    el.innerHTML = html;
+  }
+
+  function renderMumbleUsers(users, channels) {
+    var el = document.getElementById('mumble-user-list');
+    if (!el) return;
+    if (!users || users.length === 0) {
+      el.innerHTML = '<p class="mumble-placeholder">No users connected.</p>';
+      return;
+    }
+    var chMap = _channelMap(channels);
+    var html = '';
+    users.forEach(function (u) {
+      var chName = chMap[u.channel_id] ? escapeHtml(chMap[u.channel_id].name) : '#' + u.channel_id;
+      var muteLabel = (u.mute || u.suppress) ? 'Unmute' : 'Mute';
+      var muteCls = (u.mute || u.suppress) ? 'btn-mute-active' : '';
+      var selfMuteTag = u.self_mute ? ' <span class="mumble-icon-muted" title="Self-muted">M</span>' : '';
+      html += '<div class="mumble-user-row">' +
+        '<span class="mumble-user-name">' + escapeHtml(u.name) + selfMuteTag + '</span>' +
+        '<span class="mumble-user-channel">' + chName + '</span>' +
+        '<span class="mumble-user-actions">' +
+        '<button type="button" class="' + muteCls + '" onclick="window._mumbleMuteUser(' + u.session + ', ' + !(u.mute || u.suppress) + ')">' + muteLabel + '</button>' +
+        '<button type="button" onclick="window._mumbleMoveUser(' + u.session + ')" title="Move to channel">Move</button>' +
+        '<button type="button" class="btn-kick" onclick="window._mumbleKickUser(' + u.session + ', \'' + escapeHtml(u.name) + '\')">Kick</button>' +
+        '</span>' +
+        '</div>';
+    });
+    el.innerHTML = html;
+  }
+
+  function populateMumbleChannelSelect(channels) {
+    var sel = document.getElementById('mumble-msg-channel');
+    if (!sel) return;
+    var val = sel.value;
+    var opts = '<option value="">All channels (root)</option>';
+    (channels || []).forEach(function (c) {
+      opts += '<option value="' + escapeHtml(String(c.id)) + '"' + (String(c.id) === val ? ' selected' : '') + '>' + escapeHtml(c.name) + '</option>';
+    });
+    sel.innerHTML = opts;
+  }
+
+  window._mumbleMuteUser = function (session, mute) {
+    pitboxFetch(API_BASE + '/mumble/users/' + session + '/mute', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mute: mute })
+    }).then(function () { fetchMumbleStatus(); }).catch(function (e) { showToast('Mute failed: ' + (e.message || e), 'error'); });
+  };
+
+  window._mumbleMuteChannel = function (channelId, mute) {
+    pitboxFetch(API_BASE + '/mumble/channels/' + channelId + '/mute', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mute: mute })
+    }).then(function () { fetchMumbleStatus(); showToast(mute ? 'Channel muted.' : 'Channel unmuted.', 'success'); })
+      .catch(function (e) { showToast('Channel mute failed: ' + (e.message || e), 'error'); });
+  };
+
+  window._mumbleMoveUser = function (session) {
+    var ch = _mumbleChannels;
+    if (!ch || ch.length === 0) { showToast('No channels available.', 'warning'); return; }
+    var choices = ch.map(function (c) { return c.name + ' (id:' + c.id + ')'; }).join('\n');
+    var answer = window.prompt('Move user to which channel?\n\n' + choices + '\n\nEnter channel ID:');
+    if (!answer) return;
+    var cid = parseInt(answer, 10);
+    if (isNaN(cid)) { showToast('Invalid channel ID.', 'error'); return; }
+    pitboxFetch(API_BASE + '/mumble/users/' + session + '/move', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ channel_id: cid })
+    }).then(function () { fetchMumbleStatus(); showToast('User moved.', 'success'); })
+      .catch(function (e) { showToast('Move failed: ' + (e.message || e), 'error'); });
+  };
+
+  window._mumbleKickUser = function (session, name) {
+    var reason = window.prompt('Kick ' + name + '? Enter reason (optional):');
+    if (reason === null) return;
+    pitboxFetch(API_BASE + '/mumble/users/' + session + '/kick', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason: reason || '' })
+    }).then(function () { fetchMumbleStatus(); showToast(name + ' kicked.', 'success'); })
+      .catch(function (e) { showToast('Kick failed: ' + (e.message || e), 'error'); });
+  };
+
+  function fetchMumbleConfig() {
+    pitboxFetch(API_BASE + '/mumble/config')
+      .then(function (r) { return r.json(); })
+      .then(function (cfg) {
+        var hostEl = document.getElementById('mumble-cfg-host');
+        var portEl = document.getElementById('mumble-cfg-port');
+        var exeEl  = document.getElementById('mumble-cfg-exe');
+        if (hostEl && cfg.mumble_host) hostEl.value = cfg.mumble_host;
+        if (portEl && cfg.mumble_grpc_port) portEl.value = cfg.mumble_grpc_port;
+        if (exeEl  && cfg.mumble_exe_path) exeEl.value = cfg.mumble_exe_path;
+      })
+      .catch(function () {});
+  }
+
+  function bindMumbleButtons() {
+    if (_mumbleBound) return;
+    _mumbleBound = true;
+
+    var btnRefresh = document.getElementById('mumble-btn-refresh');
+    if (btnRefresh) btnRefresh.addEventListener('click', function () { fetchMumbleStatus(); });
+
+    var btnLaunch = document.getElementById('mumble-btn-launch-all');
+    if (btnLaunch) btnLaunch.addEventListener('click', function () {
+      btnLaunch.disabled = true;
+      var res = document.getElementById('mumble-push-result');
+      if (res) { res.textContent = 'Launching Mumble on all rigs…'; res.classList.remove('hidden'); }
+      pitboxFetch(API_BASE + '/mumble/agents/push-launch', { method: 'POST' })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          var ok = (data.results || []).filter(function (r) { return r.success; }).length;
+          var total = (data.results || []).length;
+          if (res) res.textContent = 'Launched on ' + ok + '/' + total + ' rigs.';
+          showToast('Mumble launched on ' + ok + '/' + total + ' rigs.', 'success');
+          btnLaunch.disabled = false;
+        })
+        .catch(function (e) {
+          if (res) res.textContent = 'Error: ' + (e.message || e);
+          showToast('Launch failed: ' + (e.message || e), 'error');
+          btnLaunch.disabled = false;
+        });
+    });
+
+    var btnClose = document.getElementById('mumble-btn-close-all');
+    if (btnClose) btnClose.addEventListener('click', function () {
+      btnClose.disabled = true;
+      var res = document.getElementById('mumble-push-result');
+      if (res) { res.textContent = 'Closing Mumble on all rigs…'; res.classList.remove('hidden'); }
+      pitboxFetch(API_BASE + '/mumble/agents/push-close', { method: 'POST' })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          var ok = (data.results || []).filter(function (r) { return r.success; }).length;
+          var total = (data.results || []).length;
+          if (res) res.textContent = 'Closed on ' + ok + '/' + total + ' rigs.';
+          showToast('Mumble closed on ' + ok + '/' + total + ' rigs.', 'success');
+          btnClose.disabled = false;
+        })
+        .catch(function (e) {
+          if (res) res.textContent = 'Error: ' + (e.message || e);
+          showToast('Close failed: ' + (e.message || e), 'error');
+          btnClose.disabled = false;
+        });
+    });
+
+    var btnSend = document.getElementById('mumble-btn-send-msg');
+    if (btnSend) btnSend.addEventListener('click', function () {
+      var textEl = document.getElementById('mumble-msg-text');
+      var chanEl = document.getElementById('mumble-msg-channel');
+      var text = textEl ? textEl.value.trim() : '';
+      if (!text) { showToast('Enter a message first.', 'warning'); return; }
+      var chId = chanEl && chanEl.value ? parseInt(chanEl.value, 10) : null;
+      pitboxFetch(API_BASE + '/mumble/message', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: text, channel_id: chId })
+      }).then(function () {
+        if (textEl) textEl.value = '';
+        showToast('Message sent.', 'success');
+      }).catch(function (e) { showToast('Send failed: ' + (e.message || e), 'error'); });
+    });
+
+    var btnSaveCfg = document.getElementById('mumble-cfg-save');
+    if (btnSaveCfg) btnSaveCfg.addEventListener('click', function () {
+      var host  = (document.getElementById('mumble-cfg-host')  || {}).value || '';
+      var port  = parseInt((document.getElementById('mumble-cfg-port')  || {}).value || '50051', 10);
+      var token = (document.getElementById('mumble-cfg-token') || {}).value || '';
+      var exe   = (document.getElementById('mumble-cfg-exe')   || {}).value || '';
+      pitboxFetch(API_BASE + '/mumble/config', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mumble_host: host, mumble_grpc_port: port, mumble_token: token, mumble_exe_path: exe })
+      }).then(function () {
+        showToast('Mumble settings saved.', 'success');
+        fetchMumbleStatus();
+      }).catch(function (e) { showToast('Save failed: ' + (e.message || e), 'error'); });
+    });
+  }
+
 })();

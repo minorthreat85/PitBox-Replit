@@ -886,6 +886,28 @@ async def close_display_endpoint():
     return result
 
 
+@router.post("/launch-mumble", dependencies=[Depends(verify_token)])
+async def launch_mumble_endpoint():
+    """Launch the Mumble desktop client on this sim PC."""
+    from agent.mumble_client import launch_mumble
+    from agent.config import get_config
+    cfg = get_config()
+    mumble_exe = getattr(cfg, "mumble_exe_path", None) or None
+    server_url = getattr(cfg, "mumble_server_url", None) or None
+    loop = asyncio.get_event_loop()
+    result = await loop.run_in_executor(None, lambda: launch_mumble(mumble_exe, server_url))
+    return result
+
+
+@router.post("/close-mumble", dependencies=[Depends(verify_token)])
+async def close_mumble_endpoint():
+    """Close the Mumble desktop client on this sim PC."""
+    from agent.mumble_client import close_mumble
+    loop = asyncio.get_event_loop()
+    result = await loop.run_in_executor(None, close_mumble)
+    return result
+
+
 @router.post("/launch-display", dependencies=[Depends(verify_token)])
 async def launch_display_endpoint():
     """Launch Chrome/Edge in kiosk fullscreen mode pointing at the controller /sim page."""

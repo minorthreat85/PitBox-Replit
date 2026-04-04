@@ -121,6 +121,10 @@ class ControllerConfig(BaseModel):
     ac_server_exe: Optional[str] = Field(default=None, description="Path to acServer.exe (convenience alias for ac_server_root)")
     ac_presets_root: Optional[str] = Field(default=None, description="Server presets root folder (convenience alias for ac_server_presets_root)")
     dev_repo_path: Optional[str] = Field(default=None, description="Path to the PitBox source repo on this machine (for in-app pull & rebuild dev updates)")
+    mumble_host: Optional[str] = Field(default=None, description="Mumble gRPC server host (default: 127.0.0.1)")
+    mumble_grpc_port: Optional[int] = Field(default=None, description="Mumble gRPC port (Mumble 1.4+ default: 50051)")
+    mumble_token: Optional[str] = Field(default=None, description="Mumble gRPC bearer token (leave blank if not configured)")
+    mumble_exe_path: Optional[str] = Field(default=None, description="Path to mumble.exe on sim PCs (used when pushing Mumble open on rigs)")
 
     @field_validator('agents')
     @classmethod

@@ -4274,3 +4274,175 @@ button:disabled {
     white-space: pre-wrap;
     word-break: break-all;
 }
+
+/* ========== Mumble Admin Page ========== */
+.mumble-wrap {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    padding: 0 24px 24px;
+    gap: 16px;
+    overflow-y: auto;
+}
+.mumble-push-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+.mumble-push-result {
+    font-size: .8rem;
+    color: var(--text-muted);
+    margin-top: 4px;
+    width: 100%;
+}
+.mumble-main {
+    display: flex;
+    gap: 16px;
+    flex: 1 1 auto;
+    min-height: 280px;
+}
+.mumble-panel {
+    flex: 1 1 0;
+    background: var(--card-bg, #18191c);
+    border: 1px solid var(--border-color, #2a2b2f);
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+.mumble-panel-title {
+    font-size: .7rem;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    padding: 10px 14px 6px;
+    border-bottom: 1px solid var(--border-color, #2a2b2f);
+    margin: 0;
+}
+.mumble-channel-list,
+.mumble-user-list {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    padding: 8px 0;
+}
+.mumble-placeholder {
+    color: var(--text-muted);
+    font-size: .8rem;
+    padding: 12px 14px;
+    margin: 0;
+}
+.mumble-channel-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 14px;
+    font-size: .85rem;
+    cursor: default;
+}
+.mumble-channel-item:hover {
+    background: var(--hover-bg, #22232a);
+}
+.mumble-channel-name {
+    flex: 1;
+    font-weight: 500;
+}
+.mumble-channel-sub {
+    padding-left: 28px;
+}
+.mumble-user-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 14px;
+    font-size: .85rem;
+}
+.mumble-user-row:hover {
+    background: var(--hover-bg, #22232a);
+}
+.mumble-user-name {
+    flex: 1;
+    font-weight: 500;
+}
+.mumble-user-channel {
+    font-size: .75rem;
+    color: var(--text-muted);
+    flex: 0 0 auto;
+}
+.mumble-user-icons {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+}
+.mumble-icon-muted {
+    color: #e53e3e;
+    font-size: .7rem;
+    font-weight: 700;
+    background: rgba(229,62,62,.15);
+    border-radius: 3px;
+    padding: 1px 4px;
+}
+.mumble-user-actions {
+    display: flex;
+    gap: 4px;
+}
+.mumble-user-actions button {
+    font-size: .7rem;
+    padding: 2px 8px;
+    border: 1px solid var(--border-color, #2a2b2f);
+    background: transparent;
+    color: var(--text-muted);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background .15s, color .15s;
+}
+.mumble-user-actions button:hover {
+    background: var(--hover-bg, #22232a);
+    color: var(--text-primary, #fff);
+}
+.mumble-user-actions .btn-mute-active {
+    border-color: #e53e3e;
+    color: #e53e3e;
+}
+.mumble-user-actions .btn-kick {
+    border-color: #e53e3e;
+}
+.mumble-user-actions .btn-kick:hover {
+    background: rgba(229,62,62,.15);
+    color: #e53e3e;
+}
+.mumble-message-row {
+    border-top: 1px solid var(--border-color, #2a2b2f);
+    padding-top: 12px;
+}
+.mumble-message-fields {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+.mumble-msg-select {
+    min-width: 140px;
+}
+.mumble-config-section {
+    border: 1px solid var(--border-color, #2a2b2f);
+    border-radius: 6px;
+    padding: 0;
+    margin-top: 4px;
+}
+.mumble-config-summary {
+    font-size: .8rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 10px 14px;
+    list-style: none;
+    user-select: none;
+}
+.mumble-config-summary::-webkit-details-marker { display: none; }
+.mumble-config-form {
+    padding: 12px 14px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
