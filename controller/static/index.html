@@ -927,7 +927,7 @@
 
         <!-- Page: Mumble -->
         <div id="page-mumble" class="content-page hidden" data-page="mumble">
-            <div class="mumble-wrap">
+            <div class="mumble-wrap" style="display:flex;flex-direction:column;flex:1;min-height:0;overflow-y:auto;padding:0 24px 24px;gap:16px;">
                 <header class="cc-header">
                     <div class="cc-header-left">
                         <h1 class="cc-title">MUMBLE</h1>
@@ -943,14 +943,14 @@
                     <button type="button" id="mumble-btn-close-all" class="btn-secondary">Close Mumble on all rigs</button>
                     <div id="mumble-push-result" class="mumble-push-result hidden"></div>
                 </div>
-                <div class="mumble-main">
-                    <div class="mumble-panel mumble-channels-panel">
+                <div class="mumble-main" style="display:flex;gap:16px;flex:1 1 auto;min-height:220px;">
+                    <div class="mumble-panel mumble-channels-panel" style="flex:1 1 0;background:#18191c;border:1px solid #2a2b2f;border-radius:8px;display:flex;flex-direction:column;overflow:hidden;">
                         <h3 class="mumble-panel-title">Channels</h3>
                         <div id="mumble-channel-list" class="mumble-channel-list">
                             <p class="mumble-placeholder">Loading&hellip;</p>
                         </div>
                     </div>
-                    <div class="mumble-panel mumble-users-panel">
+                    <div class="mumble-panel mumble-users-panel" style="flex:1 1 0;background:#18191c;border:1px solid #2a2b2f;border-radius:8px;display:flex;flex-direction:column;overflow:hidden;">
                         <h3 class="mumble-panel-title">Connected Users</h3>
                         <div id="mumble-user-list" class="mumble-user-list">
                             <p class="mumble-placeholder">Loading&hellip;</p>

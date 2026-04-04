@@ -421,24 +421,8 @@ def _no_cache_headers() -> dict:
 
 
 def _asset_response(path: Path, media_type: str, request: Request):
-    """
-    Serve a static asset (JS/CSS) with ETag-based conditional caching.
-    Returns 304 Not Modified when the client already has the current version.
-    HTML files should still use _no_cache_headers() to ensure fresh markup.
-    """
-    try:
-        mtime = int(path.stat().st_mtime * 1000)
-    except OSError:
-        return FileResponse(path, media_type=media_type, headers=_no_cache_headers())
-    etag = f'"{mtime}"'
-    if_none_match = request.headers.get("if-none-match", "")
-    if if_none_match and if_none_match == etag:
-        return Response(status_code=304, headers={"ETag": etag, "Cache-Control": "no-cache"})
-    return FileResponse(
-        path,
-        media_type=media_type,
-        headers={"Cache-Control": "no-cache, must-revalidate", "ETag": etag},
-    )
+    """Serve a static asset — always fresh (no-store prevents stale UI after updates)."""
+    return FileResponse(path, media_type=media_type, headers=_no_cache_headers())
 
 
 @app.get("/")
