@@ -26,6 +26,29 @@ class MumbleClientError(Exception):
     pass
 
 
+def _find_ice_slice_dir() -> str:
+    """Return the Ice built-in slice include directory, or empty string if not found."""
+    try:
+        import Ice
+        ice_pkg = os.path.dirname(Ice.__file__)
+        # zeroc-ice ships slice files at various locations depending on version/OS
+        candidates = [
+            os.path.join(ice_pkg, "slice"),
+            os.path.join(ice_pkg, "..", "slice"),
+            os.path.join(ice_pkg, "..", "..", "slice"),
+            os.path.join(ice_pkg, "..", "Ice", "slice"),
+            os.path.join(sys.prefix, "slice"),
+            os.path.join(sys.prefix, "Lib", "site-packages", "slice"),
+        ]
+        for c in candidates:
+            norm = os.path.normpath(c)
+            if os.path.isdir(norm) and os.path.exists(os.path.join(norm, "Ice")):
+                return norm
+    except Exception:
+        pass
+    return ""
+
+
 def _load_ice():
     """Load the MumbleServer.ice slice definition (once)."""
     global _ice_loaded
@@ -46,7 +69,11 @@ def _load_ice():
             )
         try:
             import Ice
-            Ice.loadSlice(f"--all -I{os.path.dirname(_ICE_FILE)} {_ICE_FILE}")
+            ice_slice_dir = _find_ice_slice_dir()
+            includes = f"-I{os.path.dirname(_ICE_FILE)}"
+            if ice_slice_dir:
+                includes += f" -I{ice_slice_dir}"
+            Ice.loadSlice(f"--all {includes} {_ICE_FILE}")
         except Exception as e:
             raise MumbleClientError(f"Failed to load MumbleServer.ice: {e}") from e
         _ice_loaded = True
