@@ -6238,6 +6238,10 @@
         shiftingPreset[id] = firstShifting;
         driverNames[id] = defaultSimName;
         if (card) {
+          var steeringSelect = card.querySelector('.preset-steering');
+          if (steeringSelect) steeringSelect.value = firstSteering;
+          var shiftingSelect = card.querySelector('.preset-shifting');
+          if (shiftingSelect) shiftingSelect.value = firstShifting;
           var driverInput = card.querySelector('.sim-card-driver-input');
           if (driverInput) driverInput.value = defaultSimName;
         }
