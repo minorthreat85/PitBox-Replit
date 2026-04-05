@@ -6205,6 +6205,8 @@
       delete sessionStartTimeByAgent[id];
     }
     var agent = currentAgents.filter(function (a) { return a.agent_id === id; })[0];
+    var simIndex = currentAgents.findIndex(function (a) { return a.agent_id === id; });
+    var defaultSimName = 'Sim ' + (simIndex >= 0 ? simIndex + 1 : 1);
     var steeringPresets = agent && Array.isArray(agent.steering_presets) ? agent.steering_presets : [];
     var shiftingPresets = agent && Array.isArray(agent.shifting_presets) ? agent.shifting_presets : [];
     var firstSteering = (function () {
@@ -6223,7 +6225,7 @@
     pitboxFetch(API_BASE + '/reset-rig', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sim_id: id, steering_preset: firstSteering, shifting_preset: firstShifting, display_name: '' })
+      body: JSON.stringify({ sim_id: id, steering_preset: firstSteering, shifting_preset: firstShifting, display_name: defaultSimName })
     })
       .then(function (r) {
         return r.json().then(function (data) {
@@ -6234,7 +6236,11 @@
       .then(function (data) {
         steeringPreset[id] = firstSteering;
         shiftingPreset[id] = firstShifting;
-        delete driverNames[id];
+        driverNames[id] = defaultSimName;
+        if (card) {
+          var driverInput = card.querySelector('.sim-card-driver-input');
+          if (driverInput) driverInput.value = defaultSimName;
+        }
         var defaultServerId = DEFAULT_RESET_SERVER_ID;
         return pitboxFetch(API_BASE + '/assignments/' + encodeURIComponent(id), {
           method: 'POST',

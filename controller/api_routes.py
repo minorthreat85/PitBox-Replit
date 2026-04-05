@@ -104,7 +104,7 @@ from controller.ac_paths import (
 from controller.discovery import get_discovered
 from controller.ini_io import read_ini, write_ini, write_ini_atomic, _ini_value
 from controller.enrollment import get_state as get_enrollment_state, is_enabled as enrollment_is_enabled, start_enrollment, stop_enrollment, verify_secret as enrollment_verify_secret
-from controller.enrolled_rigs import add as enrolled_add, get as enrolled_get, get_all_ordered as enrolled_get_all_ordered, get_agent_id_by_display_name, get_display_name_for_rig, load as load_enrolled_rigs, remove as enrolled_remove
+from controller.enrolled_rigs import add as enrolled_add, get as enrolled_get, get_all_ordered as enrolled_get_all_ordered, get_agent_id_by_display_name, get_display_name_for_rig, load as load_enrolled_rigs, remove as enrolled_remove, update_display_name as enrolled_update_display_name
 from controller.enrollment_broadcast import set_controller_url_provider, start as start_enrollment_broadcast
 from controller.common.event_log import LogCategory as EventLogCategory, LogLevel as EventLogLevel, make_event as make_log_event
 from controller.service.event_store import append_event as event_store_append
@@ -2499,14 +2499,17 @@ async def reset_rig(request: ResetRigRequest, _: None = Depends(require_operator
     """Reset rig to defaults on one sim (steering, shifting, display name). Does not launch AC. Returns requires_restart if AC was running."""
     _validate_steering_shifting_name_http(request.steering_preset or "Race")
     _validate_steering_shifting_name_http(request.shifting_preset or "H-Pattern")
+    reset_name = (request.display_name or "").strip() or None
     body = {
         "steering_preset": request.steering_preset or "Race",
         "shifting_preset": request.shifting_preset or "H-Pattern",
-        "display_name": (request.display_name or "").strip() or None,
+        "display_name": reset_name,
     }
     result = await send_agent_command(request.sim_id, "reset_rig", body)
     if not result.get("success"):
         raise HTTPException(status_code=500, detail=result.get("message", "Agent request failed"))
+    # Clear the enrolled rig's stored display name so the card label resets to default (Sim N)
+    enrolled_update_display_name(request.sim_id, reset_name)
     return {
         "success": True,
         "message": result.get("message", "Rig reset applied"),

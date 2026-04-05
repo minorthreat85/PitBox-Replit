@@ -294,6 +294,18 @@ def get_all_ordered() -> list[dict]:
     return sorted(_rigs, key=lambda r: (r.get("order", 999), _rigs.index(r) if r in _rigs else 999))
 
 
+def update_display_name(agent_id: str, display_name: Optional[str]) -> bool:
+    """Set (or clear) the display name for a rig. Returns True if found and saved."""
+    agent_id = (agent_id or "").strip()
+    for r in _rigs:
+        if (r.get("agent_id") or "").strip() == agent_id:
+            dn = (display_name or "").strip() or None
+            r["display_name"] = dn
+            _save()
+            return True
+    return False
+
+
 def remove(agent_id: str) -> bool:
     """Remove a rig. Returns True if removed."""
     global _rigs
