@@ -122,27 +122,30 @@ class MumbleClientICE:
         except ImportError as e:
             raise MumbleClientError(f"Ice import failed: {e}") from e
 
-        # ImplicitContext=Shared is required for ic.getImplicitContext() to return
-        # a non-None value so we can inject the ICE secret header.
-        init_data = Ice.InitializationData()
-        init_data.properties = Ice.createProperties()
-        init_data.properties.setProperty("Ice.ImplicitContext", "Shared")
-        ic = Ice.initialize(init_data)
+        # Use plain initialize — no ImplicitContext needed.
+        # The secret is injected per-proxy via ice_context() which sends it
+        # with every request on that proxy.  This works in all zeroc-ice 3.x
+        # versions and survives PyInstaller frozen-bundle environments.
+        ic = Ice.initialize([])
         try:
-            if self.secret:
-                ic.getImplicitContext().put("secret", self.secret)
+            ctx = {"secret": self.secret} if self.secret else {}
             proxy_str = f"Meta:tcp -h {self.host} -p {self.port}"
             base = ic.stringToProxy(proxy_str)
+            if ctx:
+                base = base.ice_context(ctx)
             meta = MumbleServer.MetaPrx.checkedCast(base)
             if not meta:
                 raise MumbleClientError(
-                    f"No Meta proxy at {proxy_str} — check host/port and that Murmur ICE is enabled"
+                    f"No Meta proxy at {proxy_str} - check host/port and that Murmur ICE is enabled"
                 )
             server = meta.getServer(self.server_id)
             if not server:
                 raise MumbleClientError(
                     f"Server ID {self.server_id} not found on Murmur"
                 )
+            # Propagate the context to the server proxy too so write ops are authenticated
+            if ctx:
+                server = server.ice_context(ctx)
             return ic, server
         except MumbleClientError:
             ic.destroy()
