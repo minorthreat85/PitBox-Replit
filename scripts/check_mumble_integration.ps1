@@ -232,12 +232,14 @@ Write-Host ""
 Write-Host "Check 3: Python can import Ice" -ForegroundColor White
 
 if ($PitBoxPython -and (Test-Path $PitBoxPython)) {
-    $iceTest = & $PitBoxPython -c "import Ice; print(Ice.__version__)" 2>&1
+    $iceTest = & $PitBoxPython -c "import Ice; print('Ice OK')" 2>&1
     if ($LASTEXITCODE -eq 0) {
-        Show-Pass "import Ice succeeded  -  version: $iceTest  |  Python: $PitBoxPython"
+        Show-Pass "Python can import Ice."
+        Write-Host "          $PitBoxPython" -ForegroundColor DarkGray
     } else {
-        Show-Fail "import Ice failed. Run: pip install zeroc-ice  |  Python: $PitBoxPython"
-        Show-Warn "Output: $iceTest"
+        Show-Fail "Python cannot import Ice. Run: pip install zeroc-ice"
+        Write-Host "          $PitBoxPython" -ForegroundColor DarkGray
+        Write-Host "          $iceTest" -ForegroundColor DarkRed
     }
 } else {
     Show-Fail "Python interpreter not found. Expected: $PitBoxPython"
