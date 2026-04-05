@@ -1,0 +1,51 @@
+THIRD-PARTY NOTICES
+===================
+PitBox — Sim Racing Lounge Management System
+Copyright (C) Fastest Lap. All rights reserved.
+
+PitBox integrates with the following third-party open-source components.
+Their licenses and source locations are listed below.
+Full license texts are in the `licenses/` directory.
+
+-------------------------------------------------------------------------------
+
+1. MUMBLE (Mumble Server / murmur)
+   Component role : Voice comms server. PitBox launches, configures, and
+                    queries the running Mumble Server over its ICE interface.
+                    PitBox does NOT ship or modify Mumble binaries.
+   License        : BSD 2-Clause ("Simplified BSD License")
+   Copyright      : Copyright (C) 2005-2023 The Mumble Developers
+   Source         : https://github.com/mumble-voip/mumble
+   Project URL    : https://www.mumble.info/
+   License file   : licenses/mumble-LICENSE.txt
+
+-------------------------------------------------------------------------------
+
+2. ZEROC ICE (zeroc-ice Python package)
+   Component role : ICE middleware used at runtime to communicate with the
+                    Mumble Server (murmur) over a local ICE interface on
+                    127.0.0.1:6502. zeroc-ice is NOT bundled into PitBox;
+                    it is installed separately into the host Python environment.
+   License        : GPL-2.0 (or commercial from ZeroC)
+   Copyright      : Copyright (C) 2003-2023 ZeroC, Inc.
+   Source         : https://github.com/zeroc-ice/ice
+   Project URL    : https://zeroc.com/ice
+   License file   : licenses/zeroc-ice-LICENSE.txt
+
+   DISTRIBUTION NOTE: zeroc-ice is a separate pip-installed dependency.
+   It is not compiled into or statically linked with PitBox.
+   If PitBox is ever distributed commercially with zeroc-ice bundled,
+   obtain a commercial ZeroC Ice license first.
+
+-------------------------------------------------------------------------------
+
+REDISTRIBUTION SUMMARY
+-----------------------
+- Mumble binaries (if included with a PitBox deployment package) are
+  redistributed UNMODIFIED from the official Mumble project under
+  the BSD 2-Clause License above.
+- ZeroC Ice (zeroc-ice) is NOT bundled in PitBox distributions.
+  Users install it independently via: pip install zeroc-ice
+- No Mumble or Ice source code is compiled into PitBox.
+
+For questions about licensing, contact: Fastest Lap

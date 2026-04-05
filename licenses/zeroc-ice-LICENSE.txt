@@ -1,0 +1,60 @@
+ZeroC Ice — Object-Oriented Middleware
+Copyright (C) 2003-2023 ZeroC, Inc.
+All rights reserved.
+
+Source: https://github.com/zeroc-ice/ice
+Project: https://zeroc.com/ice
+
+ZeroC Ice is dual-licensed:
+
+  (a) GNU General Public License, version 2 (GPL-2.0)
+      https://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+
+  (b) Commercial license available from ZeroC, Inc.
+      https://zeroc.com/ice
+
+The full text of the GPL-2.0 follows.
+
+---
+
+GNU GENERAL PUBLIC LICENSE
+Version 2, June 1991
+
+Copyright (C) 1989, 1991 Free Software Foundation, Inc.
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+
+Everyone is permitted to copy and distribute verbatim copies of this
+license document, but changing it is not allowed.
+
+                            PREAMBLE
+
+The licenses for most software are designed to take away your freedom
+to share and change it. By contrast, the GNU General Public License is
+intended to guarantee your freedom to share and change free software --
+to make sure the software is free for all its users. This General
+Public License applies to most of the Free Software Foundation's
+software and to any other program whose authors commit to using it.
+
+[Full GPL-2.0 text available at: https://www.gnu.org/licenses/old-licenses/gpl-2.0.html]
+
+---
+
+NOTE FOR PITBOX DISTRIBUTION
+-----------------------------
+PitBox uses the `zeroc-ice` Python package at RUNTIME to communicate
+with an already-running Mumble Server (murmur) over ICE on localhost.
+
+CURRENT DEPLOYMENT (Fastest Lap internal only):
+  PitBox does NOT bundle zeroc-ice into its installer.
+  The zeroc-ice package is installed separately into the Python
+  environment on the host machine (pip install zeroc-ice).
+  This keeps PitBox's own distribution separate from the GPL-2.0
+  Ice package.
+
+FUTURE DISTRIBUTION NOTICE:
+  If PitBox is ever distributed to external venues as a commercial
+  product WITH zeroc-ice bundled, a commercial Ice license from
+  ZeroC must be obtained, OR the zeroc-ice dependency must remain
+  a separately installed external component that the end user installs.
+  Do not bundle zeroc-ice inside a closed-source PitBox installer
+  without legal review or a commercial ZeroC license.
