@@ -311,9 +311,17 @@ def get_config_path() -> Optional[str]:
     return str(_config_path)
 
 
+def set_config(config: ControllerConfig, config_path: Optional[Path] = None) -> None:
+    """Update in-memory config (and optionally the tracked path) without touching disk."""
+    global _config, _config_path
+    _config = config
+    if config_path is not None:
+        _config_path = Path(config_path).resolve()
+
+
 def save_config(config_path: Path, config: ControllerConfig) -> None:
     """
-    Write controller config to a JSON file. Used by enrollment (add agent) only.
+    Write controller config to a JSON file and update in-memory state.
     Does not modify any agent_config.json; see ENROLLMENT.md.
     """
     global _config, _config_path
@@ -321,8 +329,8 @@ def save_config(config_path: Path, config: ControllerConfig) -> None:
     config_path.parent.mkdir(parents=True, exist_ok=True)
     with open(config_path, "w", encoding="utf-8", newline="\n") as f:
         json.dump(config.model_dump(), f, indent=2, ensure_ascii=False)
-    if _config_path is not None and config_path.resolve() == _config_path.resolve():
-        _config = config
+    _config = config
+    _config_path = config_path.resolve()
     logger.info("Saved controller config to %s (%d agents)", config_path, len(config.agents))
 
 

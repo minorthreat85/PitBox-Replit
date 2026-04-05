@@ -246,8 +246,7 @@ async def get_mumble_config(_: None = Depends(require_operator)):
 @router.put("/config")
 async def put_mumble_config(body: MumbleConfigBody, _: None = Depends(require_operator)):
     try:
-        from controller.config import get_config, get_config_path
-        import json
+        from controller.config import get_config, get_config_path, save_config, set_config
         from pathlib import Path
         cfg = get_config()
         new_data = cfg.model_dump()
@@ -270,12 +269,9 @@ async def put_mumble_config(body: MumbleConfigBody, _: None = Depends(require_op
         new_cfg = cfg.__class__(**new_data)
         config_path = get_config_path()
         if config_path:
-            path_obj = Path(config_path)
-            tmp = path_obj.with_suffix(path_obj.suffix + ".tmp")
-            path_obj.parent.mkdir(parents=True, exist_ok=True)
-            with open(tmp, "w", encoding="utf-8", newline="\n") as f:
-                json.dump(new_cfg.model_dump(), f, indent=2, ensure_ascii=False)
-            tmp.replace(path_obj)
+            save_config(Path(config_path), new_cfg)
+        else:
+            set_config(new_cfg)
         reset_mumble_client()
         return {"ok": True}
     except Exception as e:
