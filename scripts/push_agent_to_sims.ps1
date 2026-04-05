@@ -69,8 +69,15 @@ if (-not (Test-Path $enrolledFile)) {
 }
 try {
     $rigsJson = Get-Content $enrolledFile -Raw -ErrorAction Stop
-    $rigs = $rigsJson | ConvertFrom-Json
-    if ($rigs -isnot [array]) { $rigs = @($rigs) }
+    $parsed   = $rigsJson | ConvertFrom-Json
+    # File is {"rigs":[...]} — unwrap the inner array
+    if ($parsed.rigs) {
+        $rigs = @($parsed.rigs)
+    } elseif ($parsed -is [array]) {
+        $rigs = $parsed
+    } else {
+        $rigs = @($parsed)
+    }
 } catch {
     Write-Host "ERROR: Could not parse $enrolledFile  ($_)" -ForegroundColor Red
     exit 1
