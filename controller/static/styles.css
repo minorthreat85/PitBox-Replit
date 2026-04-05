@@ -4486,10 +4486,10 @@ button:disabled {
     color: var(--text-primary, #e0e0e0);
 }
 .mbl-ch-header.mbl-drag-over {
-    background: rgba(72,187,120,.14);
-    outline: 2px dashed var(--accent-green, #48bb78);
+    background: rgba(229,62,62,.12);
+    outline: 2px dashed #e53e3e;
     outline-offset: -2px;
-    color: #48bb78;
+    color: #e53e3e;
 }
 .mbl-ch-toggle {
     font-size: .6rem;

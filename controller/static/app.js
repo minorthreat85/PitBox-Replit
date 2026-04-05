@@ -6524,8 +6524,16 @@
       return html;
     }
 
+    var topLevel = [];
+    sortByPos(roots).forEach(function (r) {
+      if (r.id === 0 || r.name.toLowerCase() === 'root') {
+        sortByPos(children[r.id] || []).forEach(function (ch) { topLevel.push(ch); });
+      } else {
+        topLevel.push(r);
+      }
+    });
     var html = '';
-    sortByPos(roots).forEach(function (c) { html += renderChannel(c, 0); });
+    topLevel.forEach(function (c) { html += renderChannel(c, 0); });
     el.innerHTML = html;
   }
 
