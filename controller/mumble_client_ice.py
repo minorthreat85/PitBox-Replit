@@ -122,7 +122,12 @@ class MumbleClientICE:
         except ImportError as e:
             raise MumbleClientError(f"Ice import failed: {e}") from e
 
-        ic = Ice.initialize(sys.argv)
+        # ImplicitContext=Shared is required for ic.getImplicitContext() to return
+        # a non-None value so we can inject the ICE secret header.
+        init_data = Ice.InitializationData()
+        init_data.properties = Ice.createProperties()
+        init_data.properties.setProperty("Ice.ImplicitContext", "Shared")
+        ic = Ice.initialize(init_data)
         try:
             if self.secret:
                 ic.getImplicitContext().put("secret", self.secret)
