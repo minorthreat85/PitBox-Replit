@@ -1,26 +1,25 @@
 #Requires -RunAsAdministrator
 <#
 .SYNOPSIS
-    PitBox — Write Mumble Server ICE configuration (Fastest Lap internal deployment).
+    PitBox — Write Mumble Server 1.3.4 ICE configuration (Fastest Lap internal deployment).
 
 .DESCRIPTION
-    Locates mumble-server.ini and writes (or updates) the ICE settings
-    required for PitBox to connect to the running Mumble Server:
+    Locates mumble-server.ini (or murmur.ini for the 1.3.4 static build) and
+    writes (or updates) the ICE settings required for PitBox to connect:
 
         ice="tcp -h 127.0.0.1 -p 6502"
         icesecretread=fastestlap
         icesecretwrite=fastestlap
 
-    If a [murmur] section does not exist, the keys are appended to the end
-    of the file.  If any key already exists, it is updated in place.
+    If any key already exists, it is updated in place.
     The original file is backed up before any changes are written.
-
-    After writing the config, the script optionally restarts the
-    Mumble Server Windows service so the new settings take effect.
+    After writing the config, the script restarts Mumble with an explicit
+    -ini argument so the new settings are guaranteed to load.
 
 .NOTES
-    Mumble is an external dependency — it is NOT bundled with PitBox.
-    License: BSD 2-Clause  |  https://www.mumble.info/
+    Target version  : Mumble Server (Murmur) 1.3.4
+                      Do NOT run against 1.5.x — Ice was removed in that version.
+    Mumble license  : BSD 2-Clause  |  https://www.mumble.info/
 #>
 
 Set-StrictMode -Version Latest
@@ -39,6 +38,11 @@ $MumbleServiceName = "Murmur"
 # Known exe locations — used to launch Mumble directly if no service exists
 # (keep in sync with install_mumble.ps1 / check_mumble_integration.ps1)
 $MumbleExePaths = @(
+    # 1.3.4 static build — recommended install location for Fastest Lap
+    "C:\PitBox\mumble\mumble-server.exe",
+    "C:\PitBox\mumble\murmur.exe",
+    # 1.5.x default (listed so configure still works if operator uses that path,
+    # but note: 1.5.x does not support ICE — see install_mumble.ps1)
     "C:\Program Files\Mumble\server\mumble-server.exe",
     "C:\Program Files\Mumble\server\murmur.exe",
     "C:\Program Files\Mumble\mumble-server.exe",
@@ -50,9 +54,13 @@ $MumbleExePaths = @(
 )
 
 # ---------------------------------------------------------------------------
-# Known locations for mumble-server.ini on Windows
+# Known locations for mumble-server.ini / murmur.ini on Windows
 # ---------------------------------------------------------------------------
 $IniSearchPaths = @(
+    # 1.3.4 static build — ini lives next to the exe by default
+    "C:\PitBox\mumble\murmur.ini",
+    "C:\PitBox\mumble\mumble-server.ini",
+    # 1.5.x default path
     "C:\Program Files\Mumble\server\mumble-server.ini",
     "C:\ProgramData\Mumble Server\mumble-server.ini",
     "C:\ProgramData\Mumble\mumble-server.ini",

@@ -1,12 +1,13 @@
 #Requires -RunAsAdministrator
 <#
 .SYNOPSIS
-    PitBox — Verify Mumble + ICE integration (Fastest Lap internal deployment).
+    PitBox — Verify Mumble 1.3.x + ICE integration (Fastest Lap internal deployment).
 
 .DESCRIPTION
-    Runs four checks and prints a summary:
+    Runs five checks and prints a summary:
 
-      1. mumble-server.exe (or murmur.exe) is present on disk.
+      1. mumble-server.exe / murmur.exe exists on disk.
+      1b. Version is 1.3.x (Ice was removed in 1.5.x — wrong version = FAIL).
       2. Port 6502 is listening on 127.0.0.1 (ICE endpoint).
       3. The PitBox Python environment can `import Ice`.
       4. mumble-server.ini contains the expected ICE settings.
@@ -14,9 +15,9 @@
     Exits with code 0 if all checks pass, 1 if any check fails.
 
 .NOTES
-    Mumble is an external dependency — it is NOT bundled with PitBox.
-    License: BSD 2-Clause  |  https://www.mumble.info/
-    ZeroC Ice (zeroc-ice pip package) is also an external dependency.
+    Target version  : Mumble Server (Murmur) 1.3.4
+    Mumble license  : BSD 2-Clause  |  https://www.mumble.info/
+    ZeroC Ice       : separately installed via pip install zeroc-ice
 #>
 
 Set-StrictMode -Version Latest
@@ -30,10 +31,11 @@ $ExpectedIceHost         = "127.0.0.1"
 $ExpectedIceEndpoint     = "tcp -h 127.0.0.1 -p 6502"
 $ExpectedIceSecretRead   = "fastestlap"
 $ExpectedIceSecretWrite  = "fastestlap"
+$RequiredMumbleMajor     = 1
+$RequiredMumbleMinor     = 3    # 1.3.x only — 1.4+ deprecated/removed Ice
 
 # Path to the Python used by PitBox (update if the install location differs)
 $PitBoxPython = "C:\PitBox\installed\python\python.exe"
-# Fallback: just use whatever python3 / python is on PATH
 if (-not (Test-Path $PitBoxPython)) {
     $PitBoxPython = (Get-Command python -ErrorAction SilentlyContinue)?.Source
     if (-not $PitBoxPython) {
@@ -43,6 +45,11 @@ if (-not (Test-Path $PitBoxPython)) {
 
 # Known ini locations (keep in sync with configure_mumble.ps1)
 $IniSearchPaths = @(
+    # 1.3.x static build default (murmur.ini lives next to the exe)
+    "C:\PitBox\mumble\murmur.ini",
+    "C:\PitBox\mumble\mumble-server.ini",
+    # 1.5.x default (kept so we can detect a misconfigured machine)
+    "C:\Program Files\Mumble\server\mumble-server.ini",
     "C:\ProgramData\Mumble Server\mumble-server.ini",
     "C:\ProgramData\Mumble\mumble-server.ini",
     "C:\Program Files\Mumble\mumble-server.ini",
@@ -52,6 +59,9 @@ $IniSearchPaths = @(
 
 # Known exe locations (keep in sync with install_mumble.ps1)
 $ExeSearchPaths = @(
+    "C:\PitBox\mumble\mumble-server.exe",
+    "C:\PitBox\mumble\murmur.exe",
+    # 1.5.x default — listed so version-mismatch is caught
     "C:\Program Files\Mumble\server\mumble-server.exe",
     "C:\Program Files\Mumble\server\murmur.exe",
     "C:\Program Files\Mumble\mumble-server.exe",
@@ -82,11 +92,23 @@ function Show-Warn([string] $msg) {
     Write-Host "  [WARN]  $msg" -ForegroundColor Yellow
 }
 
+function Get-ExeVersion([string] $exePath) {
+    try {
+        $v = (Get-Item $exePath).VersionInfo.FileVersionRaw
+        if ($v) { return "$($v.Major).$($v.Minor).$($v.Build)" }
+    } catch {}
+    try {
+        $out = & $exePath "--version" 2>&1 | Select-Object -First 3
+        if ($out -match "(\d+\.\d+[\.\d]*)") { return $Matches[1] }
+    } catch {}
+    return $null
+}
+
 # ---------------------------------------------------------------------------
-# Check 1 — mumble-server.exe exists
+# Check 1 — mumble-server.exe / murmur.exe exists
 # ---------------------------------------------------------------------------
 Write-Host ""
-Write-Host "=== PitBox — Mumble Integration Check ===" -ForegroundColor Cyan
+Write-Host "=== PitBox — Mumble 1.3.x + ICE Integration Check ===" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Check 1: Mumble Server binary" -ForegroundColor White
 
@@ -95,7 +117,6 @@ foreach ($p in $ExeSearchPaths) {
     if (Test-Path $p) { $mumbleExe = $p; break }
 }
 if (-not $mumbleExe) {
-    # Try registry
     $roots = @(
         "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*",
         "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*"
@@ -105,11 +126,14 @@ if (-not $mumbleExe) {
             Where-Object { $_.DisplayName -match "(?i)mumble" }
         foreach ($e in $entries) {
             if ($e.InstallLocation) {
-                $candidate = Join-Path $e.InstallLocation "mumble-server.exe"
-                if (Test-Path $candidate) { $mumbleExe = $candidate; break }
-                $candidate = Join-Path $e.InstallLocation "murmur.exe"
-                if (Test-Path $candidate) { $mumbleExe = $candidate; break }
+                foreach ($name in @("mumble-server.exe", "murmur.exe")) {
+                    $c = Join-Path $e.InstallLocation $name
+                    if (Test-Path $c) { $mumbleExe = $c; break }
+                    $c = Join-Path $e.InstallLocation "server\$name"
+                    if (Test-Path $c) { $mumbleExe = $c; break }
+                }
             }
+            if ($mumbleExe) { break }
         }
         if ($mumbleExe) { break }
     }
@@ -119,6 +143,34 @@ if ($mumbleExe) {
     Show-Pass "Found: $mumbleExe"
 } else {
     Show-Fail "mumble-server.exe / murmur.exe not found. Run install_mumble.ps1."
+}
+
+# ---------------------------------------------------------------------------
+# Check 1b — version must be 1.3.x
+# ---------------------------------------------------------------------------
+Write-Host ""
+Write-Host "Check 1b: Version is 1.3.x (required for ICE support)" -ForegroundColor White
+
+if ($mumbleExe) {
+    $ver = Get-ExeVersion $mumbleExe
+    if ($ver) {
+        $parts = $ver -split "\."
+        $maj   = [int]$parts[0]
+        $min   = if ($parts.Count -gt 1) { [int]$parts[1] } else { 0 }
+
+        if ($maj -eq $RequiredMumbleMajor -and $min -eq $RequiredMumbleMinor) {
+            Show-Pass "Version $ver — correct (1.3.x supports ICE)."
+        } else {
+            Show-Fail "Version $ver detected — ICE requires 1.3.x."
+            Show-Warn "Mumble $ver does NOT expose ZeroC Ice on port 6502."
+            Show-Warn "Uninstall $ver, install 1.3.4 from:"
+            Show-Warn "  https://github.com/mumble-voip/mumble/releases/tag/1.3.4"
+        }
+    } else {
+        Show-Warn "Could not read version. Confirm manually that this is 1.3.x."
+    }
+} else {
+    Show-Warn "Skipped (binary not found — see Check 1)."
 }
 
 # ---------------------------------------------------------------------------
@@ -137,7 +189,9 @@ if ($listening) {
     $proc = Get-Process -Id $pid_ -ErrorAction SilentlyContinue
     Show-Pass "Port $ExpectedIcePort is listening (PID $pid_$(if ($proc) { ' — ' + $proc.ProcessName } else { '' }))."
 } else {
-    Show-Fail "Port $ExpectedIcePort not listening on $ExpectedIceHost. Is Mumble Server running?"
+    Show-Fail "Port $ExpectedIcePort not listening on $ExpectedIceHost."
+    Show-Warn "If version check passed, start murmur.exe and confirm it loads the right ini."
+    Show-Warn "If version check failed, port 6502 will never open until 1.3.4 is installed."
 }
 
 # ---------------------------------------------------------------------------
@@ -171,12 +225,11 @@ foreach ($p in $IniSearchPaths) {
 }
 
 if (-not $iniPath) {
-    Show-Fail "mumble-server.ini not found. Run configure_mumble.ps1."
+    Show-Fail "mumble-server.ini / murmur.ini not found. Run configure_mumble.ps1."
 } else {
     Write-Host "         INI file: $iniPath" -ForegroundColor DarkGray
     $content = Get-Content $iniPath -Encoding UTF8
 
-    # Helper: extract a value for a key
     function Get-IniValue([string] $key) {
         $line = $content | Where-Object { $_ -match "^\s*$([regex]::Escape($key))\s*=" } | Select-Object -First 1
         if ($line) { return ($line -replace "^\s*$([regex]::Escape($key))\s*=\s*", "").Trim('"').Trim() }
@@ -217,10 +270,12 @@ Write-Host "Result: $pass / $total checks passed." -ForegroundColor $(if ($fail 
 if ($fail -eq 0) {
     Write-Host "All checks passed. PitBox <-> Mumble ICE integration is ready." -ForegroundColor Green
 } else {
-    Write-Host "$fail check(s) failed. Review the FAIL lines above and:" -ForegroundColor Red
-    Write-Host "  1. Run install_mumble.ps1   if Mumble is missing."
-    Write-Host "  2. Run configure_mumble.ps1 if ICE settings are wrong."
-    Write-Host "  3. Run: pip install zeroc-ice  if Ice is missing."
+    Write-Host "$fail check(s) failed. Common fixes:" -ForegroundColor Red
+    Write-Host "  - Wrong Mumble version : uninstall 1.5.x, install 1.3.4 from"
+    Write-Host "      https://github.com/mumble-voip/mumble/releases/tag/1.3.4"
+    Write-Host "  - ICE not configured   : run configure_mumble.ps1"
+    Write-Host "  - Ice not in Python    : pip install zeroc-ice"
+    Write-Host "  - Port not listening   : start murmur.exe / mumble-server.exe"
 }
 
 Write-Host ""
