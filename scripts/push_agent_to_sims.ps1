@@ -88,19 +88,19 @@ $results = @()
 foreach ($rig in $rigs) {
     # PowerShell 5-compatible null coalescing
     $agentId = if ($rig.agent_id) { $rig.agent_id } elseif ($rig.id) { $rig.id } else { "unknown" }
-    $host    = if ($rig.host)     { $rig.host }     elseif ($rig.ip) { $rig.ip } elseif ($rig.address) { $rig.address } else { "" }
+    $rigHost = if ($rig.host)     { $rig.host }     elseif ($rig.ip) { $rig.ip } elseif ($rig.address) { $rig.address } else { "" }
     $label   = if ($rig.display_name) { $rig.display_name } elseif ($rig.hostname) { $rig.hostname } else { $agentId }
 
-    if (-not $host) {
+    if (-not $rigHost) {
         Write-Host "  [$label] SKIP - no host/IP recorded" -ForegroundColor Yellow
         $results += [pscustomobject]@{ Rig=$label; Result="SKIPPED (no IP)"; Host="" }
         continue
     }
 
-    $targetDir = "\\$host\C`$\PitBox\Agent\bin"
+    $targetDir = "\\$rigHost\C`$\PitBox\Agent\bin"
     $targetExe = "$targetDir\PitBoxAgent.exe"
 
-    Write-Host "  [$label]  $host" -ForegroundColor White
+    Write-Host "  [$label]  $rigHost" -ForegroundColor White
     Write-Host "    Copying to $targetExe ..." -NoNewline -ForegroundColor Gray
 
     try {
@@ -111,26 +111,26 @@ foreach ($rig in $rigs) {
         Write-Host " OK" -ForegroundColor Green
     } catch {
         Write-Host " FAILED ($_)" -ForegroundColor Red
-        $results += [pscustomobject]@{ Rig=$label; Result="COPY FAILED: $_"; Host=$host }
+        $results += [pscustomobject]@{ Rig=$label; Result="COPY FAILED: $_"; Host=$rigHost }
         continue
     }
 
     # Restart the service via sc.exe (no WinRM required)
     Write-Host "    Restarting PitBoxAgent service ..." -NoNewline -ForegroundColor Gray
     try {
-        $null = & sc.exe "\\$host" stop  PitBoxAgent 2>&1
+        $null = & sc.exe "\\$rigHost" stop  PitBoxAgent 2>&1
         Start-Sleep -Seconds 2
-        $startOut = & sc.exe "\\$host" start PitBoxAgent 2>&1
+        $startOut = & sc.exe "\\$rigHost" start PitBoxAgent 2>&1
         if ($LASTEXITCODE -eq 0 -or ($startOut -join " ") -match "START_PENDING|RUNNING") {
             Write-Host " OK" -ForegroundColor Green
-            $results += [pscustomobject]@{ Rig=$label; Result="Updated + restarted"; Host=$host }
+            $results += [pscustomobject]@{ Rig=$label; Result="Updated + restarted"; Host=$rigHost }
         } else {
             Write-Host " Warning - sc exit $LASTEXITCODE" -ForegroundColor Yellow
-            $results += [pscustomobject]@{ Rig=$label; Result="Copied, restart uncertain (exit $LASTEXITCODE)"; Host=$host }
+            $results += [pscustomobject]@{ Rig=$label; Result="Copied, restart uncertain (exit $LASTEXITCODE)"; Host=$rigHost }
         }
     } catch {
         Write-Host " FAILED ($_)" -ForegroundColor Red
-        $results += [pscustomobject]@{ Rig=$label; Result="Copied, restart FAILED: $_"; Host=$host }
+        $results += [pscustomobject]@{ Rig=$label; Result="Copied, restart FAILED: $_"; Host=$rigHost }
     }
 }
 
