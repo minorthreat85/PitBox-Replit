@@ -1,4 +1,4 @@
-# PitBox — Push updated PitBoxAgent.exe to all online sim PCs
+# PitBox - Push updated PitBoxAgent.exe to all online sim PCs
 #
 # Usage (from C:\PitBox\dev\pitbox on admin PC):
 #   .\scripts\push_agent_to_sims.ps1 -Dev
@@ -30,11 +30,11 @@ if (-not $Dev) {
 
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "  PitBox — Push Agent to Sims" -ForegroundColor Cyan
+Write-Host "  PitBox - Push Agent to Sims" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 
-# ── Step 1: Build ────────────────────────────────────────────────────────────
+# Step 1: Build
 $agentExe = "dist\PitBoxAgent.exe"
 if ($SkipBuild) {
     Write-Host "Step 1: Skipping build (using existing $agentExe)" -ForegroundColor Gray
@@ -55,11 +55,12 @@ if ($SkipBuild) {
     }
 }
 
-$exeSize = (Get-Item $agentExe).Length
-Write-Host "  Agent binary: $agentExe  ($([math]::Round($exeSize/1MB,1)) MB)" -ForegroundColor Gray
+$exeSize    = (Get-Item $agentExe).Length
+$exeSizeMB  = [math]::Round($exeSize / 1048576, 1)
+Write-Host "  Agent binary: $agentExe  ($exeSizeMB MB)" -ForegroundColor Gray
 Write-Host ""
 
-# ── Step 2: Get enrolled rigs from controller ─────────────────────────────────
+# Step 2: Get enrolled rigs from controller
 Write-Host "Step 2: Fetching enrolled rigs from controller..." -ForegroundColor Green
 try {
     $rigsResp = Invoke-RestMethod -Uri "$ControllerUrl/api/enrolled" -Method Get -TimeoutSec 10 -ErrorAction Stop
@@ -77,16 +78,17 @@ if ($rigs.Count -eq 0) {
 Write-Host "  Found $($rigs.Count) enrolled rig(s)" -ForegroundColor Gray
 Write-Host ""
 
-# ── Step 3: Push to each rig ─────────────────────────────────────────────────
+# Step 3: Push to each rig
 Write-Host "Step 3: Pushing to rigs..." -ForegroundColor Green
 $results = @()
 foreach ($rig in $rigs) {
-    $agentId = $rig.agent_id ?? $rig.id ?? "unknown"
-    $host    = $rig.host ?? $rig.ip ?? $rig.address ?? ""
-    $label   = $rig.display_name ?? $rig.hostname ?? $agentId
+    # PowerShell 5-compatible null coalescing
+    $agentId = if ($rig.agent_id) { $rig.agent_id } elseif ($rig.id) { $rig.id } else { "unknown" }
+    $host    = if ($rig.host)     { $rig.host }     elseif ($rig.ip) { $rig.ip } elseif ($rig.address) { $rig.address } else { "" }
+    $label   = if ($rig.display_name) { $rig.display_name } elseif ($rig.hostname) { $rig.hostname } else { $agentId }
 
     if (-not $host) {
-        Write-Host "  [$label] SKIP — no host/IP recorded" -ForegroundColor Yellow
+        Write-Host "  [$label] SKIP - no host/IP recorded" -ForegroundColor Yellow
         $results += [pscustomobject]@{ Rig=$label; Result="SKIPPED (no IP)"; Host="" }
         continue
     }
@@ -98,7 +100,6 @@ foreach ($rig in $rigs) {
     Write-Host "    Copying to $targetExe ..." -NoNewline -ForegroundColor Gray
 
     try {
-        # Ensure directory exists
         if (-not (Test-Path $targetDir)) {
             New-Item -ItemType Directory -Path $targetDir -Force | Out-Null
         }
@@ -113,16 +114,15 @@ foreach ($rig in $rigs) {
     # Restart the service via sc.exe (no WinRM required)
     Write-Host "    Restarting PitBoxAgent service ..." -NoNewline -ForegroundColor Gray
     try {
-        $stopOut  = & sc.exe "\\$host" stop  PitBoxAgent 2>&1
+        $null = & sc.exe "\\$host" stop  PitBoxAgent 2>&1
         Start-Sleep -Seconds 2
         $startOut = & sc.exe "\\$host" start PitBoxAgent 2>&1
-        # sc.exe returns 0 on success, 1060 if service doesn't exist, etc.
-        if ($LASTEXITCODE -eq 0 -or $startOut -match "START_PENDING|RUNNING") {
+        if ($LASTEXITCODE -eq 0 -or ($startOut -join " ") -match "START_PENDING|RUNNING") {
             Write-Host " OK" -ForegroundColor Green
             $results += [pscustomobject]@{ Rig=$label; Result="Updated + restarted"; Host=$host }
         } else {
-            Write-Host " Warning — sc exit $LASTEXITCODE  $startOut" -ForegroundColor Yellow
-            $results += [pscustomobject]@{ Rig=$label; Result="Copied, restart uncertain: $startOut"; Host=$host }
+            Write-Host " Warning - sc exit $LASTEXITCODE" -ForegroundColor Yellow
+            $results += [pscustomobject]@{ Rig=$label; Result="Copied, restart uncertain (exit $LASTEXITCODE)"; Host=$host }
         }
     } catch {
         Write-Host " FAILED ($_)" -ForegroundColor Red
@@ -130,7 +130,7 @@ foreach ($rig in $rigs) {
     }
 }
 
-# ── Summary ──────────────────────────────────────────────────────────────────
+# Summary
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host "  Summary" -ForegroundColor Cyan
