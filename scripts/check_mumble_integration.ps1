@@ -50,39 +50,43 @@ if (-not (Test-Path $PitBoxPython)) {
 
 # Known ini locations (keep in sync with configure_mumble.ps1)
 $IniSearchPaths = @(
-    # 1.3.4 static build (murmur.ini lives next to the exe)
-    "C:\PitBox\mumble\murmur.ini",
-    "C:\PitBox\mumble\mumble-server.ini",
-    # x86 Program Files — active install on this machine
-    "C:\Program Files (x86)\Mumble\server\mumble-server.ini",
-    "C:\Program Files (x86)\Mumble\server\murmur.ini",
-    "C:\Program Files (x86)\Mumble\mumble-server.ini",
+    # x86 Program Files — active install on this machine (murmur.ini first)
     "C:\Program Files (x86)\Mumble\murmur.ini",
+    "C:\Program Files (x86)\Mumble\mumble-server.ini",
+    "C:\Program Files (x86)\Mumble\server\murmur.ini",
+    "C:\Program Files (x86)\Mumble\server\mumble-server.ini",
     # 64-bit Program Files
-    "C:\Program Files\Mumble\server\mumble-server.ini",
+    "C:\Program Files\Mumble\murmur.ini",
+    "C:\Program Files\Mumble\mumble-server.ini",
     "C:\Program Files\Mumble\server\murmur.ini",
+    "C:\Program Files\Mumble\server\mumble-server.ini",
+    # ProgramData
     "C:\ProgramData\Mumble Server\mumble-server.ini",
     "C:\ProgramData\Mumble\mumble-server.ini",
-    "C:\Program Files\Mumble\mumble-server.ini",
+    # Manual/zip extract locations
+    "C:\PitBox\mumble\murmur.ini",
+    "C:\PitBox\mumble\mumble-server.ini",
+    "C:\Mumble\murmur.ini",
     "C:\Mumble\mumble-server.ini"
 )
 
 # Known exe locations (keep in sync with install_mumble.ps1)
 $ExeSearchPaths = @(
-    "C:\PitBox\mumble\mumble-server.exe",
-    "C:\PitBox\mumble\murmur.exe",
-    # x86 Program Files — active install on this machine
-    "C:\Program Files (x86)\Mumble\server\mumble-server.exe",
-    "C:\Program Files (x86)\Mumble\server\murmur.exe",
-    "C:\Program Files (x86)\Mumble\mumble-server.exe",
+    # x86 Program Files — active install on this machine (murmur.exe first)
     "C:\Program Files (x86)\Mumble\murmur.exe",
+    "C:\Program Files (x86)\Mumble\mumble-server.exe",
+    "C:\Program Files (x86)\Mumble\server\murmur.exe",
+    "C:\Program Files (x86)\Mumble\server\mumble-server.exe",
     # 64-bit Program Files
-    "C:\Program Files\Mumble\server\mumble-server.exe",
-    "C:\Program Files\Mumble\server\murmur.exe",
-    "C:\Program Files\Mumble\mumble-server.exe",
     "C:\Program Files\Mumble\murmur.exe",
-    "C:\Mumble\mumble-server.exe",
-    "C:\Mumble\murmur.exe"
+    "C:\Program Files\Mumble\mumble-server.exe",
+    "C:\Program Files\Mumble\server\murmur.exe",
+    "C:\Program Files\Mumble\server\mumble-server.exe",
+    # Manual/zip extract locations
+    "C:\PitBox\mumble\murmur.exe",
+    "C:\PitBox\mumble\mumble-server.exe",
+    "C:\Mumble\murmur.exe",
+    "C:\Mumble\mumble-server.exe"
 )
 
 # ---------------------------------------------------------------------------

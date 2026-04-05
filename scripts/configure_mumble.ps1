@@ -38,34 +38,44 @@ $MumbleServiceName = "Murmur"
 # Known exe locations — used to launch Mumble directly if no service exists
 # (keep in sync with install_mumble.ps1 / check_mumble_integration.ps1)
 $MumbleExePaths = @(
-    # 1.3.4 static build — recommended install location for Fastest Lap
-    "C:\PitBox\mumble\mumble-server.exe",
-    "C:\PitBox\mumble\murmur.exe",
-    # 1.5.x default (listed so configure still works if operator uses that path,
-    # but note: 1.5.x does not support ICE — see install_mumble.ps1)
-    "C:\Program Files\Mumble\server\mumble-server.exe",
-    "C:\Program Files\Mumble\server\murmur.exe",
-    "C:\Program Files\Mumble\mumble-server.exe",
-    "C:\Program Files\Mumble\murmur.exe",
-    "C:\Program Files (x86)\Mumble\mumble-server.exe",
+    # x86 Program Files — active install on this machine (murmur.exe first)
     "C:\Program Files (x86)\Mumble\murmur.exe",
-    "C:\Mumble\mumble-server.exe",
-    "C:\Mumble\murmur.exe"
+    "C:\Program Files (x86)\Mumble\mumble-server.exe",
+    "C:\Program Files (x86)\Mumble\server\murmur.exe",
+    "C:\Program Files (x86)\Mumble\server\mumble-server.exe",
+    # 64-bit Program Files
+    "C:\Program Files\Mumble\murmur.exe",
+    "C:\Program Files\Mumble\mumble-server.exe",
+    "C:\Program Files\Mumble\server\murmur.exe",
+    "C:\Program Files\Mumble\server\mumble-server.exe",
+    # Manual/zip extract locations
+    "C:\PitBox\mumble\murmur.exe",
+    "C:\PitBox\mumble\mumble-server.exe",
+    "C:\Mumble\murmur.exe",
+    "C:\Mumble\mumble-server.exe"
 )
 
 # ---------------------------------------------------------------------------
-# Known locations for mumble-server.ini / murmur.ini on Windows
+# Known locations for murmur.ini / mumble-server.ini on Windows
 # ---------------------------------------------------------------------------
 $IniSearchPaths = @(
-    # 1.3.4 static build — ini lives next to the exe by default
-    "C:\PitBox\mumble\murmur.ini",
-    "C:\PitBox\mumble\mumble-server.ini",
-    # 1.5.x default path
+    # x86 Program Files — active install on this machine (murmur.ini first)
+    "C:\Program Files (x86)\Mumble\murmur.ini",
+    "C:\Program Files (x86)\Mumble\mumble-server.ini",
+    "C:\Program Files (x86)\Mumble\server\murmur.ini",
+    "C:\Program Files (x86)\Mumble\server\mumble-server.ini",
+    # 64-bit Program Files
+    "C:\Program Files\Mumble\murmur.ini",
+    "C:\Program Files\Mumble\mumble-server.ini",
+    "C:\Program Files\Mumble\server\murmur.ini",
     "C:\Program Files\Mumble\server\mumble-server.ini",
+    # ProgramData (installer may place ini here)
     "C:\ProgramData\Mumble Server\mumble-server.ini",
     "C:\ProgramData\Mumble\mumble-server.ini",
-    "C:\Program Files\Mumble\mumble-server.ini",
-    "C:\Program Files (x86)\Mumble\mumble-server.ini",
+    # Manual/zip extract locations
+    "C:\PitBox\mumble\murmur.ini",
+    "C:\PitBox\mumble\mumble-server.ini",
+    "C:\Mumble\murmur.ini",
     "C:\Mumble\mumble-server.ini"
 )
 
@@ -89,7 +99,9 @@ function Set-IniKey {
         [string]   $Key,
         [string]   $Value
     )
-    $pattern = "^\s*$([regex]::Escape($Key))\s*="
+    # Match both active lines (key=) and commented-out lines (;key= or ; key=)
+    # so that `;icesecretread=` gets replaced rather than left commented out.
+    $pattern = "^\s*;?\s*$([regex]::Escape($Key))\s*="
     $newLine  = "$Key=$Value"
     $replaced = $false
     $out = for ($i = 0; $i -lt $Lines.Count; $i++) {
@@ -101,7 +113,7 @@ function Set-IniKey {
         }
     }
     if (-not $replaced) {
-        # Key not found — append it at the end
+        # Key not found anywhere — append it at the end
         $out += $newLine
     }
     return $out
