@@ -4,11 +4,17 @@ PyInstaller spec file for PitBox Controller
 Builds a windowless (console=False) executable for running as a Windows Service
 """
 
-from PyInstaller.utils.hooks import collect_submodules
+from PyInstaller.utils.hooks import collect_submodules, collect_dynamic_libs
 
 block_cipher = None
 
 _controller_submodules = collect_submodules('controller')
+_ice_imports = [
+    'Ice',
+    'IcePy',
+    'Glacier2',
+    'IceBox',
+]
 _uvicorn_imports = [
     'uvicorn',
     'uvicorn.lifespan.on',
@@ -24,9 +30,10 @@ a = Analysis(
     binaries=[],
     datas=[
         ('controller/static', 'static'),
+        ('controller/MumbleServer.ice', 'controller'),
         ('examples/controller_config.json', '.'),
     ],
-    hiddenimports=_uvicorn_imports + _controller_submodules,
+    hiddenimports=_uvicorn_imports + _controller_submodules + _ice_imports,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
