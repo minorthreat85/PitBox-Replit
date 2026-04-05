@@ -51,8 +51,6 @@ module MumbleServer
 		int bytespersec;
 		/** Legacy client version. */
 		int version;
-		/** New client version. (See https://github.com/mumble-voip/mumble/issues/5827) */
-		long version2;
 		/** Client release. For official releases, this equals the version. For snapshots and git compiles, this will be something else. */
 		string release;
 		/** Client OS. */
