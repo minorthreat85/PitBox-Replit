@@ -6445,7 +6445,11 @@
       var badge = count > 0 ? (' <span style="color:var(--accent-green,#48bb78);font-size:.7rem;">&#9679; ' + count + '</span>') : '';
       var muteBtn = '<button type="button" class="btn-secondary" style="font-size:.7rem;padding:2px 7px;" onclick="window._mumbleMuteChannel(' + c.id + ', true)">Mute all</button>' +
         '<button type="button" class="btn-secondary" style="font-size:.7rem;padding:2px 7px;" onclick="window._mumbleMuteChannel(' + c.id + ', false)">Unmute all</button>';
-      html += '<div class="mumble-channel-item' + (isSub ? ' mumble-channel-sub' : '') + '">' +
+      html += '<div class="mumble-channel-item' + (isSub ? ' mumble-channel-sub' : '') + '"' +
+        ' data-channel-id="' + c.id + '"' +
+        ' ondragover="window._mumbleDragOver(event)"' +
+        ' ondragleave="window._mumbleDragLeave(event)"' +
+        ' ondrop="window._mumbleDrop(event,' + c.id + ')">' +
         '<span class="mumble-channel-name">' + escapeHtml(c.name) + badge + '</span>' +
         '<span style="display:flex;gap:4px;">' + muteBtn + '</span>' +
         '</div>';
@@ -6467,12 +6471,13 @@
       var muteLabel = (u.mute || u.suppress) ? 'Unmute' : 'Mute';
       var muteCls = (u.mute || u.suppress) ? 'btn-mute-active' : '';
       var selfMuteTag = u.self_mute ? ' <span class="mumble-icon-muted" title="Self-muted">M</span>' : '';
-      html += '<div class="mumble-user-row">' +
-        '<span class="mumble-user-name">' + escapeHtml(u.name) + selfMuteTag + '</span>' +
+      html += '<div class="mumble-user-row" draggable="true" data-session="' + u.session + '"' +
+        ' ondragstart="window._mumbleDragStart(event,' + u.session + ')"' +
+        ' ondragend="window._mumbleDragEnd(event)">' +
+        '<span class="mumble-user-name">&#8597; ' + escapeHtml(u.name) + selfMuteTag + '</span>' +
         '<span class="mumble-user-channel">' + chName + '</span>' +
         '<span class="mumble-user-actions">' +
         '<button type="button" class="' + muteCls + '" onclick="window._mumbleMuteUser(' + u.session + ', ' + !(u.mute || u.suppress) + ')">' + muteLabel + '</button>' +
-        '<button type="button" onclick="window._mumbleMoveUser(' + u.session + ')" title="Move to channel">Move</button>' +
         '<button type="button" class="btn-kick" onclick="window._mumbleKickUser(' + u.session + ', \'' + escapeHtml(u.name) + '\')">Kick</button>' +
         '</span>' +
         '</div>';
@@ -6529,6 +6534,49 @@
       body: JSON.stringify({ reason: reason || '' })
     }).then(function () { fetchMumbleStatus(); showToast(name + ' kicked.', 'success'); })
       .catch(function (e) { showToast('Kick failed: ' + (e.message || e), 'error'); });
+  };
+
+  var _mumbleDragSession = null;
+
+  window._mumbleDragStart = function (e, session) {
+    _mumbleDragSession = session;
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', String(session));
+    var el = e.currentTarget;
+    setTimeout(function () { el.classList.add('mumble-dragging'); }, 0);
+  };
+
+  window._mumbleDragEnd = function (e) {
+    e.currentTarget.classList.remove('mumble-dragging');
+    document.querySelectorAll('.mumble-drag-over').forEach(function (el) {
+      el.classList.remove('mumble-drag-over');
+    });
+  };
+
+  window._mumbleDragOver = function (e) {
+    if (_mumbleDragSession == null) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    e.currentTarget.classList.add('mumble-drag-over');
+  };
+
+  window._mumbleDragLeave = function (e) {
+    if (!e.currentTarget.contains(e.relatedTarget)) {
+      e.currentTarget.classList.remove('mumble-drag-over');
+    }
+  };
+
+  window._mumbleDrop = function (e, channelId) {
+    e.preventDefault();
+    e.currentTarget.classList.remove('mumble-drag-over');
+    var session = _mumbleDragSession;
+    _mumbleDragSession = null;
+    if (session == null) return;
+    pitboxFetch(API_BASE + '/mumble/users/' + session + '/move', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ channel_id: channelId })
+    }).then(function () { fetchMumbleStatus(); showToast('User moved.', 'success'); })
+      .catch(function (e) { showToast('Move failed: ' + (e.message || e), 'error'); });
   };
 
   var _mumbleProtocol = 'ice';

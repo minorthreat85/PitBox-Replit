@@ -4340,9 +4340,16 @@ button:disabled {
     padding: 6px 14px;
     font-size: .85rem;
     cursor: default;
+    transition: background .1s, outline .1s;
 }
 .mumble-channel-item:hover {
     background: var(--hover-bg, #22232a);
+}
+.mumble-channel-item.mumble-drag-over {
+    background: rgba(72,187,120,.12);
+    outline: 2px dashed var(--accent-green, #48bb78);
+    outline-offset: -2px;
+    border-radius: 4px;
 }
 .mumble-channel-name {
     flex: 1;
@@ -4357,9 +4364,14 @@ button:disabled {
     gap: 8px;
     padding: 6px 14px;
     font-size: .85rem;
+    cursor: grab;
 }
 .mumble-user-row:hover {
     background: var(--hover-bg, #22232a);
+}
+.mumble-user-row.mumble-dragging {
+    opacity: .45;
+    cursor: grabbing;
 }
 .mumble-user-name {
     flex: 1;
