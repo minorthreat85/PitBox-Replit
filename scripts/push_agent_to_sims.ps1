@@ -89,9 +89,32 @@ if ($rigs.Count -eq 0) {
 Write-Host "  Found $($rigs.Count) enrolled rig(s)" -ForegroundColor Gray
 Write-Host ""
 
-# Step 3: Push to each rig
-Write-Host "Step 3: Pushing to rigs..." -ForegroundColor Green
+# Find admin PC's LAN IP to build the download URL
+$adminIp = (Get-NetIPAddress -AddressFamily IPv4 |
+    Where-Object { $_.IPAddress -notmatch "^127\." -and $_.PrefixOrigin -ne "WellKnown" } |
+    Select-Object -First 1).IPAddress
+if (-not $adminIp) { $adminIp = "ADMIN_PC_IP" }
+$downloadUrl = "http://${adminIp}:9630/api/agent/download"
+
+# Verify the controller can actually serve the binary
+Write-Host "Step 3: Verifying agent binary is available on controller..." -ForegroundColor Green
+try {
+    $info = Invoke-RestMethod -Uri "http://localhost:9630/api/agent/download/info" -Method Get -TimeoutSec 5
+    if ($info.found) {
+        Write-Host "  Binary ready: $($info.path)  ($($info.size_mb) MB)" -ForegroundColor Gray
+    } else {
+        Write-Host "  WARNING: Controller cannot find PitBoxAgent.exe. Run update.ps1 first." -ForegroundColor Yellow
+    }
+} catch {
+    Write-Host "  WARNING: Could not query controller info endpoint ($_)" -ForegroundColor Yellow
+}
+Write-Host ""
+
+# Step 4: Push to each rig
+Write-Host "Step 4: Pushing to rigs..." -ForegroundColor Green
 $results = @()
+$needManual = @()
+
 foreach ($rig in $rigs) {
     # PowerShell 5-compatible null coalescing
     $agentId = if ($rig.agent_id) { $rig.agent_id } elseif ($rig.id) { $rig.id } else { "unknown" }
@@ -108,36 +131,42 @@ foreach ($rig in $rigs) {
     $targetExe = "$targetDir\PitBoxAgent.exe"
 
     Write-Host "  [$label]  $rigHost" -ForegroundColor White
-    Write-Host "    Copying to $targetExe ..." -NoNewline -ForegroundColor Gray
+    Write-Host "    Trying SMB copy to $targetExe ..." -NoNewline -ForegroundColor Gray
 
+    $smbOk = $false
     try {
         if (-not (Test-Path $targetDir)) {
             New-Item -ItemType Directory -Path $targetDir -Force | Out-Null
         }
         Copy-Item $agentExe $targetExe -Force
         Write-Host " OK" -ForegroundColor Green
+        $smbOk = $true
     } catch {
-        Write-Host " FAILED ($_)" -ForegroundColor Red
-        $results += [pscustomobject]@{ Rig=$label; Result="COPY FAILED: $_"; Host=$rigHost }
-        continue
+        Write-Host " blocked (admin share not accessible)" -ForegroundColor Yellow
     }
 
-    # Restart the service via sc.exe (no WinRM required)
-    Write-Host "    Restarting PitBoxAgent service ..." -NoNewline -ForegroundColor Gray
-    try {
-        $null = & sc.exe "\\$rigHost" stop  PitBoxAgent 2>&1
-        Start-Sleep -Seconds 2
-        $startOut = & sc.exe "\\$rigHost" start PitBoxAgent 2>&1
-        if ($LASTEXITCODE -eq 0 -or ($startOut -join " ") -match "START_PENDING|RUNNING") {
-            Write-Host " OK" -ForegroundColor Green
-            $results += [pscustomobject]@{ Rig=$label; Result="Updated + restarted"; Host=$rigHost }
-        } else {
-            Write-Host " Warning - sc exit $LASTEXITCODE" -ForegroundColor Yellow
-            $results += [pscustomobject]@{ Rig=$label; Result="Copied, restart uncertain (exit $LASTEXITCODE)"; Host=$rigHost }
+    if ($smbOk) {
+        # Restart the service via sc.exe
+        Write-Host "    Restarting PitBoxAgent service ..." -NoNewline -ForegroundColor Gray
+        try {
+            $null = & sc.exe "\\$rigHost" stop  PitBoxAgent 2>&1
+            Start-Sleep -Seconds 2
+            $startOut = & sc.exe "\\$rigHost" start PitBoxAgent 2>&1
+            if ($LASTEXITCODE -eq 0 -or ($startOut -join " ") -match "START_PENDING|RUNNING") {
+                Write-Host " OK" -ForegroundColor Green
+                $results += [pscustomobject]@{ Rig=$label; Result="Updated + restarted"; Host=$rigHost }
+            } else {
+                Write-Host " Warning - sc exit $LASTEXITCODE" -ForegroundColor Yellow
+                $results += [pscustomobject]@{ Rig=$label; Result="Copied, restart uncertain (exit $LASTEXITCODE)"; Host=$rigHost }
+            }
+        } catch {
+            Write-Host " FAILED ($_)" -ForegroundColor Red
+            $results += [pscustomobject]@{ Rig=$label; Result="Copied, restart FAILED: $_"; Host=$rigHost }
         }
-    } catch {
-        Write-Host " FAILED ($_)" -ForegroundColor Red
-        $results += [pscustomobject]@{ Rig=$label; Result="Copied, restart FAILED: $_"; Host=$rigHost }
+    } else {
+        # Fall back: controller serves the binary over HTTP — user runs one-liner on the sim
+        $results  += [pscustomobject]@{ Rig=$label; Result="Needs manual one-liner (see below)"; Host=$rigHost }
+        $needManual += [pscustomobject]@{ Label=$label; Host=$rigHost }
     }
 }
 
@@ -147,6 +176,22 @@ Write-Host "========================================" -ForegroundColor Cyan
 Write-Host "  Summary" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 $results | Format-Table -AutoSize
-Write-Host ""
-Write-Host "Done. Each updated agent will serve the new /launch-mumble endpoint after restart." -ForegroundColor Green
+
+if ($needManual.Count -gt 0) {
+    Write-Host "========================================" -ForegroundColor Yellow
+    Write-Host "  Manual update required for $($needManual.Count) sim(s)" -ForegroundColor Yellow
+    Write-Host "  (admin shares blocked — use HTTP download instead)" -ForegroundColor Yellow
+    Write-Host "========================================" -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "  On each sim listed below, open PowerShell as Administrator and run:" -ForegroundColor White
+    Write-Host ""
+    foreach ($m in $needManual) {
+        Write-Host "  --- $($m.Label) ($($m.Host)) ---" -ForegroundColor Cyan
+        Write-Host "  Stop-Service PitBoxAgent; (New-Object Net.WebClient).DownloadFile('$downloadUrl','C:\PitBox\Agent\bin\PitBoxAgent.exe'); Start-Service PitBoxAgent" -ForegroundColor White
+        Write-Host ""
+    }
+    Write-Host "  Download URL (controller must be running): $downloadUrl" -ForegroundColor Gray
+}
+
+Write-Host "Done." -ForegroundColor Green
 Write-Host ""

@@ -542,6 +542,40 @@ async def push_agent_update(_: None = Depends(require_operator)):
     return {"ok": True, "results": results}
 
 
+@router.get("/agent/download")
+async def download_agent_binary():
+    """Serve the latest PitBoxAgent.exe so sim PCs can self-update over HTTP (no admin share required)."""
+    candidates = [
+        Path(sys.executable).parent / "PitBoxAgent.exe",   # installed: same dir as PitBoxController.exe
+        Path(__file__).parent.parent / "dist" / "PitBoxAgent.exe",  # dev: dist\PitBoxAgent.exe
+        Path(r"C:\PitBox\installed\bin\PitBoxAgent.exe"),
+        Path(r"C:\PitBox\Agent\bin\PitBoxAgent.exe"),
+    ]
+    for p in candidates:
+        if p.exists():
+            return FileResponse(
+                path=str(p),
+                filename="PitBoxAgent.exe",
+                media_type="application/octet-stream",
+            )
+    raise HTTPException(status_code=404, detail="PitBoxAgent.exe not found on controller. Run update.ps1 first.")
+
+
+@router.get("/agent/download/info")
+async def download_agent_binary_info():
+    """Return path and size of the agent binary the controller would serve."""
+    candidates = [
+        Path(sys.executable).parent / "PitBoxAgent.exe",
+        Path(__file__).parent.parent / "dist" / "PitBoxAgent.exe",
+        Path(r"C:\PitBox\installed\bin\PitBoxAgent.exe"),
+        Path(r"C:\PitBox\Agent\bin\PitBoxAgent.exe"),
+    ]
+    for p in candidates:
+        if p.exists():
+            return {"found": True, "path": str(p), "size_mb": round(p.stat().st_size / 1048576, 1)}
+    return {"found": False, "path": None, "size_mb": None}
+
+
 @router.post("/agents/push-close-display")
 async def push_close_display(_: None = Depends(require_operator)):
     """Send close-display command to every online enrolled agent. Each agent kills its Chrome/Edge kiosk window."""
