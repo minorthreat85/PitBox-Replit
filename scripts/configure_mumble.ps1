@@ -36,10 +36,24 @@ $IceSecretWrite   = "fastestlap"
 # Service name used by the Mumble Server Windows installer
 $MumbleServiceName = "Murmur"
 
+# Known exe locations — used to launch Mumble directly if no service exists
+# (keep in sync with install_mumble.ps1 / check_mumble_integration.ps1)
+$MumbleExePaths = @(
+    "C:\Program Files\Mumble\server\mumble-server.exe",
+    "C:\Program Files\Mumble\server\murmur.exe",
+    "C:\Program Files\Mumble\mumble-server.exe",
+    "C:\Program Files\Mumble\murmur.exe",
+    "C:\Program Files (x86)\Mumble\mumble-server.exe",
+    "C:\Program Files (x86)\Mumble\murmur.exe",
+    "C:\Mumble\mumble-server.exe",
+    "C:\Mumble\murmur.exe"
+)
+
 # ---------------------------------------------------------------------------
 # Known locations for mumble-server.ini on Windows
 # ---------------------------------------------------------------------------
 $IniSearchPaths = @(
+    "C:\Program Files\Mumble\server\mumble-server.ini",
     "C:\ProgramData\Mumble Server\mumble-server.ini",
     "C:\ProgramData\Mumble\mumble-server.ini",
     "C:\Program Files\Mumble\mumble-server.ini",
@@ -137,28 +151,106 @@ Write-Host "       ice=`"$IceEndpoint`""
 Write-Host "       icesecretread=$IceSecretRead"
 Write-Host "       icesecretwrite=$IceSecretWrite"
 
-# 5. Optionally restart the Mumble service
-Write-Host ""
-$svc = Get-Service -Name $MumbleServiceName -ErrorAction SilentlyContinue
-if ($svc) {
-    Write-Host "Mumble Server service found (status: $($svc.Status))." -ForegroundColor White
-    $restart = Read-Host "Restart the Mumble service now so settings take effect? [Y/n]"
-    if ($restart -ne "n" -and $restart -ne "N") {
-        Write-Host "Restarting $MumbleServiceName..." -ForegroundColor White
-        Restart-Service -Name $MumbleServiceName -Force
-        Start-Sleep -Seconds 2
-        $svc.Refresh()
-        if ($svc.Status -eq "Running") {
-            Write-Host "[OK] Service restarted and running." -ForegroundColor Green
-        } else {
-            Write-Host "[!!] Service status: $($svc.Status). Check Windows Event Viewer." -ForegroundColor Yellow
-        }
-    } else {
-        Write-Host "Skipped restart. Changes will take effect on next service start." -ForegroundColor Yellow
+# ---------------------------------------------------------------------------
+# Helper: find mumble-server.exe from the known paths list
+# ---------------------------------------------------------------------------
+function Find-MumbleExe {
+    foreach ($p in $MumbleExePaths) {
+        if (Test-Path $p) { return $p }
     }
+    return $null
+}
+
+# ---------------------------------------------------------------------------
+# Helper: verify ICE port is listening after (re)start
+# ---------------------------------------------------------------------------
+function Test-IcePort {
+    $conn = Get-NetTCPConnection -LocalAddress "127.0.0.1" `
+                                 -LocalPort 6502 `
+                                 -State Listen `
+                                 -ErrorAction SilentlyContinue
+    return ($null -ne $conn)
+}
+
+# ---------------------------------------------------------------------------
+# 5. Restart Mumble with the explicit -ini path so ICE settings are loaded
+# ---------------------------------------------------------------------------
+Write-Host ""
+$restart = Read-Host "Restart Mumble Server now so settings take effect? [Y/n]"
+if ($restart -eq "n" -or $restart -eq "N") {
+    Write-Host "Skipped restart. Changes will take effect on next Mumble start." -ForegroundColor Yellow
 } else {
-    Write-Host "[?]  Mumble service '$MumbleServiceName' not found." -ForegroundColor Yellow
-    Write-Host "     Start Mumble Server manually or check the service name in services.msc."
+    $mumbleExe = Find-MumbleExe
+    if (-not $mumbleExe) {
+        Write-Host "[!!] mumble-server.exe not found — cannot restart automatically." -ForegroundColor Red
+        Write-Host "     Restart Mumble manually and pass: -ini `"$iniPath`""
+    } else {
+        $svc = Get-Service -Name $MumbleServiceName -ErrorAction SilentlyContinue
+
+        if ($svc) {
+            # --- Windows service path ---
+            # Update the service ImagePath so it always starts with -ini explicit.
+            # This fixes the root cause: sc.exe stores the full command line that
+            # the SCM uses, so future auto-starts will also pick up the right config.
+            Write-Host "Mumble Windows service found (status: $($svc.Status))." -ForegroundColor White
+
+            $binPath = "`"$mumbleExe`" -ini `"$iniPath`""
+            Write-Host "Updating service ImagePath to: $binPath" -ForegroundColor White
+            $scResult = & sc.exe config $MumbleServiceName binPath= $binPath 2>&1
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host "[!!] sc.exe config failed: $scResult" -ForegroundColor Yellow
+                Write-Host "     Proceeding with plain Restart-Service anyway." -ForegroundColor Yellow
+            } else {
+                Write-Host "[OK] Service ImagePath updated." -ForegroundColor Green
+            }
+
+            Write-Host "Stopping $MumbleServiceName..." -ForegroundColor White
+            Stop-Service -Name $MumbleServiceName -Force -ErrorAction SilentlyContinue
+            Start-Sleep -Seconds 2
+
+            Write-Host "Starting $MumbleServiceName..." -ForegroundColor White
+            Start-Service -Name $MumbleServiceName
+            Start-Sleep -Seconds 3
+
+            $svc.Refresh()
+            if ($svc.Status -eq "Running") {
+                Write-Host "[OK] Service running." -ForegroundColor Green
+            } else {
+                Write-Host "[!!] Service status: $($svc.Status). Check Windows Event Viewer." -ForegroundColor Yellow
+            }
+
+        } else {
+            # --- No Windows service — direct process launch ---
+            Write-Host "No Mumble Windows service found." -ForegroundColor Yellow
+            Write-Host "Stopping any running mumble-server / murmur process..." -ForegroundColor White
+
+            # Kill existing instance so the new one can bind port 6502
+            @("mumble-server", "murmur") | ForEach-Object {
+                Get-Process -Name $_ -ErrorAction SilentlyContinue | Stop-Process -Force
+            }
+            Start-Sleep -Seconds 2
+
+            # Launch with explicit -ini so ICE settings are loaded
+            Write-Host "Starting: $mumbleExe -ini `"$iniPath`"" -ForegroundColor White
+            Start-Process -FilePath $mumbleExe -ArgumentList '-ini', "`"$iniPath`"" -WindowStyle Hidden
+            Start-Sleep -Seconds 3
+            Write-Host "[OK] Mumble Server launched." -ForegroundColor Green
+        }
+
+        # --- Verify ICE port is now listening ---
+        Write-Host ""
+        Write-Host "Verifying ICE port 6502..." -ForegroundColor White
+        if (Test-IcePort) {
+            Write-Host "[OK] 127.0.0.1:6502 is listening. ICE integration ready." -ForegroundColor Green
+        } else {
+            Write-Host "[FAIL] Port 6502 is NOT listening after restart." -ForegroundColor Red
+            Write-Host "       Possible causes:"
+            Write-Host "         - Mumble is taking longer to start (wait 5s and re-run check_mumble_integration.ps1)"
+            Write-Host "         - The ini file has a syntax error preventing ICE from loading"
+            Write-Host "         - Another process has already bound port 6502"
+            Write-Host "       Run:  netstat -an | findstr 6502  to investigate."
+        }
+    }
 }
 
 Write-Host ""
