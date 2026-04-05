@@ -37,23 +37,33 @@ $RequiredMumbleMinor     = 3    # 1.3.x only — 1.4+ deprecated/removed Ice
 # Path to the Python used by PitBox (update if the install location differs)
 $PitBoxPython = "C:\PitBox\installed\python\python.exe"
 if (-not (Test-Path $PitBoxPython)) {
-    $PitBoxPython = (Get-Command python -ErrorAction SilentlyContinue)?.Source
-    if (-not $PitBoxPython) {
-        $PitBoxPython = (Get-Command python3 -ErrorAction SilentlyContinue)?.Source
+    # PS 5.1-compatible fallback — do not use ?. null-conditional operator
+    $PitBoxPython = $null
+    $cmd = Get-Command python -ErrorAction SilentlyContinue
+    if ($cmd) {
+        $PitBoxPython = $cmd.Source
+    } else {
+        $cmd = Get-Command python3 -ErrorAction SilentlyContinue
+        if ($cmd) { $PitBoxPython = $cmd.Source }
     }
 }
 
 # Known ini locations (keep in sync with configure_mumble.ps1)
 $IniSearchPaths = @(
-    # 1.3.x static build default (murmur.ini lives next to the exe)
+    # 1.3.4 static build (murmur.ini lives next to the exe)
     "C:\PitBox\mumble\murmur.ini",
     "C:\PitBox\mumble\mumble-server.ini",
-    # 1.5.x default (kept so we can detect a misconfigured machine)
+    # x86 Program Files — active install on this machine
+    "C:\Program Files (x86)\Mumble\server\mumble-server.ini",
+    "C:\Program Files (x86)\Mumble\server\murmur.ini",
+    "C:\Program Files (x86)\Mumble\mumble-server.ini",
+    "C:\Program Files (x86)\Mumble\murmur.ini",
+    # 64-bit Program Files
     "C:\Program Files\Mumble\server\mumble-server.ini",
+    "C:\Program Files\Mumble\server\murmur.ini",
     "C:\ProgramData\Mumble Server\mumble-server.ini",
     "C:\ProgramData\Mumble\mumble-server.ini",
     "C:\Program Files\Mumble\mumble-server.ini",
-    "C:\Program Files (x86)\Mumble\mumble-server.ini",
     "C:\Mumble\mumble-server.ini"
 )
 
@@ -61,13 +71,16 @@ $IniSearchPaths = @(
 $ExeSearchPaths = @(
     "C:\PitBox\mumble\mumble-server.exe",
     "C:\PitBox\mumble\murmur.exe",
-    # 1.5.x default — listed so version-mismatch is caught
+    # x86 Program Files — active install on this machine
+    "C:\Program Files (x86)\Mumble\server\mumble-server.exe",
+    "C:\Program Files (x86)\Mumble\server\murmur.exe",
+    "C:\Program Files (x86)\Mumble\mumble-server.exe",
+    "C:\Program Files (x86)\Mumble\murmur.exe",
+    # 64-bit Program Files
     "C:\Program Files\Mumble\server\mumble-server.exe",
     "C:\Program Files\Mumble\server\murmur.exe",
     "C:\Program Files\Mumble\mumble-server.exe",
     "C:\Program Files\Mumble\murmur.exe",
-    "C:\Program Files (x86)\Mumble\mumble-server.exe",
-    "C:\Program Files (x86)\Mumble\murmur.exe",
     "C:\Mumble\mumble-server.exe",
     "C:\Mumble\murmur.exe"
 )
@@ -187,11 +200,25 @@ $listening = Get-NetTCPConnection -LocalAddress $ExpectedIceHost `
 if ($listening) {
     $pid_ = ($listening | Select-Object -First 1).OwningProcess
     $proc = Get-Process -Id $pid_ -ErrorAction SilentlyContinue
-    Show-Pass "Port $ExpectedIcePort is listening (PID $pid_$(if ($proc) { ' — ' + $proc.ProcessName } else { '' }))."
+    $procName = if ($proc) { " — $($proc.ProcessName)" } else { "" }
+    Show-Pass "Port $ExpectedIcePort is listening (PID $pid_$procName)."
 } else {
     Show-Fail "Port $ExpectedIcePort not listening on $ExpectedIceHost."
-    Show-Warn "If version check passed, start murmur.exe and confirm it loads the right ini."
-    Show-Warn "If version check failed, port 6502 will never open until 1.3.4 is installed."
+    # Give a targeted diagnosis based on what the version check found
+    if ($mumbleExe) {
+        $ver = Get-ExeVersion $mumbleExe
+        if ($ver -and $ver -match "^1\.3\.") {
+            Show-Warn "Config is correct but Mumble runtime did not enable Ice."
+            Show-Warn "Ensure murmur.exe is started with: -ini `"<path-to-murmur.ini>`""
+            Show-Warn "Run configure_mumble.ps1 to restart it with the explicit -ini flag."
+        } else {
+            Show-Warn "Port 6502 will never open — Mumble $ver does not support Ice."
+            Show-Warn "Uninstall this version and install 1.3.4 from:"
+            Show-Warn "  https://github.com/mumble-voip/mumble/releases/tag/1.3.4"
+        }
+    } else {
+        Show-Warn "Mumble binary not found — install 1.3.4 first (run install_mumble.ps1)."
+    }
 }
 
 # ---------------------------------------------------------------------------

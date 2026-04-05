@@ -44,19 +44,22 @@ $Download134Page = "https://github.com/mumble-voip/mumble/releases/tag/1.3.4"
 # or ships as a zip/static build in a custom folder).
 # ---------------------------------------------------------------------------
 $SearchPaths = @(
-    # 1.5.x default — checked so we can detect and warn about it
-    "C:\Program Files\Mumble\server\mumble-server.exe",
-    "C:\Program Files\Mumble\server\murmur.exe",
-    # Common 1.3.x MSI install location
-    "C:\Program Files\Mumble\mumble-server.exe",
-    "C:\Program Files\Mumble\murmur.exe",
+    # 1.3.4 static build — recommended install location for Fastest Lap
+    "C:\PitBox\mumble\mumble-server.exe",
+    "C:\PitBox\mumble\murmur.exe",
+    # x86 Program Files (active install on this machine)
+    "C:\Program Files (x86)\Mumble\server\mumble-server.exe",
+    "C:\Program Files (x86)\Mumble\server\murmur.exe",
     "C:\Program Files (x86)\Mumble\mumble-server.exe",
     "C:\Program Files (x86)\Mumble\murmur.exe",
+    # 64-bit Program Files (also checked for compatibility)
+    "C:\Program Files\Mumble\server\mumble-server.exe",
+    "C:\Program Files\Mumble\server\murmur.exe",
+    "C:\Program Files\Mumble\mumble-server.exe",
+    "C:\Program Files\Mumble\murmur.exe",
     # Manual/zip extract locations
     "C:\Mumble\mumble-server.exe",
-    "C:\Mumble\murmur.exe",
-    "C:\PitBox\mumble\mumble-server.exe",
-    "C:\PitBox\mumble\murmur.exe"
+    "C:\Mumble\murmur.exe"
 )
 
 # ---------------------------------------------------------------------------
