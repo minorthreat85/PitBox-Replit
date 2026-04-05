@@ -133,7 +133,12 @@ class MumbleClientICE:
             base = ic.stringToProxy(proxy_str)
             if ctx:
                 base = base.ice_context(ctx)
-            meta = MumbleServer.MetaPrx.checkedCast(base)
+            # Use uncheckedCast to skip the ice_isA type-verification call.
+            # checkedCast verifies "::MumbleServer::Meta" but Murmur 1.3.x
+            # registered the interface as "::Murmur::Meta" (renamed in 1.4+).
+            # ICE dispatches operations by name over the wire so all calls work
+            # regardless of which module name the server was compiled with.
+            meta = MumbleServer.MetaPrx.uncheckedCast(base)
             if not meta:
                 raise MumbleClientError(
                     f"No Meta proxy at {proxy_str} - check host/port and that Murmur ICE is enabled"
