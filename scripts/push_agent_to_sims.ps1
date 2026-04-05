@@ -17,8 +17,7 @@
 
 param(
     [switch]$Dev,
-    [switch]$SkipBuild,
-    [string]$ControllerUrl = "http://localhost:9630"
+    [switch]$SkipBuild
 )
 
 $ErrorActionPreference = "Stop"
@@ -60,19 +59,24 @@ $exeSizeMB  = [math]::Round($exeSize / 1048576, 1)
 Write-Host "  Agent binary: $agentExe  ($exeSizeMB MB)" -ForegroundColor Gray
 Write-Host ""
 
-# Step 2: Get enrolled rigs from controller
-Write-Host "Step 2: Fetching enrolled rigs from controller..." -ForegroundColor Green
-try {
-    $rigsResp = Invoke-RestMethod -Uri "$ControllerUrl/api/enrolled" -Method Get -TimeoutSec 10 -ErrorAction Stop
-} catch {
-    Write-Host "ERROR: Could not reach controller at $ControllerUrl  ($_)" -ForegroundColor Red
+# Step 2: Read enrolled rigs from disk (avoids auth complexity)
+Write-Host "Step 2: Reading enrolled rigs from disk..." -ForegroundColor Green
+$enrolledFile = "$env:APPDATA\PitBox\Controller\enrolled_rigs.json"
+if (-not (Test-Path $enrolledFile)) {
+    Write-Host "ERROR: Enrolled rigs file not found at $enrolledFile" -ForegroundColor Red
+    Write-Host "Make sure at least one sim has been enrolled in PitBox." -ForegroundColor Yellow
     exit 1
 }
-
-# Support both {rigs:[...]} and plain array responses
-$rigs = if ($rigsResp -is [array]) { $rigsResp } elseif ($rigsResp.rigs) { $rigsResp.rigs } else { @() }
+try {
+    $rigsJson = Get-Content $enrolledFile -Raw -ErrorAction Stop
+    $rigs = $rigsJson | ConvertFrom-Json
+    if ($rigs -isnot [array]) { $rigs = @($rigs) }
+} catch {
+    Write-Host "ERROR: Could not parse $enrolledFile  ($_)" -ForegroundColor Red
+    exit 1
+}
 if ($rigs.Count -eq 0) {
-    Write-Host "No enrolled rigs found. Nothing to do." -ForegroundColor Yellow
+    Write-Host "No enrolled rigs found in $enrolledFile. Nothing to do." -ForegroundColor Yellow
     exit 0
 }
 Write-Host "  Found $($rigs.Count) enrolled rig(s)" -ForegroundColor Gray
