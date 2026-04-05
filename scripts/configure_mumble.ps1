@@ -238,8 +238,9 @@ if ($restart -eq "n" -or $restart -eq "N") {
             Start-Sleep -Seconds 2
 
             Write-Host "Starting: $mumbleExe -ini `"$iniPath`"" -ForegroundColor White
-            Start-Process -FilePath $mumbleExe -ArgumentList "-ini", $iniPath -WindowStyle Hidden
-            Start-Sleep -Seconds 3
+            # Wrap $iniPath in escaped quotes so paths with spaces are passed correctly
+            Start-Process -FilePath $mumbleExe -ArgumentList "-ini", "`"$iniPath`"" -WindowStyle Hidden
+            Start-Sleep -Seconds 5
             Write-Host "[OK] Mumble launched." -ForegroundColor Green
         }
 
