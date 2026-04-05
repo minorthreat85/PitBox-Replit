@@ -6401,8 +6401,7 @@
         }
         _mumbleChannels = data.channels || [];
         _mumbleUsers = data.users || [];
-        renderMumbleChannels(_mumbleChannels, _mumbleUsers);
-        renderMumbleUsers(_mumbleUsers, _mumbleChannels);
+        renderMumbleTree(_mumbleChannels, _mumbleUsers);
         populateMumbleChannelSelect(_mumbleChannels);
       })
       .catch(function () {
@@ -6419,69 +6418,114 @@
     return m;
   }
 
-  function renderMumbleChannels(channels, users) {
+  var _mumbleCollapsed = {};
+
+  function _mumbleUsersByChannel(users) {
+    var m = {};
+    (users || []).forEach(function (u) {
+      if (!m[u.channel_id]) m[u.channel_id] = [];
+      m[u.channel_id].push(u);
+    });
+    return m;
+  }
+
+  function _mumbleCountSubtree(channelId, children, ubc) {
+    var n = (ubc[channelId] || []).length;
+    (children[channelId] || []).forEach(function (sub) {
+      n += _mumbleCountSubtree(sub.id, children, ubc);
+    });
+    return n;
+  }
+
+  function renderMumbleTree(channels, users) {
     var el = document.getElementById('mumble-channel-list');
     if (!el) return;
     if (!channels || channels.length === 0) {
       el.innerHTML = '<p class="mumble-placeholder">No channels found.</p>';
       return;
     }
-    var usersByChannel = {};
-    (users || []).forEach(function (u) {
-      var cid = u.channel_id;
-      if (!usersByChannel[cid]) usersByChannel[cid] = 0;
-      usersByChannel[cid]++;
+
+    var ubc = _mumbleUsersByChannel(users);
+    var children = {};
+    var roots = [];
+    channels.forEach(function (c) {
+      if (c.parent_id == null) { roots.push(c); }
+      else {
+        if (!children[c.parent_id]) children[c.parent_id] = [];
+        children[c.parent_id].push(c);
+      }
     });
-    var sorted = channels.slice().sort(function (a, b) {
-      var pa = a.parent_id == null ? -1 : a.parent_id;
-      var pb = b.parent_id == null ? -1 : b.parent_id;
-      if (pa !== pb) return pa - pb;
-      return (a.position || 0) - (b.position || 0);
-    });
-    var html = '';
-    sorted.forEach(function (c) {
-      var isSub = c.parent_id != null;
-      var count = usersByChannel[c.id] || 0;
-      var badge = count > 0 ? (' <span style="color:var(--accent-green,#48bb78);font-size:.7rem;">&#9679; ' + count + '</span>') : '';
-      var muteBtn = '<button type="button" class="btn-secondary" style="font-size:.7rem;padding:2px 7px;" onclick="window._mumbleMuteChannel(' + c.id + ', true)">Mute all</button>' +
-        '<button type="button" class="btn-secondary" style="font-size:.7rem;padding:2px 7px;" onclick="window._mumbleMuteChannel(' + c.id + ', false)">Unmute all</button>';
-      html += '<div class="mumble-channel-item' + (isSub ? ' mumble-channel-sub' : '') + '"' +
-        ' data-channel-id="' + c.id + '"' +
+    function sortByPos(arr) {
+      return arr.slice().sort(function (a, b) { return (a.position || 0) - (b.position || 0); });
+    }
+
+    function renderChannel(c, depth) {
+      var isCollapsed = !!_mumbleCollapsed[c.id];
+      var usersHere = ubc[c.id] || [];
+      var subs = sortByPos(children[c.id] || []);
+      var subtreeCount = _mumbleCountSubtree(c.id, children, ubc);
+      var indent = 10 + depth * 14;
+      var userIndent = indent + 18;
+      var hasContent = usersHere.length > 0 || subs.length > 0;
+
+      var toggle = hasContent
+        ? '<span class="mbl-ch-toggle">' + (isCollapsed ? '&#9654;' : '&#9660;') + '</span>'
+        : '<span class="mbl-ch-toggle"></span>';
+
+      var countBadge = subtreeCount > 0
+        ? '<span class="mbl-ch-count">' + subtreeCount + '</span>'
+        : '';
+
+      var muteActions = '<button type="button" onclick="window._mumbleMuteChannel(' + c.id + ',true);event.stopPropagation();">Mute all</button>' +
+        '<button type="button" onclick="window._mumbleMuteChannel(' + c.id + ',false);event.stopPropagation();">Unmute all</button>';
+
+      var html = '<div class="mbl-ch' + (isCollapsed ? ' mbl-collapsed' : '') + '" data-channel-id="' + c.id + '">';
+      html += '<div class="mbl-ch-header"' +
+        ' style="padding-left:' + indent + 'px;"' +
+        ' onclick="window._mumbleToggleChannel(' + c.id + ')"' +
         ' ondragover="window._mumbleDragOver(event)"' +
         ' ondragleave="window._mumbleDragLeave(event)"' +
         ' ondrop="window._mumbleDrop(event,' + c.id + ')">' +
-        '<span class="mumble-channel-name">' + escapeHtml(c.name) + badge + '</span>' +
-        '<span style="display:flex;gap:4px;">' + muteBtn + '</span>' +
+        toggle +
+        '<span class="mbl-ch-icon">&#128362;</span>' +
+        '<span class="mbl-ch-name">' + escapeHtml(c.name) + '</span>' +
+        countBadge +
+        '<span class="mbl-ch-actions">' + muteActions + '</span>' +
         '</div>';
-    });
-    el.innerHTML = html;
-  }
 
-  function renderMumbleUsers(users, channels) {
-    var el = document.getElementById('mumble-user-list');
-    if (!el) return;
-    if (!users || users.length === 0) {
-      el.innerHTML = '<p class="mumble-placeholder">No users connected.</p>';
-      return;
+      html += '<div class="mbl-ch-users">';
+      usersHere.forEach(function (u) {
+        var isMuted = u.mute || u.suppress;
+        var mutedTag = u.self_mute
+          ? '<span class="mbl-user-muted mbl-self-mute" title="Self-muted">&#128263;</span>'
+          : (isMuted ? '<span class="mbl-user-muted mbl-server-mute" title="Server-muted">&#128264;</span>' : '');
+        var muteLbl = isMuted ? 'Unmute' : 'Mute';
+        var muteCls = isMuted ? 'mbl-btn-mute-active' : '';
+        html += '<div class="mbl-user" draggable="true" data-session="' + u.session + '"' +
+          ' style="padding-left:' + userIndent + 'px;"' +
+          ' ondragstart="window._mumbleDragStart(event,' + u.session + ')"' +
+          ' ondragend="window._mumbleDragEnd(event)">' +
+          '<span class="mbl-user-icon">&#128100;</span>' +
+          '<span class="mbl-user-name">' + escapeHtml(u.name) + '</span>' +
+          mutedTag +
+          '<span class="mbl-user-actions">' +
+          '<button type="button" class="' + muteCls + '" onclick="window._mumbleMuteUser(' + u.session + ',' + !isMuted + ');event.stopPropagation();">' + muteLbl + '</button>' +
+          '<button type="button" class="mbl-btn-kick" onclick="window._mumbleKickUser(' + u.session + ',\'' + escapeHtml(u.name) + '\');event.stopPropagation();">Kick</button>' +
+          '</span>' +
+          '</div>';
+      });
+      html += '</div>';
+
+      html += '<div class="mbl-ch-children">';
+      subs.forEach(function (sub) { html += renderChannel(sub, depth + 1); });
+      html += '</div>';
+
+      html += '</div>';
+      return html;
     }
-    var chMap = _channelMap(channels);
+
     var html = '';
-    users.forEach(function (u) {
-      var chName = chMap[u.channel_id] ? escapeHtml(chMap[u.channel_id].name) : '#' + u.channel_id;
-      var muteLabel = (u.mute || u.suppress) ? 'Unmute' : 'Mute';
-      var muteCls = (u.mute || u.suppress) ? 'btn-mute-active' : '';
-      var selfMuteTag = u.self_mute ? ' <span class="mumble-icon-muted" title="Self-muted">M</span>' : '';
-      html += '<div class="mumble-user-row" draggable="true" data-session="' + u.session + '"' +
-        ' ondragstart="window._mumbleDragStart(event,' + u.session + ')"' +
-        ' ondragend="window._mumbleDragEnd(event)">' +
-        '<span class="mumble-user-name">&#8597; ' + escapeHtml(u.name) + selfMuteTag + '</span>' +
-        '<span class="mumble-user-channel">' + chName + '</span>' +
-        '<span class="mumble-user-actions">' +
-        '<button type="button" class="' + muteCls + '" onclick="window._mumbleMuteUser(' + u.session + ', ' + !(u.mute || u.suppress) + ')">' + muteLabel + '</button>' +
-        '<button type="button" class="btn-kick" onclick="window._mumbleKickUser(' + u.session + ', \'' + escapeHtml(u.name) + '\')">Kick</button>' +
-        '</span>' +
-        '</div>';
-    });
+    sortByPos(roots).forEach(function (c) { html += renderChannel(c, 0); });
     el.innerHTML = html;
   }
 
@@ -6538,45 +6582,70 @@
 
   var _mumbleDragSession = null;
 
+  window._mumbleToggleChannel = function (channelId) {
+    _mumbleCollapsed[channelId] = !_mumbleCollapsed[channelId];
+    renderMumbleTree(_mumbleChannels, _mumbleUsers);
+  };
+
   window._mumbleDragStart = function (e, session) {
     _mumbleDragSession = session;
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', String(session));
     var el = e.currentTarget;
-    setTimeout(function () { el.classList.add('mumble-dragging'); }, 0);
+    setTimeout(function () { el.classList.add('mbl-dragging'); }, 0);
   };
 
   window._mumbleDragEnd = function (e) {
-    e.currentTarget.classList.remove('mumble-dragging');
-    document.querySelectorAll('.mumble-drag-over').forEach(function (el) {
-      el.classList.remove('mumble-drag-over');
-    });
+    e.currentTarget.classList.remove('mbl-dragging');
+    var overs = document.querySelectorAll('.mbl-drag-over');
+    for (var i = 0; i < overs.length; i++) { overs[i].classList.remove('mbl-drag-over'); }
+    _mumbleDragSession = null;
   };
 
   window._mumbleDragOver = function (e) {
     if (_mumbleDragSession == null) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
-    e.currentTarget.classList.add('mumble-drag-over');
+    e.currentTarget.classList.add('mbl-drag-over');
   };
 
   window._mumbleDragLeave = function (e) {
     if (!e.currentTarget.contains(e.relatedTarget)) {
-      e.currentTarget.classList.remove('mumble-drag-over');
+      e.currentTarget.classList.remove('mbl-drag-over');
     }
   };
 
   window._mumbleDrop = function (e, channelId) {
     e.preventDefault();
-    e.currentTarget.classList.remove('mumble-drag-over');
+    e.currentTarget.classList.remove('mbl-drag-over');
     var session = _mumbleDragSession;
     _mumbleDragSession = null;
     if (session == null) return;
+
+    var user = null;
+    for (var i = 0; i < _mumbleUsers.length; i++) {
+      if (_mumbleUsers[i].session === session) { user = _mumbleUsers[i]; break; }
+    }
+    if (!user) return;
+    var prevChannelId = user.channel_id;
+    if (prevChannelId === channelId) return;
+
+    user.channel_id = channelId;
+    renderMumbleTree(_mumbleChannels, _mumbleUsers);
+
     pitboxFetch(API_BASE + '/mumble/users/' + session + '/move', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ channel_id: channelId })
-    }).then(function () { fetchMumbleStatus(); showToast('User moved.', 'success'); })
-      .catch(function (e) { showToast('Move failed: ' + (e.message || e), 'error'); });
+    }).then(function (r) { return r.json(); })
+      .then(function () {
+        showToast('User moved.', 'success');
+        setTimeout(fetchMumbleStatus, 1200);
+      })
+      .catch(function (err) {
+        user.channel_id = prevChannelId;
+        renderMumbleTree(_mumbleChannels, _mumbleUsers);
+        showToast('Move failed: ' + (err.message || err), 'error');
+      });
   };
 
   var _mumbleProtocol = 'ice';

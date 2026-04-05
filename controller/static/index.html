@@ -953,19 +953,11 @@
                 <div id="mumble-push-result" class="hidden" style="font-size:.8rem;color:var(--text-muted);width:100%;"></div>
             </div>
 
-            <!-- Two columns: channels + users -->
-            <div style="display:flex;gap:16px;margin-bottom:16px;min-height:240px;">
-                <div style="flex:1 1 0;background:var(--card-bg,#18191c);border:1px solid var(--border-color,#2a2b2f);border-radius:8px;display:flex;flex-direction:column;overflow:hidden;">
-                    <div style="font-size:.7rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted);padding:10px 14px 6px;border-bottom:1px solid var(--border-color,#2a2b2f);">Channels</div>
-                    <div id="mumble-channel-list" style="flex:1;overflow-y:auto;padding:8px 0;">
-                        <p style="color:var(--text-muted);font-size:.8rem;padding:12px 14px;margin:0;">Loading&hellip;</p>
-                    </div>
-                </div>
-                <div style="flex:1 1 0;background:var(--card-bg,#18191c);border:1px solid var(--border-color,#2a2b2f);border-radius:8px;display:flex;flex-direction:column;overflow:hidden;">
-                    <div style="font-size:.7rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted);padding:10px 14px 6px;border-bottom:1px solid var(--border-color,#2a2b2f);">Connected Users</div>
-                    <div id="mumble-user-list" style="flex:1;overflow-y:auto;padding:8px 0;">
-                        <p style="color:var(--text-muted);font-size:.8rem;padding:12px 14px;margin:0;">Loading&hellip;</p>
-                    </div>
+            <!-- Voice channel tree -->
+            <div style="background:var(--card-bg,#18191c);border:1px solid var(--border-color,#2a2b2f);border-radius:8px;display:flex;flex-direction:column;overflow:hidden;min-height:240px;margin-bottom:16px;">
+                <div style="font-size:.7rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted);padding:10px 14px 6px;border-bottom:1px solid var(--border-color,#2a2b2f);">Voice Channels &mdash; drag users between channels</div>
+                <div id="mumble-channel-list" class="mbl-tree">
+                    <p class="mumble-placeholder">Loading&hellip;</p>
                 </div>
             </div>
 
