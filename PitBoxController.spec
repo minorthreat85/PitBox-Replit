@@ -31,15 +31,41 @@ _uvicorn_imports = [
 _slice2py = os.path.join(os.path.dirname(sys.executable), 'slice2py.exe')
 _ice_binaries = [(_slice2py, '.')] if os.path.exists(_slice2py) else []
 
+# Bundle the Ice system .ice slice files (e.g. Ice/SliceChecksumDict.ice).
+# MumbleServer.ice includes <Ice/SliceChecksumDict.ice>, so slice2py needs
+# these at runtime.  Find them from the installed zeroc-ice package.
+_ice_slice_src = None
+try:
+    import Ice as _Ice
+    _ice_pkg = os.path.dirname(_Ice.__file__)
+    _slice_candidates = [
+        os.path.join(_ice_pkg, 'slice'),
+        os.path.join(_ice_pkg, '..', 'slice'),
+        os.path.join(_ice_pkg, '..', '..', 'slice'),
+        os.path.join(sys.prefix, 'slice'),
+        os.path.join(sys.prefix, 'Lib', 'site-packages', 'slice'),
+    ]
+    for _c in _slice_candidates:
+        _n = os.path.normpath(_c)
+        if os.path.isdir(_n) and os.path.exists(os.path.join(_n, 'Ice')):
+            _ice_slice_src = _n
+            break
+except Exception:
+    pass
+
+_datas = [
+    ('controller/static', 'static'),
+    ('controller/MumbleServer.ice', 'controller'),
+    ('examples/controller_config.json', '.'),
+]
+if _ice_slice_src:
+    _datas.append((_ice_slice_src, 'slice'))
+
 a = Analysis(
     ['controller/main.py'],
     pathex=[],
     binaries=_ice_binaries,
-    datas=[
-        ('controller/static', 'static'),
-        ('controller/MumbleServer.ice', 'controller'),
-        ('examples/controller_config.json', '.'),
-    ],
+    datas=_datas,
     hiddenimports=_uvicorn_imports + _controller_submodules + _ice_imports,
     hookspath=[],
     hooksconfig={},

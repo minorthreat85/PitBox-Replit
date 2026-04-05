@@ -31,8 +31,13 @@ def _find_ice_slice_dir() -> str:
     try:
         import Ice
         ice_pkg = os.path.dirname(Ice.__file__)
+        candidates = []
+        # In a PyInstaller frozen bundle, slice/ is extracted alongside the exe
+        _meipass = getattr(sys, "_MEIPASS", None)
+        if _meipass:
+            candidates.append(os.path.join(_meipass, "slice"))
         # zeroc-ice ships slice files at various locations depending on version/OS
-        candidates = [
+        candidates += [
             os.path.join(ice_pkg, "slice"),
             os.path.join(ice_pkg, "..", "slice"),
             os.path.join(ice_pkg, "..", "..", "slice"),
