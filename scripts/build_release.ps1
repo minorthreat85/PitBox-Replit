@@ -143,6 +143,16 @@ if ($LASTEXITCODE -ne 0) {
     }
 }
 
+# Ensure zeroc-ice is installed (required for Mumble ICE integration + PyInstaller bundling)
+Write-Host ""
+Write-Host "Installing zeroc-ice for Mumble ICE integration..." -ForegroundColor Green
+& $buildPython -m pip install zeroc-ice --quiet
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "WARNING: zeroc-ice install failed - Mumble ICE integration will not work." -ForegroundColor Yellow
+} else {
+    Write-Host "  zeroc-ice installed." -ForegroundColor Gray
+}
+
 # Generate example configs if not present
 if (-not (Test-Path "examples\agent_config.Sim1.json")) {
     Write-Host ""

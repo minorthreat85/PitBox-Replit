@@ -73,7 +73,19 @@ def _load_ice():
             includes = f"-I{os.path.dirname(_ICE_FILE)}"
             if ice_slice_dir:
                 includes += f" -I{ice_slice_dir}"
-            Ice.loadSlice(f"--all {includes} {_ICE_FILE}")
+            # In a PyInstaller frozen bundle, slice2py.exe is extracted to
+            # sys._MEIPASS alongside the exe.  Ice.loadSlice() calls slice2py
+            # via subprocess/shutil.which, so we briefly prepend _MEIPASS to
+            # PATH so it is found there before giving up.
+            _meipass = getattr(sys, "_MEIPASS", None)
+            _orig_path = os.environ.get("PATH", "")
+            if _meipass:
+                os.environ["PATH"] = _meipass + os.pathsep + _orig_path
+            try:
+                Ice.loadSlice(f"--all {includes} {_ICE_FILE}")
+            finally:
+                if _meipass:
+                    os.environ["PATH"] = _orig_path
         except Exception as e:
             raise MumbleClientError(f"Failed to load MumbleServer.ice: {e}") from e
         _ice_loaded = True

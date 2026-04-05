@@ -4,7 +4,9 @@ PyInstaller spec file for PitBox Controller
 Builds a windowless (console=False) executable for running as a Windows Service
 """
 
-from PyInstaller.utils.hooks import collect_submodules, collect_dynamic_libs
+import os
+import sys
+from PyInstaller.utils.hooks import collect_submodules
 
 block_cipher = None
 
@@ -24,10 +26,15 @@ _uvicorn_imports = [
     'uvicorn.loops.auto',
 ]
 
+# Bundle slice2py.exe so Ice.loadSlice() can find it in the frozen bundle.
+# It lives in the same Scripts/ directory as the build Python.
+_slice2py = os.path.join(os.path.dirname(sys.executable), 'slice2py.exe')
+_ice_binaries = [(_slice2py, '.')] if os.path.exists(_slice2py) else []
+
 a = Analysis(
     ['controller/main.py'],
     pathex=[],
-    binaries=[],
+    binaries=_ice_binaries,
     datas=[
         ('controller/static', 'static'),
         ('controller/MumbleServer.ice', 'controller'),
