@@ -1,13 +1,13 @@
 #Requires -RunAsAdministrator
 <#
 .SYNOPSIS
-    PitBox — Verify Mumble 1.3.x + ICE integration (Fastest Lap internal deployment).
+    PitBox  -  Verify Mumble 1.3.x + ICE integration (Fastest Lap internal deployment).
 
 .DESCRIPTION
     Runs five checks and prints a summary:
 
       1. mumble-server.exe / murmur.exe exists on disk.
-      1b. Version is 1.3.x (Ice was removed in 1.5.x — wrong version = FAIL).
+      1b. Version is 1.3.x (Ice was removed in 1.5.x  -  wrong version = FAIL).
       2. Port 6502 is listening on 127.0.0.1 (ICE endpoint).
       3. The PitBox Python environment can `import Ice`.
       4. mumble-server.ini contains the expected ICE settings.
@@ -32,12 +32,12 @@ $ExpectedIceEndpoint     = "tcp -h 127.0.0.1 -p 6502"
 $ExpectedIceSecretRead   = "fastestlap"
 $ExpectedIceSecretWrite  = "fastestlap"
 $RequiredMumbleMajor     = 1
-$RequiredMumbleMinor     = 3    # 1.3.x only — 1.4+ deprecated/removed Ice
+$RequiredMumbleMinor     = 3    # 1.3.x only  -  1.4+ deprecated/removed Ice
 
 # Path to the Python used by PitBox (update if the install location differs)
 $PitBoxPython = "C:\PitBox\installed\python\python.exe"
 if (-not (Test-Path $PitBoxPython)) {
-    # PS 5.1-compatible fallback — do not use ?. null-conditional operator
+    # PS 5.1-compatible fallback  -  do not use ?. null-conditional operator
     $PitBoxPython = $null
     $cmd = Get-Command python -ErrorAction SilentlyContinue
     if ($cmd) {
@@ -50,7 +50,7 @@ if (-not (Test-Path $PitBoxPython)) {
 
 # Known ini locations (keep in sync with configure_mumble.ps1)
 $IniSearchPaths = @(
-    # x86 Program Files — active install on this machine (murmur.ini first)
+    # x86 Program Files  -  active install on this machine (murmur.ini first)
     "C:\Program Files (x86)\Mumble\murmur.ini",
     "C:\Program Files (x86)\Mumble\mumble-server.ini",
     "C:\Program Files (x86)\Mumble\server\murmur.ini",
@@ -72,7 +72,7 @@ $IniSearchPaths = @(
 
 # Known exe locations (keep in sync with install_mumble.ps1)
 $ExeSearchPaths = @(
-    # x86 Program Files — active install on this machine (murmur.exe first)
+    # x86 Program Files  -  active install on this machine (murmur.exe first)
     "C:\Program Files (x86)\Mumble\murmur.exe",
     "C:\Program Files (x86)\Mumble\mumble-server.exe",
     "C:\Program Files (x86)\Mumble\server\murmur.exe",
@@ -122,10 +122,10 @@ function Get-ExeVersion([string] $exePath) {
 }
 
 # ---------------------------------------------------------------------------
-# Check 1 — mumble-server.exe / murmur.exe exists
+# Check 1  -  mumble-server.exe / murmur.exe exists
 # ---------------------------------------------------------------------------
 Write-Host ""
-Write-Host "=== PitBox — Mumble 1.3.x + ICE Integration Check ===" -ForegroundColor Cyan
+Write-Host "=== PitBox  -  Mumble 1.3.x + ICE Integration Check ===" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Check 1: Mumble Server binary" -ForegroundColor White
 
@@ -163,7 +163,7 @@ if ($mumbleExe) {
 }
 
 # ---------------------------------------------------------------------------
-# Check 1b — version must be 1.3.x
+# Check 1b  -  version must be 1.3.x
 # ---------------------------------------------------------------------------
 Write-Host ""
 Write-Host "Check 1b: Version is 1.3.x (required for ICE support)" -ForegroundColor White
@@ -176,9 +176,9 @@ if ($mumbleExe) {
         $min   = if ($parts.Count -gt 1) { [int]$parts[1] } else { 0 }
 
         if ($maj -eq $RequiredMumbleMajor -and $min -eq $RequiredMumbleMinor) {
-            Show-Pass "Version $ver — correct (1.3.x supports ICE)."
+            Show-Pass "Version $ver  -  correct (1.3.x supports ICE)."
         } else {
-            Show-Fail "Version $ver detected — ICE requires 1.3.x."
+            Show-Fail "Version $ver detected  -  ICE requires 1.3.x."
             Show-Warn "Mumble $ver does NOT expose ZeroC Ice on port 6502."
             Show-Warn "Uninstall $ver, install 1.3.4 from:"
             Show-Warn "  https://github.com/mumble-voip/mumble/releases/tag/1.3.4"
@@ -187,11 +187,11 @@ if ($mumbleExe) {
         Show-Warn "Could not read version. Confirm manually that this is 1.3.x."
     }
 } else {
-    Show-Warn "Skipped (binary not found — see Check 1)."
+    Show-Warn "Skipped (binary not found  -  see Check 1)."
 }
 
 # ---------------------------------------------------------------------------
-# Check 2 — port 6502 is listening on 127.0.0.1
+# Check 2  -  port 6502 is listening on 127.0.0.1
 # ---------------------------------------------------------------------------
 Write-Host ""
 Write-Host "Check 2: ICE port $ExpectedIcePort listening on $ExpectedIceHost" -ForegroundColor White
@@ -204,7 +204,7 @@ $listening = Get-NetTCPConnection -LocalAddress $ExpectedIceHost `
 if ($listening) {
     $pid_ = ($listening | Select-Object -First 1).OwningProcess
     $proc = Get-Process -Id $pid_ -ErrorAction SilentlyContinue
-    $procName = if ($proc) { " — $($proc.ProcessName)" } else { "" }
+    $procName = if ($proc) { "  -  $($proc.ProcessName)" } else { "" }
     Show-Pass "Port $ExpectedIcePort is listening (PID $pid_$procName)."
 } else {
     Show-Fail "Port $ExpectedIcePort not listening on $ExpectedIceHost."
@@ -216,17 +216,17 @@ if ($listening) {
             Show-Warn "Ensure murmur.exe is started with: -ini `"<path-to-murmur.ini>`""
             Show-Warn "Run configure_mumble.ps1 to restart it with the explicit -ini flag."
         } else {
-            Show-Warn "Port 6502 will never open — Mumble $ver does not support Ice."
+            Show-Warn "Port 6502 will never open  -  Mumble $ver does not support Ice."
             Show-Warn "Uninstall this version and install 1.3.4 from:"
             Show-Warn "  https://github.com/mumble-voip/mumble/releases/tag/1.3.4"
         }
     } else {
-        Show-Warn "Mumble binary not found — install 1.3.4 first (run install_mumble.ps1)."
+        Show-Warn "Mumble binary not found  -  install 1.3.4 first (run install_mumble.ps1)."
     }
 }
 
 # ---------------------------------------------------------------------------
-# Check 3 — PitBox Python can import Ice
+# Check 3  -  PitBox Python can import Ice
 # ---------------------------------------------------------------------------
 Write-Host ""
 Write-Host "Check 3: Python can import Ice" -ForegroundColor White
@@ -234,7 +234,7 @@ Write-Host "Check 3: Python can import Ice" -ForegroundColor White
 if ($PitBoxPython -and (Test-Path $PitBoxPython)) {
     $iceTest = & $PitBoxPython -c "import Ice; print(Ice.__version__)" 2>&1
     if ($LASTEXITCODE -eq 0) {
-        Show-Pass "import Ice succeeded — version: $iceTest  |  Python: $PitBoxPython"
+        Show-Pass "import Ice succeeded  -  version: $iceTest  |  Python: $PitBoxPython"
     } else {
         Show-Fail "import Ice failed. Run: pip install zeroc-ice  |  Python: $PitBoxPython"
         Show-Warn "Output: $iceTest"
@@ -245,7 +245,7 @@ if ($PitBoxPython -and (Test-Path $PitBoxPython)) {
 }
 
 # ---------------------------------------------------------------------------
-# Check 4 — mumble-server.ini has expected ICE settings
+# Check 4  -  mumble-server.ini has expected ICE settings
 # ---------------------------------------------------------------------------
 Write-Host ""
 Write-Host "Check 4: mumble-server.ini ICE settings" -ForegroundColor White

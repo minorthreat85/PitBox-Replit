@@ -1,7 +1,7 @@
 #Requires -RunAsAdministrator
 <#
 .SYNOPSIS
-    PitBox — Mumble Server 1.3.4 install helper (Fastest Lap internal deployment).
+    PitBox  -  Mumble Server 1.3.4 install helper (Fastest Lap internal deployment).
 
 .DESCRIPTION
     PitBox uses the ZeroC Ice interface to control Mumble Server.
@@ -33,7 +33,7 @@ $ErrorActionPreference = "Stop"
 # Target version constraint
 # ---------------------------------------------------------------------------
 $RequiredMajor = 1
-$RequiredMinor = 3    # must be 1.3.x — 1.4.x or 1.5.x will NOT expose ICE
+$RequiredMinor = 3    # must be 1.3.x  -  1.4.x or 1.5.x will NOT expose ICE
 
 # Direct download URL for the 1.3.4 Windows installer
 $Download134Url  = "https://github.com/mumble-voip/mumble/releases/download/1.3.4/murmur-static_x86-1.3.4.zip"
@@ -44,7 +44,7 @@ $Download134Page = "https://github.com/mumble-voip/mumble/releases/tag/1.3.4"
 # or ships as a zip/static build in a custom folder).
 # ---------------------------------------------------------------------------
 $SearchPaths = @(
-    # x86 Program Files — active install on this machine (murmur.exe first)
+    # x86 Program Files  -  active install on this machine (murmur.exe first)
     "C:\Program Files (x86)\Mumble\murmur.exe",
     "C:\Program Files (x86)\Mumble\mumble-server.exe",
     "C:\Program Files (x86)\Mumble\server\murmur.exe",
@@ -107,8 +107,8 @@ function Get-ExeVersion([string] $exePath) {
 # Main detection logic
 # ---------------------------------------------------------------------------
 Write-Host ""
-Write-Host "=== PitBox — Mumble Server 1.3.4 Install Check ===" -ForegroundColor Cyan
-Write-Host "    (PitBox requires 1.3.x — Ice was removed in 1.5.x)" -ForegroundColor DarkGray
+Write-Host "=== PitBox  -  Mumble Server 1.3.4 Install Check ===" -ForegroundColor Cyan
+Write-Host "    (PitBox requires 1.3.x  -  Ice was removed in 1.5.x)" -ForegroundColor DarkGray
 Write-Host ""
 
 $found = $null
@@ -142,11 +142,11 @@ if ($found) {
         $minor  = if ($parts.Count -gt 1) { [int]$parts[1] } else { 0 }
 
         if ($major -eq $RequiredMajor -and $minor -eq $RequiredMinor) {
-            Write-Host "[OK]  Version is 1.3.x — correct for PitBox ICE integration." -ForegroundColor Green
+            Write-Host "[OK]  Version is 1.3.x  -  correct for PitBox ICE integration." -ForegroundColor Green
             Write-Host ""
             Write-Host "Run configure_mumble.ps1 to apply PitBox ICE settings."
         } else {
-            Write-Host "[!!]  Version is $ver — this is NOT 1.3.x." -ForegroundColor Red
+            Write-Host "[!!]  Version is $ver  -  this is NOT 1.3.x." -ForegroundColor Red
             Write-Host ""
             Write-Host "IMPORTANT: Mumble $ver does NOT support ZeroC Ice." -ForegroundColor Red
             Write-Host "PitBox cannot connect to this version." -ForegroundColor Red
@@ -172,7 +172,7 @@ if ($found) {
     Write-Host "[!!]  Mumble Server NOT found on this machine." -ForegroundColor Yellow
     Write-Host ""
     Write-Host "PitBox requires Mumble Server (Murmur) version 1.3.4." -ForegroundColor White
-    Write-Host "Do NOT install the latest 1.5.x — it removed the ICE interface." -ForegroundColor Red
+    Write-Host "Do NOT install the latest 1.5.x  -  it removed the ICE interface." -ForegroundColor Red
     Write-Host ""
     Write-Host "Download Mumble Server 1.3.4 (Windows, static 32-bit build):" -ForegroundColor White
     Write-Host "  $Download134Page" -ForegroundColor Cyan
@@ -185,7 +185,7 @@ if ($found) {
     Write-Host "  2. Run murmur.exe once as Administrator to generate the default ini."
     Write-Host "  3. Close murmur.exe."
     Write-Host "  4. Run:  .\configure_mumble.ps1  (applies ICE settings)."
-    Write-Host "  5. Run murmur.exe again — port 6502 should now be listening."
+    Write-Host "  5. Run murmur.exe again  -  port 6502 should now be listening."
     Write-Host "  6. Run:  .\check_mumble_integration.ps1  to verify."
     Write-Host ""
 
