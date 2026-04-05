@@ -26,6 +26,8 @@ $ErrorActionPreference = "Stop"
 # (covers both legacy "Murmur" and current "mumble-server" naming)
 # ---------------------------------------------------------------------------
 $SearchPaths = @(
+    "C:\Program Files\Mumble\server\mumble-server.exe",
+    "C:\Program Files\Mumble\server\murmur.exe",
     "C:\Program Files\Mumble\mumble-server.exe",
     "C:\Program Files\Mumble\murmur.exe",
     "C:\Program Files (x86)\Mumble\mumble-server.exe",
