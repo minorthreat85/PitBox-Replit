@@ -127,7 +127,7 @@ foreach ($rig in $rigs) {
         continue
     }
 
-    $targetDir = "\\$rigHost\C`$\PitBox\Agent\bin"
+    $targetDir = "\\$rigHost\C`$\PitBox"
     $targetExe = "$targetDir\PitBoxAgent.exe"
 
     Write-Host "  [$label]  $rigHost" -ForegroundColor White

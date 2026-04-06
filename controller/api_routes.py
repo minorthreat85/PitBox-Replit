@@ -551,6 +551,7 @@ def _find_agent_binary() -> Path | None:
         Path(__file__).parent.parent / "dist" / "PitBoxAgent.exe",  # relative to api_routes.py
         Path(r"C:\PitBox\installed\bin\PitBoxAgent.exe"),
         Path(r"C:\PitBox\Agent\bin\PitBoxAgent.exe"),
+        Path(r"C:\PitBox\PitBoxAgent.exe"),
     ]
     for p in candidates:
         if p.exists():
