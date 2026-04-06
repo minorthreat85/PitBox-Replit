@@ -70,7 +70,7 @@ if (-not (Test-Path $enrolledFile)) {
 try {
     $rigsJson = Get-Content $enrolledFile -Raw -ErrorAction Stop
     $parsed   = $rigsJson | ConvertFrom-Json
-    # File is {"rigs":[...]} — unwrap the inner array
+    # File is {"rigs":[...]} - unwrap the inner array
     if ($parsed.rigs) {
         $rigs = @($parsed.rigs)
     } elseif ($parsed -is [array]) {
@@ -164,7 +164,7 @@ foreach ($rig in $rigs) {
             $results += [pscustomobject]@{ Rig=$label; Result="Copied, restart FAILED: $_"; Host=$rigHost }
         }
     } else {
-        # Fall back: controller serves the binary over HTTP — user runs one-liner on the sim
+        # Fall back: controller serves the binary over HTTP - user runs one-liner on the sim
         $results  += [pscustomobject]@{ Rig=$label; Result="Needs manual one-liner (see below)"; Host=$rigHost }
         $needManual += [pscustomobject]@{ Label=$label; Host=$rigHost }
     }
@@ -180,7 +180,7 @@ $results | Format-Table -AutoSize
 if ($needManual.Count -gt 0) {
     Write-Host "========================================" -ForegroundColor Yellow
     Write-Host "  Manual update required for $($needManual.Count) sim(s)" -ForegroundColor Yellow
-    Write-Host "  (admin shares blocked — use HTTP download instead)" -ForegroundColor Yellow
+    Write-Host "  (admin shares blocked - use HTTP download instead)" -ForegroundColor Yellow
     Write-Host "========================================" -ForegroundColor Yellow
     Write-Host ""
     Write-Host "  On each sim listed below, open PowerShell as Administrator and run:" -ForegroundColor White
