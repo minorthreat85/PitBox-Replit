@@ -542,37 +542,41 @@ async def push_agent_update(_: None = Depends(require_operator)):
     return {"ok": True, "results": results}
 
 
-@router.get("/agent/download")
-async def download_agent_binary():
-    """Serve the latest PitBoxAgent.exe so sim PCs can self-update over HTTP (no admin share required)."""
+def _find_agent_binary() -> Path | None:
+    """Find PitBoxAgent.exe — checks exe dir, cwd, dev dist, and common install paths."""
     candidates = [
-        Path(sys.executable).parent / "PitBoxAgent.exe",   # installed: same dir as PitBoxController.exe
-        Path(__file__).parent.parent / "dist" / "PitBoxAgent.exe",  # dev: dist\PitBoxAgent.exe
+        Path(sys.executable).parent / "PitBoxAgent.exe",      # installed: same dir as PitBoxController.exe
+        Path.cwd() / "dist" / "PitBoxAgent.exe",              # dev: cwd\dist\PitBoxAgent.exe
+        Path.cwd() / "PitBoxAgent.exe",                       # dev: cwd directly
+        Path(__file__).parent.parent / "dist" / "PitBoxAgent.exe",  # relative to api_routes.py
         Path(r"C:\PitBox\installed\bin\PitBoxAgent.exe"),
         Path(r"C:\PitBox\Agent\bin\PitBoxAgent.exe"),
     ]
     for p in candidates:
         if p.exists():
-            return FileResponse(
-                path=str(p),
-                filename="PitBoxAgent.exe",
-                media_type="application/octet-stream",
-            )
+            return p
+    return None
+
+
+@router.get("/agent/download")
+async def download_agent_binary():
+    """Serve the latest PitBoxAgent.exe so sim PCs can self-update over HTTP (no admin share required)."""
+    p = _find_agent_binary()
+    if p:
+        return FileResponse(
+            path=str(p),
+            filename="PitBoxAgent.exe",
+            media_type="application/octet-stream",
+        )
     raise HTTPException(status_code=404, detail="PitBoxAgent.exe not found on controller. Run update.ps1 first.")
 
 
 @router.get("/agent/download/info")
 async def download_agent_binary_info():
     """Return path and size of the agent binary the controller would serve."""
-    candidates = [
-        Path(sys.executable).parent / "PitBoxAgent.exe",
-        Path(__file__).parent.parent / "dist" / "PitBoxAgent.exe",
-        Path(r"C:\PitBox\installed\bin\PitBoxAgent.exe"),
-        Path(r"C:\PitBox\Agent\bin\PitBoxAgent.exe"),
-    ]
-    for p in candidates:
-        if p.exists():
-            return {"found": True, "path": str(p), "size_mb": round(p.stat().st_size / 1048576, 1)}
+    p = _find_agent_binary()
+    if p:
+        return {"found": True, "path": str(p), "size_mb": round(p.stat().st_size / 1048576, 1)}
     return {"found": False, "path": None, "size_mb": None}
 
 
