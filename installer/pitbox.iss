@@ -79,6 +79,9 @@ Source: "..\assets\pitbox.ico"; DestDir: "{app}"; Components: controller; Flags:
 ; Updater script (fallback for Settings -> Updates "Download update & restart"; must be at {app}\tools\update_pitbox.ps1)
 Source: "..\dist\tools\update_pitbox.ps1"; DestDir: "{app}\tools"; Components: controller; Flags: ignoreversion
 
+; Mumble 1.3.4 MSI bundled for offline silent install on sim PCs
+Source: "assets\mumble-1.3.4.msi"; DestDir: "{app}\tools"; Components: agent; Flags: ignoreversion
+
 ; NSSM (bundled)
 Source: "..\tools\nssm.exe"; DestDir: "{app}\tools"; Components: nssm; Flags: ignoreversion
 
@@ -437,6 +440,133 @@ begin
   end;
 end;
 
+// ---------------------------------------------------------------------------
+// Mumble 1.3.4 detection
+// ---------------------------------------------------------------------------
+
+function IsMumbleInstalled: Boolean;
+var
+  DisplayVersion: String;
+begin
+  Result := False;
+
+  // Primary check: 32-bit uninstall key (Mumble 1.3.4 is a 32-bit installer)
+  if RegQueryStringValue(HKLM,
+      'SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\Mumble',
+      'DisplayVersion', DisplayVersion) then
+  begin
+    Log('Mumble registry (WOW6432Node) DisplayVersion: ' + DisplayVersion);
+    if Pos('1.3.4', DisplayVersion) > 0 then
+    begin
+      Log('Mumble 1.3.4 already installed (WOW6432Node registry).');
+      Result := True;
+      Exit;
+    end;
+  end;
+
+  // Secondary check: native 64-bit uninstall key
+  if RegQueryStringValue(HKLM,
+      'SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Mumble',
+      'DisplayVersion', DisplayVersion) then
+  begin
+    Log('Mumble registry (native) DisplayVersion: ' + DisplayVersion);
+    if Pos('1.3.4', DisplayVersion) > 0 then
+    begin
+      Log('Mumble 1.3.4 already installed (native registry).');
+      Result := True;
+      Exit;
+    end;
+  end;
+
+  // Fallback: check executable presence
+  if FileExists('C:\Program Files (x86)\Mumble\mumble.exe') then
+  begin
+    Log('Mumble exe found at C:\Program Files (x86)\Mumble\mumble.exe — treating as installed.');
+    Result := True;
+    Exit;
+  end;
+
+  Log('Mumble 1.3.4 not detected on this machine.');
+end;
+
+// ---------------------------------------------------------------------------
+// Mumble 1.3.4 silent install (bundled MSI, no internet required)
+// ---------------------------------------------------------------------------
+
+function InstallMumble: Boolean;
+var
+  MsiPath: String;
+  ResultCode: Integer;
+begin
+  Result := True;
+
+  if IsMumbleInstalled then
+  begin
+    Log('Skipping Mumble install — already present.');
+    Exit;
+  end;
+
+  MsiPath := ExpandConstant('{app}\tools\mumble-1.3.4.msi');
+  Log('Mumble MSI path: ' + MsiPath);
+
+  if not FileExists(MsiPath) then
+  begin
+    Log('ERROR: Bundled Mumble MSI not found at ' + MsiPath);
+    MsgBox(
+      'Bundled Mumble MSI is missing: ' + MsiPath + #13#10 +
+      'Mumble voice comms will not be available. Please reinstall PitBox Agent.',
+      mbError, MB_OK);
+    Result := False;
+    Exit;
+  end;
+
+  Log('Starting silent Mumble 1.3.4 install...');
+  if not Exec('msiexec.exe',
+              '/i "' + MsiPath + '" /qn /norestart',
+              '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
+  begin
+    Log('ERROR: Failed to launch msiexec for Mumble install.');
+    MsgBox(
+      'Failed to start the Mumble installer.' + #13#10 +
+      'Mumble voice comms will not be available.',
+      mbError, MB_OK);
+    Result := False;
+    Exit;
+  end;
+
+  Log('msiexec exit code: ' + IntToStr(ResultCode));
+
+  // 0 = success, 3010 = success + reboot required (both accepted for LAN mass deployment)
+  if (ResultCode = 0) or (ResultCode = 3010) then
+  begin
+    Log('Mumble 1.3.4 MSI returned success (exit code ' + IntToStr(ResultCode) + ').');
+    if ResultCode = 3010 then
+      Log('Note: A reboot may be required to complete the Mumble install.');
+
+    // Verify: confirm registry/exe is now present
+    if IsMumbleInstalled then
+      Log('Mumble 1.3.4 install verified successfully.')
+    else
+    begin
+      Log('WARNING: msiexec succeeded but Mumble not detected post-install. Voice comms may not work.');
+      MsgBox(
+        'Mumble installation completed but could not be verified.' + #13#10 +
+        'Voice comms may not work. Try rebooting the PC.',
+        mbError, MB_OK);
+      Result := False;
+    end;
+  end
+  else
+  begin
+    Log('ERROR: Mumble MSI returned non-zero exit code: ' + IntToStr(ResultCode));
+    MsgBox(
+      'Mumble installation failed with exit code ' + IntToStr(ResultCode) + '.' + #13#10 +
+      'Mumble voice comms will not be available. You can install Mumble 1.3.4 manually later.',
+      mbError, MB_OK);
+    Result := False;
+  end;
+end;
+
 // Called before/during/after install
 procedure CurStepChanged(CurStep: TSetupStep);
 var
@@ -480,6 +610,14 @@ begin
       CreateDefaultConfig(ControllerExe, ControllerConfig);
     end;
     
+    // Agent: Install Mumble 1.3.4 (bundled offline MSI) before starting agent
+    if IsComponentSelected('agent') then
+    begin
+      Log('--- Mumble pre-check ---');
+      InstallMumble;
+      Log('--- Mumble pre-check done ---');
+    end;
+
     // Agent: Remove any existing service, create Scheduled Task (NO SERVICE - runs as user)
     if IsComponentSelected('agent') then
     begin
