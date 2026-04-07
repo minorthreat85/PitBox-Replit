@@ -624,6 +624,12 @@
                         <div id="updates-push-agents-result" class="updates-push-agents-result hidden"></div>
                     </div>
                     <div class="updates-push-agents-area">
+                        <div class="updates-dev-divider"><span>Agent Binary</span></div>
+                        <p class="settings-updates-hint">Push the latest PitBoxAgent.exe (from the controller) to all online sim PCs. Run <code>.\update.ps1</code> then <code>pyinstaller PitBoxAgent.spec</code> on the admin PC first, then click below.</p>
+                        <button type="button" id="updates-btn-push-self-update" class="btn-secondary">Update agent on all sims</button>
+                        <div id="updates-push-self-update-result" class="updates-push-agents-result hidden"></div>
+                    </div>
+                    <div class="updates-push-agents-area">
                         <div class="updates-dev-divider"><span>Sim Displays</span></div>
                         <p class="settings-updates-hint">Open the PitBox sim display in fullscreen kiosk mode on all online sim PCs (Chrome or Edge required on each sim).</p>
                         <button type="button" id="updates-btn-push-launch-display" class="btn-secondary">Launch displays on all sims</button>

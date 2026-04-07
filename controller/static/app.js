@@ -3714,6 +3714,7 @@
     bindUpdatesApply();
     bindDevPullButton();
     bindPushAgentsButton();
+    bindPushSelfUpdateButton();
     bindPushLaunchDisplayButton();
     bindPushCloseDisplayButton();
     /* Load saved dev_repo_path into the inline input on the Updates tab */
@@ -3809,6 +3810,56 @@
             btn.disabled = false;
             btn.textContent = 'Push update to all sims';
             showToast('Push update failed: ' + (err.message || 'network error'), 'error');
+          });
+      });
+    });
+  }
+  function bindPushSelfUpdateButton() {
+    var btn = document.getElementById('updates-btn-push-self-update');
+    var resultEl = document.getElementById('updates-push-self-update-result');
+    if (!btn || btn.dataset.selfUpdateBound === '1') return;
+    btn.dataset.selfUpdateBound = '1';
+    btn.addEventListener('click', function () {
+      if (btn.disabled) return;
+      if (!confirm('Push the latest PitBoxAgent.exe to all online sims?\n\nMake sure you ran update.ps1 + pyinstaller on the admin PC first.\n\nEach sim agent will restart automatically (~5 seconds).')) return;
+      btn.disabled = true;
+      btn.textContent = 'Updating…';
+      if (resultEl) { resultEl.classList.add('hidden'); resultEl.innerHTML = ''; }
+      ensureOperatorOrRedirect().then(function (ok) {
+        if (!ok) { btn.disabled = false; btn.textContent = 'Update agent on all sims'; return; }
+        pitboxFetch(API_BASE + '/agents/push-self-update', { method: 'POST' })
+          .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+          .then(function (res) {
+            btn.disabled = false;
+            btn.textContent = 'Update agent on all sims';
+            if (!resultEl) return;
+            if (res.data && res.data.detail) {
+              resultEl.innerHTML = '<p class="push-agents-err">' + escapeHtml(res.data.detail) + '</p>';
+              resultEl.classList.remove('hidden');
+              return;
+            }
+            var results = (res.data && res.data.results) || [];
+            if (results.length === 0) {
+              resultEl.innerHTML = '<p class="push-agents-none">No online agents found.</p>';
+              resultEl.classList.remove('hidden');
+              return;
+            }
+            var rows = results.map(function (r) {
+              var icon = r.success ? '✓' : '✗';
+              var cls = r.success ? 'push-agents-ok' : 'push-agents-err';
+              var rawMsg = r.message || (r.success ? 'Updating' : 'Failed');
+              if (!r.success && (rawMsg === 'Not Found' || rawMsg === 'HTTP 404')) rawMsg = 'Agent too old for self-update — download manually from admin PC';
+              return '<div class="push-agents-row ' + cls + '"><span class="push-agents-icon">' + icon + '</span><span class="push-agents-id">' + escapeHtml(r.agent_id) + '</span><span class="push-agents-msg">' + escapeHtml(rawMsg) + '</span></div>';
+            }).join('');
+            var url = (res.data && res.data.download_url) ? '<p style="font-size:.75rem;color:var(--text-muted);margin-top:6px;">Download URL: ' + escapeHtml(res.data.download_url) + '</p>' : '';
+            resultEl.innerHTML = rows + url;
+            resultEl.classList.remove('hidden');
+            showToast('Agent update sent to ' + results.filter(function(r){return r.success;}).length + '/' + results.length + ' sims', 'success');
+          })
+          .catch(function (err) {
+            btn.disabled = false;
+            btn.textContent = 'Update agent on all sims';
+            showToast('Self-update failed: ' + (err.message || 'network error'), 'error');
           });
       });
     });

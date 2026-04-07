@@ -908,6 +908,62 @@ async def close_mumble_endpoint():
     return result
 
 
+@router.post("/self-update", dependencies=[Depends(verify_token)])
+async def self_update_endpoint(request: Request):
+    """
+    Download a new PitBoxAgent.exe from the given URL and replace this agent.
+    The agent launches a background PowerShell script to do the swap while this
+    process is still running, then exits so the script can copy the new binary.
+    Body: {"url": "http://controller-ip:9630/api/agent/download"}
+    """
+    import sys
+    import tempfile
+    import urllib.request
+    from pathlib import Path
+
+    body = await request.json()
+    url = (body or {}).get("url", "").strip()
+    if not url:
+        return {"success": False, "message": "Missing 'url' in request body"}
+
+    if sys.platform != "win32":
+        return {"success": False, "message": "Self-update only supported on Windows"}
+
+    exe_path = Path(r"C:\PitBox\PitBoxAgent.exe")
+    update_path = Path(r"C:\PitBox\PitBoxAgent_update.exe")
+
+    def _download_and_schedule():
+        try:
+            import urllib.request as _req
+            _req.urlretrieve(url, str(update_path))
+        except Exception as e:
+            return {"success": False, "message": f"Download failed: {e}"}
+
+        ps_script = (
+            "Start-Sleep -Seconds 3\r\n"
+            "taskkill /F /IM PitBoxAgent.exe 2>$null\r\n"
+            "Start-Sleep -Seconds 2\r\n"
+            f"Copy-Item '{update_path}' '{exe_path}' -Force\r\n"
+            "$t = Get-ScheduledTask | Where-Object { $_.TaskName -like '*PitBox*' -or $_.TaskName -like '*Agent*' } | Select-Object -First 1\r\n"
+            "if ($t) { Start-ScheduledTask -TaskName $t.TaskName } else { Start-Process 'C:\\PitBox\\PitBoxAgent.exe' }\r\n"
+            f"Remove-Item '{update_path}' -Force -ErrorAction SilentlyContinue\r\n"
+        )
+
+        import tempfile, subprocess as _sp
+        ps_path = Path(tempfile.gettempdir()) / "pitbox_agent_update.ps1"
+        ps_path.write_text(ps_script, encoding="utf-8")
+
+        _sp.Popen(
+            ["powershell.exe", "-NonInteractive", "-WindowStyle", "Hidden",
+             "-ExecutionPolicy", "Bypass", "-File", str(ps_path)],
+            close_fds=True,
+        )
+        return {"success": True, "message": "Update downloaded — agent restarting in ~5 seconds"}
+
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(None, _download_and_schedule)
+
+
 @router.post("/launch-display", dependencies=[Depends(verify_token)])
 async def launch_display_endpoint():
     """Launch Chrome/Edge in kiosk fullscreen mode pointing at the controller /sim page."""

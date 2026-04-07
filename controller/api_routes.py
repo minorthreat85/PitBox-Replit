@@ -581,6 +581,64 @@ async def download_agent_binary_info():
     return {"found": False, "path": None, "size_mb": None}
 
 
+@router.post("/agents/push-self-update")
+async def push_self_update(_: None = Depends(require_operator), request: Request = None):
+    """
+    Tell every online enrolled agent to download and replace its own exe from the controller.
+    The controller serves the binary at /api/agent/download.
+    After download the agent's PowerShell helper swaps the file and restarts the scheduled task.
+    """
+    import socket
+
+    p = _find_agent_binary()
+    if not p:
+        raise HTTPException(
+            status_code=404,
+            detail="PitBoxAgent.exe not found on controller. Run update.ps1 + pyinstaller first."
+        )
+
+    # Build the download URL — prefer the request host so LAN IP is used automatically
+    if request:
+        host = request.headers.get("host", "").split(":")[0]
+        port = request.headers.get("host", "").split(":")[1] if ":" in request.headers.get("host", "") else "9630"
+        download_url = f"http://{host}:{port}/api/agent/download"
+    else:
+        try:
+            lan_ip = socket.gethostbyname(socket.gethostname())
+        except Exception:
+            lan_ip = "127.0.0.1"
+        download_url = f"http://{lan_ip}:9630/api/agent/download"
+
+    cache = get_status_cache()
+    enrolled = enrolled_get_all_ordered()
+    agent_ids: list[str] = []
+    tasks = []
+    for rig in enrolled:
+        agent_id = (rig.get("agent_id") or "").strip()
+        if not agent_id:
+            continue
+        backend = (rig.get("backend") or "agent").strip().lower()
+        if backend != "agent":
+            continue
+        status = cache.get(agent_id)
+        if not (status and getattr(status, "online", False)):
+            continue
+        agent_ids.append(agent_id)
+        tasks.append(send_agent_command(agent_id, "self-update", {"url": download_url}, timeout=120.0))
+
+    if not tasks:
+        return {"ok": True, "results": [], "message": "No online agents found", "download_url": download_url}
+
+    raw_results = await asyncio.gather(*tasks, return_exceptions=True)
+    results = []
+    for aid, raw in zip(agent_ids, raw_results):
+        if isinstance(raw, Exception):
+            results.append({"agent_id": aid, "success": False, "message": str(raw)})
+        else:
+            results.append({"agent_id": aid, **raw})
+    return {"ok": True, "results": results, "download_url": download_url}
+
+
 @router.post("/agents/push-close-display")
 async def push_close_display(_: None = Depends(require_operator)):
     """Send close-display command to every online enrolled agent. Each agent kills its Chrome/Edge kiosk window."""
