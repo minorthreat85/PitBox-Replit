@@ -3,109 +3,97 @@
     PitBox -- Configure Mumble CLIENT on a sim PC for Race Control voice comms.
 
 .DESCRIPTION
-    Called automatically by PitBoxInstaller.exe (pitbox.iss) after Mumble 1.3.4 is
-    installed.  Must run in the LOGGED-IN USER's context (not SYSTEM) so that
-    HKCU registry writes land in the correct hive.
+    Called automatically by PitBoxInstaller.exe after Mumble 1.3.4 is installed.
+    Runs as the LOGGED-IN USER (runasoriginaluser in Inno Setup [Run]) so that the
+    Windows Startup folder shortcut is created in the correct user profile.
 
-    What this script does:
-      1. Reads the PitBox agent config to obtain the sim's agent_id (e.g. "Sim1").
-      2. Builds a mumble:// URL that auto-connects and auto-joins Race Control.
-      3. Writes that URL into the agent config as `mumble_server_url` so the
-         PitBox agent uses it when the controller calls POST /launch-mumble.
-      4. Writes Mumble client registry keys (HKCU) so:
-           - The correct username is set.
-           - The Race Control server appears as a saved favourite.
-      5. Logs every action taken and verifies the result.
+    Steps:
+      1. Read agent_id from PitBox agent config  (e.g. "Sim1")
+      2. Build  mumble://Sim1@192.168.1.200:64738/Race%20Control
+      3. Write  mumble_server_url  into agent_config.json so the PitBox agent
+         uses it when the controller calls POST /launch-mumble.
+      4. Find   mumble.exe  from standard install locations.
+      5. Create a Windows Startup folder shortcut so Mumble auto-launches
+         at every login with the Race Control URL.
+      6. Log every step and verify the result.
 
-    This script is idempotent -- safe to re-run on an already-configured sim.
+    Idempotent -- safe to re-run on an already-configured sim.
+    Does NOT touch mumble.sqlite, the registry, or any Mumble config file.
 
 .NOTES
-    Mumble 1.3.4 stores client settings in:
-      HKCU\Software\Mumble\Mumble\1.2\
-    Server favourites use the QSettings array format:
-      HKCU\Software\Mumble\Mumble\1.2\FavoriteServers\1\...
+    Startup shortcut path (per-user):
+      %APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\PitBox-Mumble.lnk
+    This shortcut is created in the profile of whoever runs the installer.
 #>
 
 param(
-    [string] $AgentConfigPath   = "C:\PitBox\Agent\config\agent_config.json",
-    [string] $MumbleServerHost  = "192.168.1.200",
-    [int]    $MumbleServerPort  = 64738,
-    [string] $MumbleChannel     = "Race Control"
+    [string] $AgentConfigPath  = "C:\PitBox\Agent\config\agent_config.json",
+    [string] $MumbleServerHost = "192.168.1.200",
+    [int]    $MumbleServerPort = 64738,
+    [string] $MumbleChannel    = "Race Control"
 )
 
-Set-StrictMode -Version Latest
-$ErrorActionPreference = "Continue"   # non-fatal errors logged, not thrown
+$ErrorActionPreference = "Continue"
 
-$LogPrefix = "[PitBox/Mumble]"
-
-function Log([string] $msg) { Write-Host "$LogPrefix $msg" }
-function LogOK([string] $msg) { Write-Host "$LogPrefix [OK]  $msg" -ForegroundColor Green }
-function LogWarn([string] $msg) { Write-Host "$LogPrefix [WARN] $msg" -ForegroundColor Yellow }
-function LogFail([string] $msg) { Write-Host "$LogPrefix [FAIL] $msg" -ForegroundColor Red }
+function Log([string]$msg)  { Write-Host "[PitBox/Mumble] $msg" }
+function LogOK([string]$msg)  { Write-Host "[PitBox/Mumble] [OK]   $msg" -ForegroundColor Green }
+function LogWarn([string]$msg){ Write-Host "[PitBox/Mumble] [WARN] $msg" -ForegroundColor Yellow }
+function LogFail([string]$msg){ Write-Host "[PitBox/Mumble] [FAIL] $msg" -ForegroundColor Red }
 
 Log ""
-Log "=== PitBox Mumble Client Configuration ==="
-Log "Server : $MumbleServerHost`:$MumbleServerPort"
-Log "Channel: $MumbleChannel"
+Log "=== PitBox Mumble Client Setup ==="
+Log "Server  : ${MumbleServerHost}:${MumbleServerPort}"
+Log "Channel : $MumbleChannel"
 Log ""
 
 # ---------------------------------------------------------------------------
-# Step 1 -- Determine sim name from agent config
+# Step 1  --  Resolve sim name from agent config
 # ---------------------------------------------------------------------------
-Log "Step 1: Reading agent config..."
-Log "        Config path: $AgentConfigPath"
+Log "Step 1: Resolving sim name..."
 
-$simName    = $env:COMPUTERNAME
-$agentConfig = $null
+$simName = $env:COMPUTERNAME
 
 if (Test-Path $AgentConfigPath) {
     try {
-        $agentConfig = Get-Content $AgentConfigPath -Raw -Encoding UTF8 | ConvertFrom-Json
-        $fromConfig  = ($agentConfig.agent_id -or $agentConfig.display_name)
-        if ($agentConfig.agent_id)      { $simName = $agentConfig.agent_id }
-        elseif ($agentConfig.display_name) { $simName = $agentConfig.display_name }
-        LogOK "agent_id = '$simName' (from config)"
+        $cfg = Get-Content $AgentConfigPath -Raw -Encoding UTF8 | ConvertFrom-Json
+        if ($cfg.agent_id -and $cfg.agent_id.Trim() -ne "") {
+            $simName = $cfg.agent_id.Trim()
+        }
+        LogOK "Sim name from agent config: '$simName'"
     } catch {
-        LogWarn "Could not parse agent config JSON: $_"
-        LogWarn "Falling back to COMPUTERNAME: $simName"
+        LogWarn "Could not parse agent config -- falling back to COMPUTERNAME: $simName"
     }
 } else {
-    LogWarn "Agent config not found at $AgentConfigPath"
-    LogWarn "Falling back to COMPUTERNAME: $simName"
+    LogWarn "Agent config not found at $AgentConfigPath -- using COMPUTERNAME: $simName"
 }
 
 # ---------------------------------------------------------------------------
-# Step 2 -- Build mumble:// URL
+# Step 2  --  Build mumble:// URL
 # ---------------------------------------------------------------------------
 Log ""
 Log "Step 2: Building mumble:// URL..."
 
-# URL-encode spaces as %20 in the channel name
 $channelEncoded = $MumbleChannel -replace ' ', '%20'
 $mumbleUrl = "mumble://${simName}@${MumbleServerHost}:${MumbleServerPort}/${channelEncoded}"
 
-LogOK "mumble_server_url = $mumbleUrl"
+LogOK "URL: $mumbleUrl"
 
 # ---------------------------------------------------------------------------
-# Step 3 -- Write mumble_server_url into agent config JSON
+# Step 3  --  Write mumble_server_url into agent_config.json
 # ---------------------------------------------------------------------------
 Log ""
-Log "Step 3: Updating agent config with mumble_server_url..."
+Log "Step 3: Writing mumble_server_url to agent config..."
 
 if (Test-Path $AgentConfigPath) {
     try {
-        # Read raw and manipulate as text so we don't strip unrecognised fields
         $raw = Get-Content $AgentConfigPath -Raw -Encoding UTF8
-
         $escapedUrl = $mumbleUrl -replace '"', '\"'
 
         if ($raw -match '"mumble_server_url"\s*:') {
-            # Update existing key
             $raw = $raw -replace '"mumble_server_url"\s*:\s*"[^"]*"',
                                   "`"mumble_server_url`": `"$escapedUrl`""
             Log "        Updated existing mumble_server_url key."
         } else {
-            # Append before closing brace
             $raw = $raw -replace '}\s*$',
                                   ",`n  `"mumble_server_url`": `"$escapedUrl`"`n}"
             Log "        Inserted mumble_server_url key."
@@ -113,118 +101,124 @@ if (Test-Path $AgentConfigPath) {
 
         Set-Content -Path $AgentConfigPath -Value $raw -Encoding UTF8 -NoNewline
         LogOK "Agent config saved: $AgentConfigPath"
-        Log   "        mumble_server_url = $mumbleUrl"
+        LogOK "mumble_server_url = $mumbleUrl"
     } catch {
         LogFail "Could not update agent config: $_"
     }
 } else {
-    LogWarn "Agent config not found -- mumble_server_url not written to config."
-    LogWarn "The PitBox agent will not auto-connect Mumble until the config exists."
+    LogWarn "Agent config not found -- mumble_server_url not written."
+    LogWarn "The PitBox agent will NOT auto-connect Mumble until the config exists."
 }
 
 # ---------------------------------------------------------------------------
-# Step 4 -- Write Mumble client registry keys (HKCU -- user context required)
+# Step 4  --  Find mumble.exe
 # ---------------------------------------------------------------------------
 Log ""
-Log "Step 4: Writing Mumble client registry keys (HKCU)..."
-Log "        Current user: $($env:USERNAME)"
+Log "Step 4: Locating mumble.exe..."
 
-$mumbleRegBase = "HKCU:\Software\Mumble\Mumble\1.2"
+$mumbleCandidates = @(
+    "C:\Program Files (x86)\Mumble\mumble.exe",
+    "C:\Program Files\Mumble\mumble.exe",
+    "C:\Program Files (x86)\Mumble\mumble-1.3\mumble.exe",
+    "C:\Program Files\Mumble\mumble-1.3\mumble.exe"
+)
+
+$mumbleExe = $null
+foreach ($candidate in $mumbleCandidates) {
+    if (Test-Path $candidate) {
+        $mumbleExe = $candidate
+        break
+    }
+}
+
+if ($mumbleExe) {
+    LogOK "Found: $mumbleExe"
+} else {
+    LogFail "mumble.exe not found in standard locations."
+    LogFail "Startup shortcut cannot be created without a valid mumble.exe path."
+    LogFail "Ensure Mumble 1.3.4 MSI was installed before this script ran."
+    exit 1
+}
+
+# ---------------------------------------------------------------------------
+# Step 5  --  Create Windows Startup folder shortcut
+# ---------------------------------------------------------------------------
+Log ""
+Log "Step 5: Creating Windows Startup shortcut..."
+
+$startupFolder = [System.Environment]::GetFolderPath('Startup')
+$shortcutPath  = Join-Path $startupFolder "PitBox-Mumble.lnk"
+
+Log "        Startup folder  : $startupFolder"
+Log "        Shortcut path   : $shortcutPath"
+Log "        Target exe      : $mumbleExe"
+Log "        Arguments       : $mumbleUrl"
 
 try {
-    # Base key
-    if (-not (Test-Path $mumbleRegBase)) {
-        New-Item -Path $mumbleRegBase -Force | Out-Null
-        Log "        Created registry key: $mumbleRegBase"
-    }
-
-    # -- Username -------------------------------------------------------
-    $netKey = "$mumbleRegBase\net"
-    if (-not (Test-Path $netKey)) { New-Item -Path $netKey -Force | Out-Null }
-    Set-ItemProperty -Path $netKey -Name "username" -Value $simName -Type String -Force
-    LogOK "Registry net\username = '$simName'"
-
-    # -- Server favourites ----------------------------------------------
-    $favKey = "$mumbleRegBase\FavoriteServers"
-    if (-not (Test-Path $favKey)) { New-Item -Path $favKey -Force | Out-Null }
-    Set-ItemProperty -Path $favKey -Name "size" -Value 1 -Type DWord -Force
-
-    $fav1Key = "$favKey\1"
-    if (-not (Test-Path $fav1Key)) { New-Item -Path $fav1Key -Force | Out-Null }
-    Set-ItemProperty -Path $fav1Key -Name "name"     -Value $MumbleChannel     -Type String -Force
-    Set-ItemProperty -Path $fav1Key -Name "host"     -Value $MumbleServerHost  -Type String -Force
-    Set-ItemProperty -Path $fav1Key -Name "port"     -Value $MumbleServerPort  -Type DWord  -Force
-    Set-ItemProperty -Path $fav1Key -Name "username" -Value $simName           -Type String -Force
-    Set-ItemProperty -Path $fav1Key -Name "password" -Value ""                 -Type String -Force
-
-    LogOK "Registry FavoriteServers\1 written:"
-    Log   "        name     = $MumbleChannel"
-    Log   "        host     = $MumbleServerHost"
-    Log   "        port     = $MumbleServerPort"
-    Log   "        username = $simName"
-
+    $wsh = New-Object -ComObject WScript.Shell
+    $sc  = $wsh.CreateShortcut($shortcutPath)
+    $sc.TargetPath  = $mumbleExe
+    $sc.Arguments   = $mumbleUrl
+    $sc.Description = "PitBox Race Control voice comms (auto-connect)"
+    $sc.WindowStyle = 7   # minimised
+    $sc.Save()
+    LogOK "Startup shortcut created: $shortcutPath"
 } catch {
-    LogWarn "Registry write failed (non-fatal): $_"
-    LogWarn "Mumble will still auto-connect via the mumble:// URL when the agent launches it."
+    LogFail "Could not create startup shortcut: $_"
+    exit 1
 }
 
 # ---------------------------------------------------------------------------
-# Step 5 -- Verify
+# Step 6  --  Verify
 # ---------------------------------------------------------------------------
 Log ""
-Log "Step 5: Verification..."
+Log "Step 6: Verification..."
 
-$ok = $true
+$allOk = $true
 
-# Verify mumble_server_url in config
+# Verify agent config contains the URL
 if (Test-Path $AgentConfigPath) {
     try {
-        $verify = Get-Content $AgentConfigPath -Raw -Encoding UTF8 | ConvertFrom-Json
-        $written = $verify.mumble_server_url
-        if ($written -eq $mumbleUrl) {
-            LogOK "Agent config mumble_server_url verified: $written"
+        $check = Get-Content $AgentConfigPath -Raw -Encoding UTF8 | ConvertFrom-Json
+        if ($check.mumble_server_url -eq $mumbleUrl) {
+            LogOK "agent_config.json  mumble_server_url = $($check.mumble_server_url)"
         } else {
-            LogWarn "Agent config mumble_server_url mismatch."
+            LogWarn "agent_config.json mumble_server_url mismatch."
             LogWarn "  Expected : $mumbleUrl"
-            LogWarn "  Got      : $written"
-            $ok = $false
+            LogWarn "  Got      : $($check.mumble_server_url)"
+            $allOk = $false
         }
     } catch {
         LogWarn "Could not re-read agent config for verification: $_"
     }
 }
 
-# Verify registry username
-try {
-    $regUser = (Get-ItemProperty -Path "$mumbleRegBase\net" -Name "username" -ErrorAction SilentlyContinue).username
-    if ($regUser -eq $simName) {
-        LogOK "Registry username verified: $regUser"
-    } else {
-        LogWarn "Registry username mismatch. Got: $regUser"
+# Verify shortcut exists and points to the right exe
+if (Test-Path $shortcutPath) {
+    try {
+        $wsh2   = New-Object -ComObject WScript.Shell
+        $verify = $wsh2.CreateShortcut($shortcutPath)
+        if ($verify.TargetPath -eq $mumbleExe -and $verify.Arguments -eq $mumbleUrl) {
+            LogOK "Startup shortcut verified: target=$($verify.TargetPath) args=$($verify.Arguments)"
+        } else {
+            LogWarn "Startup shortcut content mismatch."
+            $allOk = $false
+        }
+    } catch {
+        LogWarn "Could not verify shortcut: $_"
     }
-} catch {
-    LogWarn "Could not verify registry username: $_"
-}
-
-# Verify server favourite
-try {
-    $regHost = (Get-ItemProperty -Path "$mumbleRegBase\FavoriteServers\1" -Name "host" -ErrorAction SilentlyContinue).host
-    if ($regHost -eq $MumbleServerHost) {
-        LogOK "Registry FavoriteServers\1\host verified: $regHost"
-    } else {
-        LogWarn "Registry favourite host mismatch. Got: $regHost"
-    }
-} catch {
-    LogWarn "Could not verify registry favourite: $_"
+} else {
+    LogFail "Startup shortcut not found at expected path: $shortcutPath"
+    $allOk = $false
 }
 
 Log ""
-if ($ok) {
-    LogOK "Mumble client configuration complete."
-    LogOK "When the controller calls POST /launch-mumble the agent will run:"
-    LogOK "  mumble.exe $mumbleUrl"
-    LogOK "This auto-connects to Race Control server and joins channel '$MumbleChannel'."
+if ($allOk) {
+    LogOK "Setup complete."
+    LogOK "On next login, Mumble will auto-launch and connect via:"
+    LogOK "  $mumbleUrl"
+    LogOK "The PitBox agent will also use this URL when the controller calls launch-mumble."
 } else {
-    LogWarn "Configuration completed with warnings. Check output above."
+    LogWarn "Setup completed with warnings -- check output above."
 }
 Log ""

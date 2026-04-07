@@ -132,9 +132,11 @@ Root: HKCU; Subkey: "SOFTWARE\Microsoft\Windows\CurrentVersion\Run"; ValueType: 
 ; This section is for optional post-install actions
 
 ; Configure Mumble client for Race Control voice comms.
-; Runs as the ORIGINAL (non-elevated) user so HKCU registry writes land in the
-; correct hive.  Reads agent_id from agent config -> writes mumble_server_url
-; into agent config -> writes HKCU Mumble registry favourites and username.
+; Runs as the ORIGINAL (non-elevated) user so the Windows Startup shortcut is
+; created in the correct user profile.
+; Reads agent_id from agent config -> builds mumble:// URL -> writes
+; mumble_server_url into agent config -> creates Startup folder shortcut that
+; auto-launches Mumble with the Race Control URL on every login.
 Filename: "powershell.exe"; \
   Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\tools\configure_mumble_client.ps1"" -AgentConfigPath ""{app}\Agent\config\agent_config.json"" -MumbleServerHost ""192.168.1.200"" -MumbleServerPort 64738 -MumbleChannel ""Race Control"""; \
   Flags: runhidden runasoriginaluser; \
