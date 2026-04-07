@@ -82,6 +82,9 @@ Source: "..\dist\tools\update_pitbox.ps1"; DestDir: "{app}\tools"; Components: c
 ; Mumble 1.3.4 MSI bundled for offline silent install on sim PCs
 Source: "assets\mumble-1.3.4.msi"; DestDir: "{app}\tools"; Components: agent; Flags: ignoreversion
 
+; Mumble client configurator (sets username, server favourite, mumble_server_url in agent config)
+Source: "..\scripts\configure_mumble_client.ps1"; DestDir: "{app}\tools"; Components: agent; Flags: ignoreversion
+
 ; NSSM (bundled)
 Source: "..\tools\nssm.exe"; DestDir: "{app}\tools"; Components: nssm; Flags: ignoreversion
 
@@ -127,6 +130,16 @@ Root: HKCU; Subkey: "SOFTWARE\Microsoft\Windows\CurrentVersion\Run"; ValueType: 
 [Run]
 ; Note: Service installation and config creation happens in [Code] section
 ; This section is for optional post-install actions
+
+; Configure Mumble client for Race Control voice comms.
+; Runs as the ORIGINAL (non-elevated) user so HKCU registry writes land in the
+; correct hive.  Reads agent_id from agent config -> writes mumble_server_url
+; into agent config -> writes HKCU Mumble registry favourites and username.
+Filename: "powershell.exe"; \
+  Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\tools\configure_mumble_client.ps1"" -AgentConfigPath ""{app}\Agent\config\agent_config.json"" -MumbleServerHost ""192.168.1.200"" -MumbleServerPort 64738 -MumbleChannel ""Race Control"""; \
+  Flags: runhidden runasoriginaluser; \
+  Components: agent; \
+  StatusMsg: "Configuring Mumble voice comms..."
 
 [Code]
 var

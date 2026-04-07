@@ -22,6 +22,12 @@ _MUMBLE_MSI_URL = (
     "mumble-1.3.4.msi"
 )
 
+# Bundled MSI locations (PitBoxInstaller bundles this at install time)
+_BUNDLED_MSI_PATHS = [
+    r"C:\PitBox\tools\mumble-1.3.4.msi",
+    r"C:\PitBox\bin\mumble-1.3.4.msi",
+]
+
 _MUMBLE_PATHS = [
     r"C:\Program Files\Mumble\mumble.exe",
     r"C:\Program Files (x86)\Mumble\mumble.exe",
@@ -44,33 +50,47 @@ def _find_mumble(custom_path: Optional[str] = None) -> Optional[str]:
 
 def _install_mumble() -> dict:
     """
-    Download and silently install Mumble 1.3.4 MSI.
+    Silently install Mumble 1.3.4 MSI.
+    Prefers bundled MSI (installed by PitBoxInstaller).
+    Falls back to internet download only if no bundled MSI is found.
     Returns dict with success and message.
     """
     if sys.platform != "win32":
         return {"success": False, "message": "Auto-install only supported on Windows"}
 
-    msi_path = Path(tempfile.gettempdir()) / "mumble-1.3.4.msi"
+    # Prefer bundled MSI (no internet required)
+    msi_path: Optional[Path] = None
+    for bundled in _BUNDLED_MSI_PATHS:
+        p = Path(bundled)
+        if p.exists() and p.stat().st_size > 0:
+            msi_path = p
+            logger.info("Using bundled Mumble MSI: %s", msi_path)
+            break
+
+    downloaded = False
+    if msi_path is None:
+        # Fallback: download from internet
+        msi_path = Path(tempfile.gettempdir()) / "mumble-1.3.4.msi"
+        try:
+            logger.info("Bundled MSI not found — downloading Mumble 1.3.4 MSI from GitHub...")
+            urllib.request.urlretrieve(_MUMBLE_MSI_URL, str(msi_path))
+            logger.info("Download complete: %s", msi_path)
+            downloaded = True
+        except Exception as e:
+            msg = f"Failed to download Mumble installer: {e}"
+            logger.error(msg)
+            return {"success": False, "message": msg}
 
     try:
-        logger.info("Downloading Mumble 1.3.4 MSI from GitHub...")
-        urllib.request.urlretrieve(_MUMBLE_MSI_URL, str(msi_path))
-        logger.info("Download complete: %s", msi_path)
-    except Exception as e:
-        msg = f"Failed to download Mumble installer: {e}"
-        logger.error(msg)
-        return {"success": False, "message": msg}
-
-    try:
-        logger.info("Installing Mumble silently...")
+        logger.info("Installing Mumble silently from: %s", msi_path)
         result = subprocess.run(
-            ["msiexec", "/i", str(msi_path), "/quiet", "/norestart"],
+            ["msiexec", "/i", str(msi_path), "/qn", "/norestart"],
             timeout=120,
             capture_output=True,
             text=True,
         )
-        if result.returncode == 0:
-            logger.info("Mumble 1.3.4 installed successfully")
+        if result.returncode in (0, 3010):
+            logger.info("Mumble 1.3.4 installed successfully (exit code %s)", result.returncode)
             return {"success": True, "message": "Mumble 1.3.4 installed successfully"}
         else:
             msg = f"Mumble installer exited with code {result.returncode}"
@@ -85,10 +105,11 @@ def _install_mumble() -> dict:
         logger.error(msg)
         return {"success": False, "message": msg}
     finally:
-        try:
-            msi_path.unlink(missing_ok=True)
-        except Exception:
-            pass
+        if downloaded:
+            try:
+                msi_path.unlink(missing_ok=True)
+            except Exception:
+                pass
 
 
 def launch_mumble(mumble_exe: Optional[str] = None, server_url: Optional[str] = None) -> dict:
