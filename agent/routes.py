@@ -52,7 +52,7 @@ def _get_track_display_name(tracks_dir: Path, track_id: str, layout: str) -> Opt
     except Exception:
         return None
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request
 from pydantic import BaseModel
 
 from agent.auth import verify_token
