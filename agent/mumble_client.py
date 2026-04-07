@@ -1,18 +1,26 @@
 """
 Mumble client launcher for PitBox Agent.
 Launches the Mumble desktop client on Windows sim PCs.
+Auto-installs Mumble 1.3.4 silently if not found.
 """
 from __future__ import annotations
 
 import logging
 import subprocess
 import sys
+import tempfile
+import urllib.request
 from pathlib import Path
 from typing import Optional
 
 logger = logging.getLogger(__name__)
 
 _mumble_proc: Optional[subprocess.Popen] = None
+
+_MUMBLE_MSI_URL = (
+    "https://github.com/mumble-voip/mumble/releases/download/1.3.4/"
+    "mumble-1.3.4.msi"
+)
 
 _MUMBLE_PATHS = [
     r"C:\Program Files\Mumble\mumble.exe",
@@ -34,22 +42,79 @@ def _find_mumble(custom_path: Optional[str] = None) -> Optional[str]:
     return None
 
 
+def _install_mumble() -> dict:
+    """
+    Download and silently install Mumble 1.3.4 MSI.
+    Returns dict with success and message.
+    """
+    if sys.platform != "win32":
+        return {"success": False, "message": "Auto-install only supported on Windows"}
+
+    msi_path = Path(tempfile.gettempdir()) / "mumble-1.3.4.msi"
+
+    try:
+        logger.info("Downloading Mumble 1.3.4 MSI from GitHub...")
+        urllib.request.urlretrieve(_MUMBLE_MSI_URL, str(msi_path))
+        logger.info("Download complete: %s", msi_path)
+    except Exception as e:
+        msg = f"Failed to download Mumble installer: {e}"
+        logger.error(msg)
+        return {"success": False, "message": msg}
+
+    try:
+        logger.info("Installing Mumble silently...")
+        result = subprocess.run(
+            ["msiexec", "/i", str(msi_path), "/quiet", "/norestart"],
+            timeout=120,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode == 0:
+            logger.info("Mumble 1.3.4 installed successfully")
+            return {"success": True, "message": "Mumble 1.3.4 installed successfully"}
+        else:
+            msg = f"Mumble installer exited with code {result.returncode}"
+            logger.error("%s — stderr: %s", msg, result.stderr)
+            return {"success": False, "message": msg}
+    except subprocess.TimeoutExpired:
+        msg = "Mumble installer timed out after 120s"
+        logger.error(msg)
+        return {"success": False, "message": msg}
+    except Exception as e:
+        msg = f"Failed to run Mumble installer: {e}"
+        logger.error(msg)
+        return {"success": False, "message": msg}
+    finally:
+        try:
+            msi_path.unlink(missing_ok=True)
+        except Exception:
+            pass
+
+
 def launch_mumble(mumble_exe: Optional[str] = None, server_url: Optional[str] = None) -> dict:
     """
     Launch the Mumble desktop client.
+    If Mumble is not found, automatically downloads and installs it first.
     Optional server_url: mumble://host[:port][/channel] — auto-connects on open.
     Returns dict with success, message.
     """
     global _mumble_proc
 
     exe = _find_mumble(mumble_exe)
+
     if not exe:
-        msg = (
-            "Mumble not found. Install Mumble on this sim PC. "
-            "Checked: " + ", ".join(_MUMBLE_PATHS)
-        )
-        logger.error(msg)
-        return {"success": False, "message": msg}
+        logger.info("Mumble not found — attempting auto-install...")
+        install_result = _install_mumble()
+        if not install_result["success"]:
+            return install_result
+        exe = _find_mumble(mumble_exe)
+        if not exe:
+            msg = (
+                "Mumble installed but still not found at expected paths. "
+                "Checked: " + ", ".join(_MUMBLE_PATHS)
+            )
+            logger.error(msg)
+            return {"success": False, "message": msg}
 
     cmd = [exe]
     if server_url:
