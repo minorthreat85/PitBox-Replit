@@ -40,10 +40,13 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 Name: "firewallrule"; Description: "Add Windows Firewall rule for Agent (ports {#AgentPort})"; GroupDescription: "Network Configuration:"; Flags: checkedonce
 
 [Files]
+; PitBox Agent binary
 Source: "..\dist\PitBoxAgent.exe"; DestDir: "{app}"; Flags: ignoreversion
-; Note: Add icon files when available
+; Mumble 1.3.4 MSI bundled for offline silent install
+Source: "assets\mumble-1.3.4.msi"; DestDir: "{app}\bin"; Flags: ignoreversion
 
 [Dirs]
+Name: "{app}\bin"
 Name: "{app}\config"; Permissions: users-modify
 Name: "{app}\logs"; Permissions: users-modify
 Name: "{app}\presets\steering"; Permissions: users-modify
@@ -61,6 +64,7 @@ Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExeName}"; Tasks: deskto
 Filename: "{app}\{#AppExeName}"; Parameters: "--init"; Flags: runhidden; StatusMsg: "Creating default configuration..."; Check: not FileExists(ExpandConstant('{app}\config\agent_config.json'))
 ; Add firewall rule
 Filename: "netsh"; Parameters: "advfirewall firewall add rule name=""PitBox Agent"" dir=in action=allow protocol=TCP localport={#AgentPort}"; Flags: runhidden; StatusMsg: "Adding Windows Firewall rule..."; Tasks: firewallrule
+
 [UninstallRun]
 ; Remove firewall rule on uninstall
 Filename: "netsh"; Parameters: "advfirewall firewall delete rule name=""PitBox Agent"""; Flags: runhidden
@@ -68,6 +72,125 @@ Filename: "netsh"; Parameters: "advfirewall firewall delete rule name=""PitBox A
 [Code]
 var
   ResultPage: TOutputMsgWizardPage;
+
+// ---------------------------------------------------------------------------
+// Mumble detection
+// ---------------------------------------------------------------------------
+
+function IsMumbleInstalled: Boolean;
+var
+  DisplayVersion: String;
+begin
+  Result := False;
+
+  // Primary check: 32-bit uninstall key (Mumble 1.3.4 is a 32-bit installer)
+  if RegQueryStringValue(HKLM,
+      'SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\Mumble',
+      'DisplayVersion', DisplayVersion) then
+  begin
+    Log('Mumble registry (WOW6432Node) DisplayVersion: ' + DisplayVersion);
+    if Pos('1.3.4', DisplayVersion) > 0 then
+    begin
+      Log('Mumble 1.3.4 already installed (WOW6432Node registry).');
+      Result := True;
+      Exit;
+    end;
+  end;
+
+  // Secondary check: native 64-bit uninstall key
+  if RegQueryStringValue(HKLM,
+      'SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Mumble',
+      'DisplayVersion', DisplayVersion) then
+  begin
+    Log('Mumble registry (native) DisplayVersion: ' + DisplayVersion);
+    if Pos('1.3.4', DisplayVersion) > 0 then
+    begin
+      Log('Mumble 1.3.4 already installed (native registry).');
+      Result := True;
+      Exit;
+    end;
+  end;
+
+  // Fallback: check executable presence
+  if FileExists('C:\Program Files (x86)\Mumble\mumble.exe') then
+  begin
+    Log('Mumble exe found at C:\Program Files (x86)\Mumble\mumble.exe — treating as installed.');
+    Result := True;
+    Exit;
+  end;
+
+  Log('Mumble 1.3.4 not detected on this machine.');
+end;
+
+// ---------------------------------------------------------------------------
+// Mumble silent install
+// ---------------------------------------------------------------------------
+
+function InstallMumble: Boolean;
+var
+  MsiPath: String;
+  ResultCode: Integer;
+begin
+  Result := True;
+
+  if IsMumbleInstalled then
+  begin
+    Log('Skipping Mumble install — already present.');
+    Exit;
+  end;
+
+  MsiPath := ExpandConstant('{app}\bin\mumble-1.3.4.msi');
+  Log('Mumble MSI path: ' + MsiPath);
+
+  if not FileExists(MsiPath) then
+  begin
+    Log('ERROR: Bundled Mumble MSI not found at ' + MsiPath);
+    MsgBox(
+      'Bundled Mumble MSI is missing: ' + MsiPath + #13#10 +
+      'Mumble voice comms will not be available. Please reinstall PitBox Agent.',
+      mbError, MB_OK);
+    Result := False;
+    Exit;
+  end;
+
+  Log('Starting silent Mumble 1.3.4 install...');
+  if not Exec('msiexec.exe',
+              '/i "' + MsiPath + '" /qn /norestart',
+              '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
+  begin
+    Log('ERROR: Failed to launch msiexec for Mumble install.');
+    MsgBox(
+      'Failed to start the Mumble installer.' + #13#10 +
+      'Mumble voice comms will not be available.',
+      mbError, MB_OK);
+    Result := False;
+    Exit;
+  end;
+
+  Log('msiexec exit code: ' + IntToStr(ResultCode));
+
+  // 0 = success, 3010 = success + reboot required (acceptable for LAN deployment)
+  if (ResultCode = 0) or (ResultCode = 3010) then
+  begin
+    Log('Mumble 1.3.4 installed successfully (exit code ' + IntToStr(ResultCode) + ').');
+    if ResultCode = 3010 then
+      Log('Note: A reboot may be required to complete the Mumble install.');
+    Result := True;
+  end
+  else
+  begin
+    Log('ERROR: Mumble MSI returned non-zero exit code: ' + IntToStr(ResultCode));
+    MsgBox(
+      'Mumble installation failed with exit code ' + IntToStr(ResultCode) + '.' + #13#10 +
+      'Mumble voice comms may not be available. You can install Mumble 1.3.4 manually later.',
+      mbError, MB_OK);
+    Result := False;
+  end;
+end;
+
+// ---------------------------------------------------------------------------
+// Service helpers
+// ---------------------------------------------------------------------------
 
 function ServiceExists(ServiceName: String): Boolean;
 var
@@ -99,6 +222,10 @@ begin
     Sleep(2000);
 end;
 
+// ---------------------------------------------------------------------------
+// Wizard hooks
+// ---------------------------------------------------------------------------
+
 procedure InitializeWizard;
 begin
   ResultPage := CreateOutputMsgPage(wpInfoAfter,
@@ -117,8 +244,14 @@ begin
   begin
     StopService('PitBoxAgent');
   end;
+
   if CurStep = ssPostInstall then
   begin
+    // Install Mumble before starting PitBox Agent
+    Log('--- Mumble pre-check ---');
+    InstallMumble;
+    Log('--- Mumble pre-check done ---');
+
     if ServiceExists('PitBoxAgent') then
       StartService('PitBoxAgent');
   end;
