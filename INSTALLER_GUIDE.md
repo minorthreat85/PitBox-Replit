@@ -9,7 +9,7 @@ The PitBox Unified Installer is a single installer that can deploy either:
 
 ### What the Installer Does Automatically
 
-✅ **Installs Binaries** - Copies PitBox executables to `C:\PitBox\installed\bin\`  
+✅ **Installs Binaries** - Copies PitBox executables to `C:\PitBox\Agent\bin\` (agent) / `C:\PitBox\installed\bin\` (controller)  
 ✅ **Bundles NSSM** - Includes NSSM service manager (for Controller only)  
 ✅ **Creates Folders** - Sets up `bin`, `config`, `logs`, `tools`  
 ✅ **Creates Default Configs** - Generates initial configuration files  
@@ -43,7 +43,7 @@ The PitBox Unified Installer is a single installer that can deploy either:
 
 2. **Edit Configuration** (REQUIRED)
    ```
-   Edit: C:\PitBox\installed\config\agent.json
+   Edit: C:\PitBox\Agent\config\agent_config.json
    ```
    Set:
    - `agent_id`: "Sim1", "Sim2", etc.
@@ -155,7 +155,7 @@ Installation complete! **Important**: You must edit the configuration files befo
 
 ### Agent Configuration (REQUIRED)
 
-Edit: `C:\PitBox\installed\config\agent.json`
+Edit: `C:\PitBox\Agent\config\agent_config.json`
 
 ```json
 {
@@ -250,8 +250,8 @@ C:\PitBox\installed\
 | Property | Value |
 |----------|-------|
 | **Runs As** | Logged-in user (e.g., `info`) |
-| **Executable** | `C:\PitBox\installed\bin\PitBoxAgent.exe` |
-| **Arguments** | `--config "C:\PitBox\installed\config\agent.json"` |
+| **Executable** | `C:\PitBox\Agent\bin\PitBoxAgent.exe` |
+| **Arguments** | `--config "C:\PitBox\Agent\config\agent_config.json"` |
 | **Startup** | Startup folder shortcut |
 | **Shortcut Path** | `%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\PitBox Agent.lnk` |
 | **Why User Session?** | AC must launch with visible window (SYSTEM causes headless launch) |
@@ -397,7 +397,7 @@ Get-Content C:\PitBox\installed\logs\PitBoxAgent.err.log
 | Error | Solution |
 |-------|----------|
 | "FATAL ERROR: PitBoxAgent is running as SYSTEM" | DO NOT run as service. Use Startup folder shortcut instead |
-| "Config file not found" | Config should exist at `C:\PitBox\installed\config\agent.json` |
+| "Config file not found" | Config should exist at `C:\PitBox\Agent\config\agent_config.json` |
 | "Port already in use" | Another process using port 9600 |
 | "Token required" | Edit config, set secure token |
 
@@ -440,10 +440,10 @@ Get-Content C:\PitBox\installed\logs\PitBoxController.err.log
 If config file wasn't created by installer:
 
 ```powershell
-cd C:\PitBox\installed\bin
-.\PitBoxAgent.exe --init --config C:\PitBox\installed\config\agent.json
+cd C:\PitBox\Agent\bin
+.\PitBoxAgent.exe --init --config C:\PitBox\Agent\config\agent_config.json
 # Edit the created file
-notepad C:\PitBox\installed\config\agent.json
+notepad C:\PitBox\Agent\config\agent_config.json
 ```
 
 ### Firewall Blocking Connections

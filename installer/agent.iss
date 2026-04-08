@@ -41,7 +41,7 @@ Name: "firewallrule"; Description: "Add Windows Firewall rule for Agent (ports {
 
 [Files]
 ; PitBox Agent binary
-Source: "..\dist\PitBoxAgent.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\dist\PitBoxAgent.exe"; DestDir: "{app}\bin"; Flags: ignoreversion
 ; Mumble 1.3.4 MSI bundled for offline silent install
 Source: "assets\mumble-1.3.4.msi"; DestDir: "{app}\bin"; Flags: ignoreversion
 
@@ -53,15 +53,15 @@ Name: "{app}\presets\steering"; Permissions: users-modify
 Name: "{app}\presets\assists"; Permissions: users-modify
 
 [Icons]
-Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExeName}"; Comment: "Start PitBox Agent"
+Name: "{group}\{#AppName}"; Filename: "{app}\bin\{#AppExeName}"; Comment: "Start PitBox Agent"
 Name: "{group}\Configure Agent"; Filename: "notepad.exe"; Parameters: """{app}\config\agent_config.json"""; Comment: "Edit Agent configuration"
 Name: "{group}\View Agent Logs"; Filename: "{app}\logs"; Comment: "Open logs folder"
 Name: "{group}\Uninstall {#AppName}"; Filename: "{uninstallexe}"
-Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExeName}"; Tasks: desktopicon
+Name: "{autodesktop}\{#AppName}"; Filename: "{app}\bin\{#AppExeName}"; Tasks: desktopicon
 
 [Run]
 ; Initialize config on first install (only if config doesn't exist)
-Filename: "{app}\{#AppExeName}"; Parameters: "--init"; Flags: runhidden; StatusMsg: "Creating default configuration..."; Check: not FileExists(ExpandConstant('{app}\config\agent_config.json'))
+Filename: "{app}\bin\{#AppExeName}"; Parameters: "--init"; Flags: runhidden; StatusMsg: "Creating default configuration..."; Check: not FileExists(ExpandConstant('{app}\config\agent_config.json'))
 ; Add firewall rule
 Filename: "netsh"; Parameters: "advfirewall firewall add rule name=""PitBox Agent"" dir=in action=allow protocol=TCP localport={#AgentPort}"; Flags: runhidden; StatusMsg: "Adding Windows Firewall rule..."; Tasks: firewallrule
 

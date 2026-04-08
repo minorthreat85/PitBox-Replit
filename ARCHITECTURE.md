@@ -87,7 +87,7 @@ Web UI available at http://127.0.0.1:9600
    - Task Name: PitBox Agent
    - Trigger: ONLOGON (when user logs on)
    - Run as: Logged-in user (NOT SYSTEM)
-   - Command: `PitBoxAgent.exe --config "C:\PitBox\agent_config.json"`
+   - Command: `PitBoxAgent.exe --config "C:\PitBox\Agent\config\agent_config.json"`
 3. Any existing PitBoxAgent **service** is removed (migration from old installs)
 4. Firewall rule added (TCP 9631–9638 inbound on each sim, TCP 9630 inbound on admin PC)
 5. **CRITICAL**: Agent must run as user so AC shows game window
@@ -161,7 +161,7 @@ Get-Process acs -ErrorAction SilentlyContinue | Select-Object Name, Id, SessionI
 2. Remove any services or scheduled tasks
 3. Start Agent manually to test:
    ```
-   C:\PitBox\installed\bin\PitBoxAgent.exe --config "C:\PitBox\installed\config\agent.json"
+   C:\PitBox\Agent\bin\PitBoxAgent.exe --config "C:\PitBox\Agent\config\agent_config.json"
    ```
 4. Verify Task Manager shows Agent running as your user
 5. Test AC launch from Controller UI

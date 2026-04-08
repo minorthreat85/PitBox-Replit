@@ -27,7 +27,7 @@ SolidCompression=yes
 WizardStyle=modern
 PrivilegesRequired=admin
 ArchitecturesInstallIn64BitMode=x64
-UninstallDisplayIcon={app}\bin\PitBoxAgent.exe
+UninstallDisplayIcon={app}\Agent\bin\PitBoxAgent.exe
 ; Black/white/red theme. Uncomment and add agent_icon.ico to installer folder for custom icon:
 ; SetupIconFile=agent_icon.ico
 
@@ -51,7 +51,7 @@ Name: "openbrowser"; Description: "Open Web UI after installation"; Components: 
 
 [Files]
 ; Executables
-Source: "..\dist\PitBoxAgent.exe"; DestDir: "{app}"; Components: agent; Flags: ignoreversion
+Source: "..\dist\PitBoxAgent.exe"; DestDir: "{app}\Agent\bin"; Components: agent; Flags: ignoreversion
 Source: "..\dist\PitBoxController.exe"; DestDir: "{app}"; Components: controller; Flags: ignoreversion
 
 ; VERSION.txt (for update checks)
@@ -317,7 +317,7 @@ var
   ResultCode: Integer;
 begin
   Result := False;
-  AgentExe := ExpandConstant('{app}\PitBoxAgent.exe');
+  AgentExe := ExpandConstant('{app}\Agent\bin\PitBoxAgent.exe');
   AgentConfig := ExpandConstant('{app}\Agent\config\agent_config.json');
   TaskName := 'PitBox Agent';
   UserName := ExpandConstant('{username}');
@@ -596,7 +596,7 @@ begin
   end;
   if CurStep = ssPostInstall then
   begin
-    AgentExe := ExpandConstant('{app}\PitBoxAgent.exe');
+    AgentExe := ExpandConstant('{app}\Agent\bin\PitBoxAgent.exe');
     ControllerExe := ExpandConstant('{app}\PitBoxController.exe');
     AgentConfig := ExpandConstant('{app}\Agent\config\agent_config.json');
     ControllerConfig := ExpandConstant('{app}\controller_config.json');
@@ -659,7 +659,7 @@ begin
           begin
             // Fallback: launch exe directly in user session
             Log('schtasks /Run returned ' + IntToStr(ResultCode) + ', launching agent exe directly');
-            ShellExec('open', ExpandConstant('{app}\PitBoxAgent.exe'),
+            ShellExec('open', ExpandConstant('{app}\Agent\bin\PitBoxAgent.exe'),
               '--config "' + ExpandConstant('{app}\Agent\config\agent_config.json') + '"',
               ExpandConstant('{app}'), SW_HIDE, ewNoWait, ResultCode);
           end;

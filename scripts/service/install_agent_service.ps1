@@ -15,8 +15,8 @@ Assert-Admin
 
 # Paths - use C:\PitBox (unified installer path)
 $PITBOX_ROOT = "C:\PitBox"
-$AGENT_EXE = Join-Path $PITBOX_ROOT "PitBoxAgent.exe"
-$AGENT_CONFIG = Join-Path $PITBOX_ROOT "agent_config.json"
+$AGENT_EXE = "C:\PitBox\Agent\bin\PitBoxAgent.exe"
+$AGENT_CONFIG = "C:\PitBox\Agent\config\agent_config.json"
 
 if (-not (Test-Path $AGENT_EXE)) {
     Write-Host "ERROR: PitBoxAgent.exe not found at: $AGENT_EXE" -ForegroundColor Red

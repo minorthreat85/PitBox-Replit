@@ -35,7 +35,7 @@ if ($buildExit -ne 0) {
 $controllerSrc = "$PSScriptRoot\dist\PitBoxController.exe"
 $controllerDst = "$InstallBinDir\PitBoxController.exe"
 $agentSrc      = "$PSScriptRoot\dist\PitBoxAgent.exe"
-$agentDst      = "$InstallBinDir\PitBoxAgent.exe"
+$agentDst      = "C:\PitBox\Agent\bin\PitBoxAgent.exe"
 
 if (Test-Path $controllerSrc) {
     if (Test-Path $InstallBinDir) {
@@ -52,7 +52,7 @@ if (Test-Path $controllerSrc) {
 
 if (Test-Path $agentSrc) {
     if (Test-Path $InstallBinDir) {
-        Write-Host "Deploying PitBoxAgent.exe -> $InstallBinDir ..." -ForegroundColor Cyan
+        Write-Host "Deploying PitBoxAgent.exe -> C:\PitBox\Agent\bin ..." -ForegroundColor Cyan
         Copy-Item -Path $agentSrc -Destination $agentDst -Force
         Write-Host "  PitBoxAgent.exe deployed." -ForegroundColor Gray
     }

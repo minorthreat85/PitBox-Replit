@@ -55,7 +55,7 @@ Professional LAN-based management system for Assetto Corsa racing lounges with u
 
 3. **Start Agent**
    - Start Menu → PitBox → PitBox Agent
-   - Or run: `C:\PitBox\Agent\PitBoxAgent.exe`
+   - Or run: `C:\PitBox\Agent\bin\PitBoxAgent.exe`
 
 ✅ Done! Agent is now running and waiting for controller commands.
 
@@ -338,16 +338,16 @@ If you don't want to use installers, you can run the standalone EXEs:
 **Agent:**
 ```powershell
 # Copy to sim PC
-copy dist\PitBoxAgent.exe C:\PitBox\Agent\
+copy dist\PitBoxAgent.exe C:\PitBox\Agent\bin\
 
 # First run creates default config
-C:\PitBox\Agent\PitBoxAgent.exe
+C:\PitBox\Agent\bin\PitBoxAgent.exe
 
 # Edit the config that was created
 notepad C:\PitBox\Agent\config\agent_config.json
 
 # Start agent
-C:\PitBox\Agent\PitBoxAgent.exe
+C:\PitBox\Agent\bin\PitBoxAgent.exe
 ```
 
 **Controller:**
@@ -503,7 +503,7 @@ Your configuration and presets are safe!
 1. Build new EXEs: `.\scripts\build_release.ps1 -Dev`
 2. **Stop all running agents and controller**
 3. Copy new EXE files:
-   - `dist\PitBoxAgent.exe` → `C:\PitBox\Agent\PitBoxAgent.exe`
+   - `dist\PitBoxAgent.exe` → `C:\PitBox\Agent\bin\PitBoxAgent.exe`
    - `dist\PitBoxController.exe` → `C:\PitBox\Controller\PitBoxController.exe`
 4. **DO NOT touch `config\` or `presets\` directories**
 5. Restart services
@@ -545,7 +545,7 @@ These files contain your custom configuration and should persist across updates.
 5. **Check Config Paths**:
    - Run with `--init` to regenerate default config:
    ```powershell
-   C:\PitBox\Agent\PitBoxAgent.exe --init
+   C:\PitBox\Agent\bin\PitBoxAgent.exe --init
    ```
 
 ### AC Won't Launch

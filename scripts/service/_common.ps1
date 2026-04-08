@@ -5,7 +5,7 @@ $ErrorActionPreference = "Stop"
 
 # Paths
 $NSSM_PATH = "C:\PitBox\installed\tools\nssm.exe"
-$AGENT_BIN = "C:\PitBox\installed\bin\PitBoxAgent.exe"
+$AGENT_BIN = "C:\PitBox\Agent\bin\PitBoxAgent.exe"
 $CONTROLLER_BIN = "C:\PitBox\installed\bin\PitBoxController.exe"
 $AGENT_CONFIG = "C:\PitBox\installed\config\agent.json"
 $CONTROLLER_CONFIG = "C:\PitBox\installed\config\controller.json"

@@ -232,7 +232,7 @@ def start_agent(log: logging.Logger) -> bool:
     if r.returncode == 0:
         log.info("Started agent via schtasks /Run %s", AGENT_TASK_NAME)
         return True
-    agent_exe = PITBOX_ROOT / "PitBoxAgent.exe"
+    agent_exe = PITBOX_ROOT / "Agent" / "bin" / "PitBoxAgent.exe"
     if agent_exe.exists():
         config = PITBOX_ROOT / "Agent" / "config" / "agent_config.json"
         args = [str(agent_exe), "--config", str(config)] if config.exists() else [str(agent_exe)]
