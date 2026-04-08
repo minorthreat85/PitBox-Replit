@@ -3718,6 +3718,7 @@
     bindPushSelfUpdateButton();
     bindPushLaunchDisplayButton();
     bindPushCloseDisplayButton();
+    bindSimDebugButton();
     /* Load saved dev_repo_path into the inline input on the Updates tab */
     pitboxFetch(API_BASE + '/config')
       .then(function (r) { return r.ok ? r.json() : null; })
@@ -4141,6 +4142,59 @@
             btn.disabled = false;
             btn.textContent = 'Close displays on all sims';
             showToast('Close display failed: ' + (err.message || 'network error'), 'error');
+          });
+      });
+    });
+  }
+  function bindSimDebugButton() {
+    var btn = document.getElementById('updates-btn-sim-debug');
+    var resultEl = document.getElementById('updates-sim-debug-result');
+    if (!btn || btn.dataset.simDebugBound === '1') return;
+    btn.dataset.simDebugBound = '1';
+    btn.addEventListener('click', function () {
+      if (btn.disabled) return;
+      btn.disabled = true;
+      btn.textContent = 'Querying sims…';
+      if (resultEl) { resultEl.classList.add('hidden'); resultEl.innerHTML = ''; }
+      ensureOperatorOrRedirect().then(function (ok) {
+        if (!ok) { btn.disabled = false; btn.textContent = 'Run Sim Diagnostics'; return; }
+        pitboxFetch(API_BASE + '/agents/debug-environment', { method: 'GET' })
+          .then(function (r) { return r.json(); })
+          .then(function (data) {
+            btn.disabled = false;
+            btn.textContent = 'Run Sim Diagnostics';
+            if (!resultEl) return;
+            var results = (data && data.results) || [];
+            if (results.length === 0) {
+              resultEl.innerHTML = '<p class="push-agents-none">No enrolled agents.</p>';
+              resultEl.classList.remove('hidden');
+              return;
+            }
+            var rows = results.map(function (r) {
+              if (!r.online) {
+                return '<div class="push-agents-row push-agents-err"><span class="push-agents-icon">○</span><span class="push-agents-id">' + escapeHtml(r.agent_id) + '</span><span class="push-agents-msg">Offline</span></div>';
+              }
+              if (r.error) {
+                return '<div class="push-agents-row push-agents-err"><span class="push-agents-icon">✗</span><span class="push-agents-id">' + escapeHtml(r.agent_id) + '</span><span class="push-agents-msg">' + escapeHtml(r.error) + '</span></div>';
+              }
+              var lines = [];
+              lines.push('v' + (r.version || '?'));
+              lines.push('updater: ' + (r.updater_exists ? '✓ ' + r.updater_path : '✗ MISSING ' + r.updater_path));
+              lines.push('browser: ' + (r.browser_found ? '✓ ' + r.browser_path : '✗ NOT FOUND'));
+              lines.push('ctrl_url: ' + (r.controller_url || 'NONE') + ' (src: ' + (r.controller_url_source || '?') + ')');
+              lines.push('paired: ' + r.paired);
+              if (r.final_sim_url) lines.push('sim_url: ' + r.final_sim_url);
+              var cls = (r.updater_exists && r.browser_found && r.controller_url) ? 'push-agents-ok' : 'push-agents-err';
+              var icon = cls === 'push-agents-ok' ? '✓' : '⚠';
+              return '<div class="push-agents-row ' + cls + '"><span class="push-agents-icon">' + icon + '</span><span class="push-agents-id">' + escapeHtml(r.agent_id) + '</span><span class="push-agents-msg" style="white-space:pre-line;font-size:0.85em">' + escapeHtml(lines.join('\n')) + '</span></div>';
+            }).join('');
+            resultEl.innerHTML = rows;
+            resultEl.classList.remove('hidden');
+          })
+          .catch(function (err) {
+            btn.disabled = false;
+            btn.textContent = 'Run Sim Diagnostics';
+            showToast('Sim debug failed: ' + (err.message || 'network error'), 'error');
           });
       });
     });

@@ -867,8 +867,11 @@ async def apply_pending_update_endpoint():
             "current_version": CURRENT_VERSION,
             "target_version": target_version,
         }
-    set_status("failed", error="PitBoxUpdater.exe not found")
-    return {"success": False, "message": "PitBoxUpdater.exe not found", "current_version": CURRENT_VERSION}
+    from agent.update_check import DEFAULT_PITBOX_UPDATER_EXE
+    updater_path = str(DEFAULT_PITBOX_UPDATER_EXE)
+    set_status("failed", error=f"PitBoxUpdater.exe not found at {updater_path}")
+    return {"success": False, "message": f"PitBoxUpdater.exe not found at {updater_path}",
+            "current_version": CURRENT_VERSION, "debug": {"updater_path": updater_path, "updater_exists": False}}
 
 
 @router.post("/update", dependencies=[Depends(verify_token)])
@@ -937,10 +940,13 @@ async def trigger_update(body: UpdateBody = None):
         return {"success": True, "update_available": True, "update_status": "installing",
                 "current_version": current, "latest_version": latest,
                 "message": f"Updater launched ({current} -> {latest})"}
-    set_status("failed", error="PitBoxUpdater.exe not found on this machine")
+    from agent.update_check import DEFAULT_PITBOX_UPDATER_EXE
+    updater_path = str(DEFAULT_PITBOX_UPDATER_EXE)
+    set_status("failed", error=f"PitBoxUpdater.exe not found at {updater_path}")
     return {"success": False, "update_available": True, "update_status": "failed",
             "current_version": current, "latest_version": latest,
-            "message": "Update available but PitBoxUpdater.exe not found"}
+            "message": f"PitBoxUpdater.exe not found at {updater_path}",
+            "debug": {"updater_path": updater_path, "updater_exists": False}}
 
 
 @router.post("/close-display", dependencies=[Depends(verify_token)])
@@ -996,6 +1002,60 @@ async def close_mumble_endpoint():
     result = await loop.run_in_executor(None, close_mumble)
     logger.info("[close-mumble] Result: %s", result)
     return result
+
+
+@router.get("/debug/environment", dependencies=[Depends(verify_token)])
+async def debug_environment():
+    """Return diagnostic info for this sim PC: updater, browser, config, pairing."""
+    from agent.config import get_config
+    from agent.identity import get_device_id
+    from agent.sim_display import _find_browser, _CHROME_PATHS, _EDGE_PATHS
+    from agent.update_check import DEFAULT_PITBOX_UPDATER_EXE
+    from pitbox_common.version import __version__
+    import sys
+
+    cfg = get_config()
+    config_ctrl_url = getattr(cfg, "controller_url", None) or ""
+    paired = False
+    pairing_ctrl_url = None
+    try:
+        from agent.pairing import is_paired, get_controller_url as _get_ctrl_url
+        paired = is_paired()
+        if paired:
+            pairing_ctrl_url = _get_ctrl_url() or None
+    except Exception:
+        pass
+
+    ctrl_url = pairing_ctrl_url or config_ctrl_url or ""
+    try:
+        agent_id = get_device_id()
+    except Exception:
+        agent_id = getattr(cfg, "agent_id", "unknown")
+
+    browser = _find_browser()
+    updater_path = str(DEFAULT_PITBOX_UPDATER_EXE)
+    updater_exists = DEFAULT_PITBOX_UPDATER_EXE.exists() if sys.platform == "win32" else False
+
+    final_url = ""
+    if ctrl_url:
+        from agent.sim_display import build_display_url
+        final_url = build_display_url(ctrl_url, agent_id)
+
+    return {
+        "agent_id": agent_id,
+        "version": __version__,
+        "updater_exists": updater_exists,
+        "updater_path": updater_path,
+        "controller_url": ctrl_url,
+        "controller_url_source": "pairing" if pairing_ctrl_url else ("config" if config_ctrl_url else "none"),
+        "pairing_controller_url": pairing_ctrl_url,
+        "config_controller_url": config_ctrl_url or None,
+        "paired": paired,
+        "browser_found": browser is not None,
+        "browser_path": browser,
+        "browser_checked_paths": _CHROME_PATHS + _EDGE_PATHS,
+        "final_sim_url": final_url,
+    }
 
 
 @router.post("/launch-display", dependencies=[Depends(verify_token)])
@@ -1063,4 +1123,14 @@ async def launch_display_endpoint():
     loop = asyncio.get_event_loop()
     result = await loop.run_in_executor(None, lambda: launch_display(ctrl_url, agent_id, browser_path=browser))
     logger.info("[launch-display] result=%s", result)
+    result["debug"] = {
+        "paired": paired,
+        "controller_url_source": ctrl_url_source,
+        "controller_url": ctrl_url,
+        "config_controller_url": config_ctrl_url or None,
+        "pairing_controller_url": pairing_ctrl_url,
+        "final_url": final_url,
+        "browser_found": True,
+        "browser_path": browser,
+    }
     return result

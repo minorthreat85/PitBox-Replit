@@ -700,6 +700,46 @@ async def get_agents_update_status(_: None = Depends(require_operator)):
     return {"ok": True, "results": all_results}
 
 
+@router.get("/agents/debug-environment")
+async def get_agents_debug_environment(_: None = Depends(require_operator)):
+    """
+    Query debug/environment from every enrolled sim agent.
+    Returns per-sim diagnostics: updater status, browser, controller_url, pairing, etc.
+    """
+    cache = get_status_cache()
+    enrolled = enrolled_get_all_ordered()
+    agent_ids: list[str] = []
+    tasks = []
+    all_results: list[dict] = []
+    result_index: dict[str, int] = {}
+
+    for rig in enrolled:
+        agent_id = (rig.get("agent_id") or "").strip()
+        if not agent_id:
+            continue
+        backend = (rig.get("backend") or "agent").strip().lower()
+        if backend != "agent":
+            continue
+        s = cache.get(agent_id)
+        online = bool(s and getattr(s, "online", False))
+        entry: dict = {"agent_id": agent_id, "online": online}
+        result_index[agent_id] = len(all_results)
+        all_results.append(entry)
+        if online:
+            agent_ids.append(agent_id)
+            tasks.append(send_agent_command(agent_id, "debug/environment", {}, timeout=10.0, method="GET"))
+
+    if tasks:
+        raw_results = await asyncio.gather(*tasks, return_exceptions=True)
+        for aid, raw in zip(agent_ids, raw_results):
+            idx = result_index[aid]
+            if isinstance(raw, Exception):
+                all_results[idx]["error"] = str(raw)
+            else:
+                all_results[idx].update(raw)
+
+    return {"ok": True, "results": all_results}
+
 
 @router.post("/agents/push-close-display")
 async def push_close_display(_: None = Depends(require_operator)):

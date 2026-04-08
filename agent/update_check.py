@@ -32,6 +32,19 @@ HTTP_TIMEOUT = 10
 DEFAULT_PITBOX_UPDATER_EXE = Path(os.environ.get("PITBOX_UPDATER_INSTALLER_EXE", r"C:\PitBox\updater\PitBoxUpdater.exe"))
 INSTALLER_ASSET_PATTERN = re.compile(r"PitBoxInstaller[-_].*\.exe$", re.I)
 
+def _log_updater_status() -> None:
+    """Log whether PitBoxUpdater.exe is found at startup."""
+    import sys
+    if sys.platform != "win32":
+        return
+    exe = DEFAULT_PITBOX_UPDATER_EXE
+    if exe.exists():
+        logger.info("PitBoxUpdater found at %s", exe)
+    else:
+        logger.warning("PitBoxUpdater NOT found at %s -- updates will fail", exe)
+
+_log_updater_status()
+
 
 def _fetch_release_json(url: str) -> dict | None:
     """Fetch a GitHub release JSON dict, or return None on error."""

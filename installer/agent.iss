@@ -42,11 +42,18 @@ Name: "firewallrule"; Description: "Add Windows Firewall rule for Agent (ports {
 [Files]
 ; PitBox Agent binary
 Source: "..\dist\PitBoxAgent.exe"; DestDir: "{app}\bin"; Flags: ignoreversion
+; PitBoxUpdater.exe (installer-based updater; include only if built)
+#ifexist "..\dist\PitBoxUpdater.exe"
+Source: "..\dist\PitBoxUpdater.exe"; DestDir: "C:\PitBox\updater"; Flags: ignoreversion
+#endif
 ; Mumble 1.3.4 MSI bundled for offline silent install
 Source: "assets\mumble-1.3.4.msi"; DestDir: "{app}\bin"; Flags: ignoreversion
 
 [Dirs]
 Name: "{app}\bin"
+Name: "C:\PitBox\updater"
+Name: "C:\PitBox\downloads"
+Name: "C:\PitBox\logs"
 Name: "{app}\config"; Permissions: users-modify
 Name: "{app}\logs"; Permissions: users-modify
 Name: "{app}\presets\steering"; Permissions: users-modify
