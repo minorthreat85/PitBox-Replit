@@ -35,7 +35,7 @@ def _check_not_system_user():
         print("  1. DO NOT run PitBoxAgent as a Windows Service")
         print("  2. Remove any PitBoxAgent service: sc delete PitBoxAgent")
         print("  3. Use the installer's 'Start Agent on login' option (Scheduled Task)")
-        print("  4. Or run manually: PitBoxAgent.exe --config <path>")
+        print("  4. Or run manually: python -m agent.main --config <path>")
         print("")
         print("Expected: PitBoxAgent runs as the sim user (e.g. 'info')")
         print("=" * 70)
