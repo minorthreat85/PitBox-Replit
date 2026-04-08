@@ -9,6 +9,7 @@ import logging
 import subprocess
 import sys
 import tempfile
+import time
 import urllib.request
 from pathlib import Path
 from typing import Optional
@@ -28,6 +29,7 @@ _BUNDLED_MSI_PATHS = [
     r"C:\PitBox\bin\mumble-1.3.4.msi",
 ]
 
+# Checked in order — first one that exists is used
 _MUMBLE_PATHS = [
     r"C:\Program Files\Mumble\mumble.exe",
     r"C:\Program Files (x86)\Mumble\mumble.exe",
@@ -112,64 +114,113 @@ def _install_mumble() -> dict:
                 pass
 
 
-def _is_mumble_running() -> bool:
-    """Return True if mumble.exe is already running (Windows tasklist check)."""
-    if sys.platform != "win32":
-        return False
-    try:
-        r = subprocess.run(
-            ["tasklist", "/FI", "IMAGENAME eq mumble.exe", "/NH"],
-            capture_output=True, text=True, timeout=5,
-        )
-        return "mumble.exe" in r.stdout.lower()
-    except Exception:
-        return False
+def _kill_mumble() -> bool:
+    """
+    Kill any running mumble.exe process.
+    Returns True if a process was found and killed, False if nothing was running.
+    Clears the internal _mumble_proc handle in all cases.
+    """
+    global _mumble_proc
+    killed = False
+
+    # Kill by tracked PID first (most precise)
+    if _mumble_proc is not None:
+        pid = _mumble_proc.pid
+        _mumble_proc = None
+        try:
+            if sys.platform == "win32":
+                subprocess.run(
+                    ["taskkill", "/F", "/T", "/PID", str(pid)],
+                    capture_output=True, timeout=5,
+                )
+            else:
+                import os, signal
+                os.kill(pid, signal.SIGTERM)
+            killed = True
+            logger.info("Killed tracked Mumble PID %s", pid)
+        except Exception as e:
+            logger.warning("Could not kill tracked PID %s: %s", pid, e)
+
+    # Always run taskkill /IM as a safety net (catches externally-started mumble.exe)
+    if sys.platform == "win32":
+        try:
+            r = subprocess.run(
+                ["taskkill", "/F", "/T", "/IM", "mumble.exe"],
+                capture_output=True, text=True, timeout=5,
+            )
+            if r.returncode == 0:
+                killed = True
+                logger.info("Killed mumble.exe via taskkill /IM")
+            else:
+                # Exit 128 = process not found — expected when nothing is running
+                logger.debug("taskkill /IM mumble.exe exit=%s (not running)", r.returncode)
+        except Exception as e:
+            logger.warning("taskkill /IM mumble.exe failed: %s", e)
+
+    return killed
 
 
 def launch_mumble(mumble_exe: Optional[str] = None, server_url: Optional[str] = None) -> dict:
     """
-    Launch the Mumble desktop client.
-    Idempotent: if mumble.exe is already running, logs that and returns without spawning
-    a duplicate.
-    If Mumble is not found, automatically downloads and installs it first.
-    Optional server_url: mumble://host[:port][/channel] — auto-connects on open.
-    Returns dict with success, message.
+    Launch the Mumble desktop client and auto-connect to the server/channel via URL.
+
+    Behaviour:
+    - Always kills any existing mumble.exe first (even if externally started)
+    - Waits 1.5 s for the process to fully exit
+    - Resolves mumble.exe from standard install paths
+    - Launches:  mumble.exe <server_url>
+    - server_url format: mumble://<username>@<host>:<port>/<channel>
+
+    This guarantees that every launch connects to the server and joins the
+    correct channel with no manual interaction, regardless of previous state.
     """
     global _mumble_proc
 
-    logger.info("launch_mumble called — server_url=%s", server_url or "(none)")
+    logger.info("launch_mumble called — url=%s", server_url or "(none)")
 
-    # Idempotency: don't spawn a second copy if already running
-    if _is_mumble_running():
-        logger.info("Mumble is already running — skipping launch")
-        return {"success": True, "message": "Mumble already running", "already_running": True}
+    # Step 1: Kill any existing Mumble so the new launch always uses the URL
+    was_running = _kill_mumble()
+    if was_running:
+        logger.info("Killed existing Mumble — waiting 1.5 s before relaunch...")
+        time.sleep(1.5)
+    else:
+        logger.info("No existing Mumble process found")
 
+    # Step 2: Resolve mumble.exe path
     exe = _find_mumble(mumble_exe)
-
     if not exe:
-        logger.info("Mumble not found — attempting auto-install...")
+        logger.info("Mumble not found at standard paths — attempting auto-install...")
         install_result = _install_mumble()
         if not install_result["success"]:
             return install_result
         exe = _find_mumble(mumble_exe)
         if not exe:
             msg = (
-                "Mumble installed but still not found at expected paths. "
+                "Mumble installed but executable still not found. "
                 "Checked: " + ", ".join(_MUMBLE_PATHS)
             )
             logger.error(msg)
             return {"success": False, "message": msg}
 
+    logger.info("Resolved mumble.exe: %s", exe)
+
+    # Step 3: Build the command and launch
+    # mumble.exe  mumble://<username>@<host>:<port>/<channel>
     cmd = [exe]
     if server_url:
         cmd.append(server_url)
 
-    logger.info("Spawning Mumble: %s", " ".join(cmd))
+    logger.info("Launching: %s", " ".join(cmd))
     try:
         proc = subprocess.Popen(cmd, close_fds=True)
         _mumble_proc = proc
-        logger.info("Launched Mumble: %s (PID %s)", exe, proc.pid)
-        return {"success": True, "message": f"Mumble launched (PID {proc.pid})", "exe": exe}
+        logger.info("Mumble launched (PID %s) — connecting to %s", proc.pid, server_url or "(no url)")
+        return {
+            "success": True,
+            "message": f"Mumble launched (PID {proc.pid})",
+            "exe": exe,
+            "url": server_url or "",
+        }
     except Exception as e:
         msg = f"Failed to launch Mumble: {e}"
         logger.error(msg)
@@ -180,46 +231,9 @@ def close_mumble() -> dict:
     """
     Kill the Mumble process.
     Idempotent: if Mumble is not running, returns success without error.
-    Tries tracked PID first, then falls back to taskkill by image name on Windows.
     """
-    global _mumble_proc
     logger.info("close_mumble called")
-    killed = False
-    messages: list[str] = []
-
-    if _mumble_proc is not None:
-        pid = _mumble_proc.pid
-        _mumble_proc = None
-        try:
-            if sys.platform == "win32":
-                subprocess.run(["taskkill", "/F", "/T", "/PID", str(pid)], capture_output=True)
-            else:
-                import os, signal
-                os.kill(pid, signal.SIGTERM)
-            killed = True
-            messages.append(f"Killed Mumble process (PID {pid})")
-            logger.info("Closed Mumble PID %s", pid)
-        except Exception as e:
-            messages.append(f"Could not kill PID {pid}: {e}")
-            logger.warning("Failed to kill Mumble PID %s: %s", pid, e)
-
-    if sys.platform == "win32" and not killed:
-        try:
-            r = subprocess.run(
-                ["taskkill", "/F", "/T", "/IM", "mumble.exe"],
-                capture_output=True, text=True,
-            )
-            if r.returncode == 0:
-                killed = True
-                messages.append("Killed mumble.exe via taskkill")
-                logger.info("Closed Mumble via taskkill /IM")
-            else:
-                # taskkill exit 128 = "no process found" — not an error, it's idempotent
-                logger.info("taskkill /IM mumble.exe — no process found (exit %s), already closed", r.returncode)
-        except Exception as e:
-            logger.debug("taskkill mumble.exe failed: %s", e)
-
+    killed = _kill_mumble()
     if killed:
-        return {"success": True, "message": "; ".join(messages) or "Mumble closed"}
-    # No process running — treat as success (idempotent close)
+        return {"success": True, "message": "Mumble closed"}
     return {"success": True, "message": "Mumble was not running", "already_closed": True}
