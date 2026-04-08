@@ -199,7 +199,8 @@ def main():
         from fastapi import FastAPI
         from agent.routes import router
 
-        app = FastAPI(title="PitBox Agent", version="1.4.1")
+        from pitbox_common.version import __version__ as _AGENT_VERSION
+        app = FastAPI(title="PitBox Agent", version=_AGENT_VERSION)
         app.include_router(router)
         
         logger.info("Agent %s listening on %s:%s", config.agent_id, config.listen_host, effective_port)
