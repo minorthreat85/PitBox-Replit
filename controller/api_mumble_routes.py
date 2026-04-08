@@ -176,38 +176,61 @@ async def send_message(body: MessageBody, _: None = Depends(require_operator)):
 async def _push_to_all_agents(command: str) -> dict:
     cache = get_status_cache()
     enrolled = enrolled_get_all_ordered()
+    logger.info("[%s] Controller request received — checking %d enrolled rigs", command, len(enrolled))
+
     agent_ids: list[str] = []
-    skipped: list[str] = []
     tasks = []
+    # All results pre-populated so every rig appears in the response
+    all_results: list[dict] = []
+    result_index: dict[str, int] = {}
+
     for rig in enrolled:
         agent_id = (rig.get("agent_id") or "").strip()
         if not agent_id:
             continue
-        if (rig.get("backend") or "agent").strip().lower() != "agent":
+        backend = (rig.get("backend") or "agent").strip().lower()
+        if backend != "agent":
             logger.debug("[%s] Skipping %s — CM backend", command, agent_id)
             continue
         s = cache.get(agent_id)
-        if not (s and getattr(s, "online", False)):
+        online = bool(s and getattr(s, "online", False))
+        entry: dict = {
+            "agent_id":  agent_id,
+            "online":    online,
+            "attempted": online,
+            "success":   False,
+            "message":   "" if online else "Offline — not attempted",
+        }
+        result_index[agent_id] = len(all_results)
+        all_results.append(entry)
+
+        if online:
+            logger.info("[%s] Dispatching to %s", command, agent_id)
+            agent_ids.append(agent_id)
+            tasks.append(send_agent_command(agent_id, command, {}, timeout=15.0))
+        else:
             logger.info("[%s] Skipping %s — offline", command, agent_id)
-            skipped.append(agent_id)
-            continue
-        logger.info("[%s] Dispatching to %s", command, agent_id)
-        agent_ids.append(agent_id)
-        tasks.append(send_agent_command(agent_id, command, {}, timeout=15.0))
 
     if not tasks:
-        logger.warning("[%s] No online agents to dispatch to (skipped=%s)", command, skipped)
-        return {"ok": True, "results": [], "skipped": skipped, "message": "No online agents found"}
+        offline_ids = [r["agent_id"] for r in all_results if not r["online"]]
+        logger.warning("[%s] No online agents to dispatch to (offline=%s)", command, offline_ids)
+        return {
+            "ok": True,
+            "results": all_results,
+            "summary": f"0/{len(all_results)} online",
+            "message": "No online agents found",
+        }
 
     logger.info("[%s] Dispatching to %d agent(s): %s", command, len(agent_ids), agent_ids)
     raw_results = await asyncio.gather(*tasks, return_exceptions=True)
-    results = []
+
     ok_count = 0
     fail_count = 0
     for aid, raw in zip(agent_ids, raw_results):
+        idx = result_index[aid]
         if isinstance(raw, Exception):
             logger.error("[%s] %s → EXCEPTION: %s", command, aid, raw)
-            results.append({"agent_id": aid, "success": False, "message": str(raw)})
+            all_results[idx].update({"success": False, "message": str(raw)})
             fail_count += 1
         else:
             success = raw.get("success", True)
@@ -218,15 +241,15 @@ async def _push_to_all_agents(command: str) -> dict:
             else:
                 logger.warning("[%s] %s → FAIL: %s", command, aid, msg)
                 fail_count += 1
-            results.append({"agent_id": aid, **raw})
+            all_results[idx].update({**raw, "agent_id": aid, "online": True, "attempted": True})
 
-    logger.info("[%s] Done — %d ok, %d failed, %d skipped (offline)",
-                command, ok_count, fail_count, len(skipped))
+    online_count = len(agent_ids)
+    logger.info("[%s] Done — %d ok, %d failed, %d offline",
+                command, ok_count, fail_count, len(all_results) - online_count)
     return {
         "ok": True,
-        "results": results,
-        "skipped": skipped,
-        "summary": f"{ok_count}/{len(agent_ids)} succeeded",
+        "results": all_results,
+        "summary": f"{ok_count}/{online_count} succeeded ({len(all_results) - online_count} offline)",
     }
 
 

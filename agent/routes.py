@@ -898,22 +898,25 @@ async def launch_mumble_endpoint():
     # Rig identity
     rig_name = (cfg.agent_id or "").strip() or "Unknown"
 
-    # Mumble server settings (from config, with sensible defaults)
+    # Mumble server settings (from config, with hardened defaults)
     server_host = cfg.mumble_server_host or "192.168.1.200"
     server_port = cfg.mumble_server_port or 64738
+    password    = cfg.mumble_server_password or "fastestlap"
     channel     = cfg.mumble_channel or "Race Control"
     mumble_exe  = cfg.mumble_exe_path or None
 
-    # Build mumble:// URL dynamically using this rig's agent_id as username
+    # Build mumble:// URL: mumble://<username>:<password>@<host>:<port>/<channel>
     username_enc = quote(rig_name, safe="")
-    channel_enc  = quote(channel,   safe="")
-    server_url = f"mumble://{username_enc}@{server_host}:{server_port}/{channel_enc}"
+    password_enc = quote(password, safe="")
+    channel_enc  = quote(channel,  safe="")
+    server_url = f"mumble://{username_enc}:{password_enc}@{server_host}:{server_port}/{channel_enc}"
 
-    logger.info("[launch-mumble] rig=%s  exe=%s  url=%s",
-                rig_name, mumble_exe or "(auto-detect)", server_url)
+    logger.info("[launch-mumble] rig=%s  exe=%s", rig_name, mumble_exe or "(auto-detect)")
+    logger.info("[launch-mumble] url=%s", server_url)
 
     loop = asyncio.get_event_loop()
     result = await loop.run_in_executor(None, lambda: launch_mumble(mumble_exe, server_url))
+    result["rig_name"] = rig_name
     logger.info("[launch-mumble] Result for %s: %s", rig_name, result)
     return result
 

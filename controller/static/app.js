@@ -6776,22 +6776,49 @@
     var btnRefresh = document.getElementById('mumble-btn-refresh');
     if (btnRefresh) btnRefresh.addEventListener('click', function () { fetchMumbleStatus(); });
 
+    function _mumblePushResultHtml(data, action) {
+      var results = data.results || [];
+      var ok      = results.filter(function (r) { return r.success; }).length;
+      var online  = results.filter(function (r) { return r.online; }).length;
+      var summary = data.summary || (ok + '/' + online + ' succeeded');
+      var rows = results.map(function (r) {
+        var statusText, statusColor;
+        if (!r.online) {
+          statusText = 'Offline'; statusColor = 'var(--text-muted)';
+        } else if (r.success) {
+          statusText = 'OK'; statusColor = 'var(--color-success, #4caf50)';
+        } else {
+          statusText = 'Failed'; statusColor = 'var(--color-error, #f44336)';
+        }
+        var detail = r.message || '';
+        if (r.url)      detail = r.url;
+        if (!r.success && r.message) detail = r.message;
+        return '<tr style="border-bottom:1px solid var(--border-subtle,#333)">'
+          + '<td style="padding:2px 8px 2px 0;font-weight:600">' + (r.agent_id || '?') + '</td>'
+          + '<td style="padding:2px 8px;color:' + statusColor + '">' + statusText + '</td>'
+          + '<td style="padding:2px 0;color:var(--text-muted);word-break:break-all">' + detail + '</td>'
+          + '</tr>';
+      }).join('');
+      return '<div style="margin-bottom:4px;font-weight:600">' + action + ': ' + summary + '</div>'
+        + '<table style="width:100%;border-collapse:collapse;font-size:.78rem"><tbody>' + rows + '</tbody></table>';
+    }
+
     var btnLaunch = document.getElementById('mumble-btn-launch-all');
     if (btnLaunch) btnLaunch.addEventListener('click', function () {
       btnLaunch.disabled = true;
       var res = document.getElementById('mumble-push-result');
-      if (res) { res.textContent = 'Launching Mumble on all rigs…'; res.classList.remove('hidden'); }
+      if (res) { res.innerHTML = 'Launching Mumble on all rigs…'; res.classList.remove('hidden'); }
       pitboxFetch(API_BASE + '/mumble/agents/push-launch', { method: 'POST' })
         .then(function (r) { return r.json(); })
         .then(function (data) {
-          var ok = (data.results || []).filter(function (r) { return r.success; }).length;
-          var total = (data.results || []).length;
-          if (res) res.textContent = 'Launched on ' + ok + '/' + total + ' rigs.';
-          showToast('Mumble launched on ' + ok + '/' + total + ' rigs.', 'success');
+          var ok    = (data.results || []).filter(function (r) { return r.success; }).length;
+          var total = (data.results || []).filter(function (r) { return r.online; }).length;
+          if (res) { res.innerHTML = _mumblePushResultHtml(data, 'Launch'); res.classList.remove('hidden'); }
+          showToast('Mumble launched on ' + ok + '/' + total + ' online rigs.', ok === total && total > 0 ? 'success' : 'warning');
           btnLaunch.disabled = false;
         })
         .catch(function (e) {
-          if (res) res.textContent = 'Error: ' + (e.message || e);
+          if (res) { res.textContent = 'Error: ' + (e.message || e); res.classList.remove('hidden'); }
           showToast('Launch failed: ' + (e.message || e), 'error');
           btnLaunch.disabled = false;
         });
@@ -6801,18 +6828,18 @@
     if (btnClose) btnClose.addEventListener('click', function () {
       btnClose.disabled = true;
       var res = document.getElementById('mumble-push-result');
-      if (res) { res.textContent = 'Closing Mumble on all rigs…'; res.classList.remove('hidden'); }
+      if (res) { res.innerHTML = 'Closing Mumble on all rigs…'; res.classList.remove('hidden'); }
       pitboxFetch(API_BASE + '/mumble/agents/push-close', { method: 'POST' })
         .then(function (r) { return r.json(); })
         .then(function (data) {
-          var ok = (data.results || []).filter(function (r) { return r.success; }).length;
-          var total = (data.results || []).length;
-          if (res) res.textContent = 'Closed on ' + ok + '/' + total + ' rigs.';
-          showToast('Mumble closed on ' + ok + '/' + total + ' rigs.', 'success');
+          var ok    = (data.results || []).filter(function (r) { return r.success; }).length;
+          var total = (data.results || []).filter(function (r) { return r.online; }).length;
+          if (res) { res.innerHTML = _mumblePushResultHtml(data, 'Close'); res.classList.remove('hidden'); }
+          showToast('Mumble closed on ' + ok + '/' + total + ' online rigs.', ok === total && total > 0 ? 'success' : 'warning');
           btnClose.disabled = false;
         })
         .catch(function (e) {
-          if (res) res.textContent = 'Error: ' + (e.message || e);
+          if (res) { res.textContent = 'Error: ' + (e.message || e); res.classList.remove('hidden'); }
           showToast('Close failed: ' + (e.message || e), 'error');
           btnClose.disabled = false;
         });

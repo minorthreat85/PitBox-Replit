@@ -102,6 +102,7 @@ class AgentConfig(BaseModel):
     mumble_server_port: int = Field(default=64738, description="Murmur server port.")
     mumble_channel: str = Field(default="Race Control", description="Mumble channel to join on auto-connect.")
     mumble_exe_path: Optional[str] = Field(default=None, description="Full path to mumble.exe. If unset, standard install paths are tried.")
+    mumble_server_password: str = Field(default="fastestlap", description="Murmur server password included in the auto-connect URL.")
 
     @field_validator('token')
     @classmethod
