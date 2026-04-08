@@ -98,6 +98,10 @@ class AgentConfig(BaseModel):
     telemetry_read_hz: float = Field(default=20.0, description="Rate to read AC shared memory (e.g. 20 Hz).")
     auto_launch_display: bool = Field(default=False, description="If true, auto-launch Chrome/Edge in kiosk fullscreen pointing at the controller /sim page on startup.")
     display_launch_delay: float = Field(default=5.0, description="Seconds to wait after startup before launching the sim display browser.")
+    mumble_server_host: str = Field(default="192.168.1.200", description="Murmur server IP/hostname for auto-connect URL.")
+    mumble_server_port: int = Field(default=64738, description="Murmur server port.")
+    mumble_channel: str = Field(default="Race Control", description="Mumble channel to join on auto-connect.")
+    mumble_exe_path: Optional[str] = Field(default=None, description="Full path to mumble.exe. If unset, standard install paths are tried.")
 
     @field_validator('token')
     @classmethod

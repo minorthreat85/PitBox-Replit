@@ -889,16 +889,32 @@ async def close_display_endpoint():
 @router.post("/launch-mumble", dependencies=[Depends(verify_token)])
 async def launch_mumble_endpoint():
     """Launch the Mumble desktop client on this sim PC."""
+    from urllib.parse import quote
     from agent.mumble_client import launch_mumble
     from agent.config import get_config
     logger.info("[launch-mumble] Request received")
     cfg = get_config()
-    mumble_exe = getattr(cfg, "mumble_exe_path", None) or None
-    server_url = getattr(cfg, "mumble_server_url", None) or None
-    logger.info("[launch-mumble] mumble_exe_path=%s  server_url=%s", mumble_exe or "(auto-detect)", server_url or "(none)")
+
+    # Rig identity
+    rig_name = (cfg.agent_id or "").strip() or "Unknown"
+
+    # Mumble server settings (from config, with sensible defaults)
+    server_host = cfg.mumble_server_host or "192.168.1.200"
+    server_port = cfg.mumble_server_port or 64738
+    channel     = cfg.mumble_channel or "Race Control"
+    mumble_exe  = cfg.mumble_exe_path or None
+
+    # Build mumble:// URL dynamically using this rig's agent_id as username
+    username_enc = quote(rig_name, safe="")
+    channel_enc  = quote(channel,   safe="")
+    server_url = f"mumble://{username_enc}@{server_host}:{server_port}/{channel_enc}"
+
+    logger.info("[launch-mumble] rig=%s  exe=%s  url=%s",
+                rig_name, mumble_exe or "(auto-detect)", server_url)
+
     loop = asyncio.get_event_loop()
     result = await loop.run_in_executor(None, lambda: launch_mumble(mumble_exe, server_url))
-    logger.info("[launch-mumble] Result: %s", result)
+    logger.info("[launch-mumble] Result for %s: %s", rig_name, result)
     return result
 
 
