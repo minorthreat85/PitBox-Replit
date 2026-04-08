@@ -450,6 +450,19 @@ if (-not $SkipInstallers) {
                 Write-Host "    Controller installer built successfully" -ForegroundColor Gray
             }
         }
+
+        # Build standalone Agent installer (for sim PC deployment / GitHub releases)
+        $agentIss = "installer\agent.iss"
+        if (Test-Path $agentIss) {
+            Write-Host ""
+            Write-Host "  Building PitBoxAgentSetup_$version.exe..." -ForegroundColor Green
+            & $iscc $agentIss /Q
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host "    Warning: Agent installer build had issues (exit code $LASTEXITCODE)" -ForegroundColor Yellow
+            } else {
+                Write-Host "    Agent installer built successfully" -ForegroundColor Gray
+            }
+        }
         
     } else {
         Write-Host ""
@@ -486,6 +499,10 @@ if (Test-Path "dist\PitBoxInstaller.exe") {
 $controllerSetupName = "dist\PitBoxControllerSetup_$version.exe"
 if (Test-Path $controllerSetupName) {
     Write-Host "  [x] PitBoxControllerSetup_$version.exe (Controller standalone)" -ForegroundColor Green
+}
+$agentSetupName = "dist\PitBoxAgentSetup_$version.exe"
+if (Test-Path $agentSetupName) {
+    Write-Host "  [x] PitBoxAgentSetup_$version.exe (Agent standalone)" -ForegroundColor Green
 }
 if (Test-Path "dist\pitbox_updater.exe") {
     Write-Host "  [x] pitbox_updater.exe (ZIP-based external updater)" -ForegroundColor Green

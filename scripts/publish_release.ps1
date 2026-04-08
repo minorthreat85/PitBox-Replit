@@ -142,27 +142,49 @@ if ($existingRelease) {
     Write-Host "  Created release $tagName (id=$($release.id))" -ForegroundColor Gray
 }
 
-# Check if installer asset already uploaded
-$existingAsset = $release.assets | Where-Object { $_.name -eq $installerName } | Select-Object -First 1
-if ($existingAsset) {
-    Write-Host "  Asset $installerName already attached — deleting and re-uploading..." -ForegroundColor Yellow
-    Invoke-RestMethod `
-        -Uri "https://api.github.com/repos/$GITHUB_OWNER/$GITHUB_REPO/releases/assets/$($existingAsset.id)" `
-        -Headers $headers -Method Delete | Out-Null
+# Helper function to upload a release asset (idempotent: deletes existing first)
+function Upload-ReleaseAsset {
+    param($ReleaseId, $AssetPath, $AssetName, $Headers)
+    $existingAsset = $release.assets | Where-Object { $_.name -eq $AssetName } | Select-Object -First 1
+    if ($existingAsset) {
+        Write-Host "  Asset $AssetName already attached — deleting and re-uploading..." -ForegroundColor Yellow
+        Invoke-RestMethod `
+            -Uri "https://api.github.com/repos/$GITHUB_OWNER/$GITHUB_REPO/releases/assets/$($existingAsset.id)" `
+            -Headers $Headers -Method Delete | Out-Null
+    }
+    Write-Host "  Uploading $AssetName ($([math]::Round((Get-Item $AssetPath).Length / 1MB, 1)) MB)..." -ForegroundColor Gray
+    $uploadUrl = "https://uploads.github.com/repos/$GITHUB_OWNER/$GITHUB_REPO/releases/$ReleaseId/assets?name=$AssetName"
+    $uploadHeaders = @{
+        "Authorization" = "token $GitHubToken"
+        "Content-Type"  = "application/octet-stream"
+        "User-Agent"    = "PitBox-Publisher"
+    }
+    $result = Invoke-RestMethod `
+        -Uri $uploadUrl -Headers $uploadHeaders -Method Post `
+        -InFile $AssetPath -ContentType "application/octet-stream"
+    Write-Host "  Uploaded: $($result.browser_download_url)" -ForegroundColor Gray
 }
 
-# Upload installer asset
-Write-Host "  Uploading $installerName ($([math]::Round((Get-Item $installerPath).Length / 1MB, 1)) MB)..." -ForegroundColor Gray
-$uploadUrl = "https://uploads.github.com/repos/$GITHUB_OWNER/$GITHUB_REPO/releases/$($release.id)/assets?name=$installerName"
-$uploadHeaders = @{
-    "Authorization" = "token $GitHubToken"
-    "Content-Type"  = "application/octet-stream"
-    "User-Agent"    = "PitBox-Publisher"
+# Upload unified installer (primary asset)
+Upload-ReleaseAsset -ReleaseId $release.id -AssetPath $installerPath -AssetName $installerName -Headers $headers
+
+# Upload standalone Agent installer if present
+$agentSetupPath = Join-Path $distDir "PitBoxAgentSetup_$VERSION.exe"
+if (Test-Path $agentSetupPath) {
+    $agentSetupName = Split-Path $agentSetupPath -Leaf
+    Upload-ReleaseAsset -ReleaseId $release.id -AssetPath $agentSetupPath -AssetName $agentSetupName -Headers $headers
+} else {
+    Write-Host "  Skipping PitBoxAgentSetup_$VERSION.exe (not found in dist)" -ForegroundColor Yellow
 }
-$uploadResult = Invoke-RestMethod `
-    -Uri $uploadUrl -Headers $uploadHeaders -Method Post `
-    -InFile $installerPath -ContentType "application/octet-stream"
-Write-Host "  Uploaded: $($uploadResult.browser_download_url)" -ForegroundColor Gray
+
+# Upload standalone Controller installer if present
+$controllerSetupPath = Join-Path $distDir "PitBoxControllerSetup_$VERSION.exe"
+if (Test-Path $controllerSetupPath) {
+    $controllerSetupName = Split-Path $controllerSetupPath -Leaf
+    Upload-ReleaseAsset -ReleaseId $release.id -AssetPath $controllerSetupPath -AssetName $controllerSetupName -Headers $headers
+} else {
+    Write-Host "  Skipping PitBoxControllerSetup_$VERSION.exe (not found in dist)" -ForegroundColor Yellow
+}
 
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Green
