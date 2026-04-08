@@ -1001,23 +1001,66 @@ async def close_mumble_endpoint():
 @router.post("/launch-display", dependencies=[Depends(verify_token)])
 async def launch_display_endpoint():
     """Launch Chrome/Edge in kiosk fullscreen mode pointing at the controller /sim page."""
-    from agent.sim_display import launch_display
+    from agent.sim_display import launch_display, _find_browser, build_display_url
     from agent.config import get_config
     from agent.identity import get_device_id
+
+    cfg = get_config()
+    config_ctrl_url = getattr(cfg, "controller_url", None) or ""
+
+    paired = False
+    pairing_ctrl_url = None
     try:
         from agent.pairing import is_paired, get_controller_url as _get_ctrl_url
-        ctrl_url = (_get_ctrl_url() if is_paired() else None)
-    except Exception:
-        ctrl_url = None
-    cfg = get_config()
-    if not ctrl_url:
-        ctrl_url = getattr(cfg, "controller_url", None) or ""
-    if not ctrl_url:
-        return {"success": False, "message": "No controller_url configured or paired"}
+        paired = is_paired()
+        if paired:
+            pairing_ctrl_url = _get_ctrl_url() or None
+    except Exception as exc:
+        logger.warning("[launch-display] Pairing module error: %s", exc)
+
+    ctrl_url = pairing_ctrl_url or config_ctrl_url or ""
+    ctrl_url_source = "pairing" if pairing_ctrl_url else ("config" if config_ctrl_url else "none")
+
     try:
         agent_id = get_device_id()
     except Exception:
         agent_id = getattr(cfg, "agent_id", "unknown")
+
+    logger.info("[launch-display] agent_id=%s  paired=%s  ctrl_url_source=%s", agent_id, paired, ctrl_url_source)
+    logger.info("[launch-display] controller_url=%s  config_controller_url=%s", ctrl_url, config_ctrl_url)
+
+    if not ctrl_url:
+        logger.error("[launch-display] No controller_url available")
+        return {
+            "success": False,
+            "message": "No controller_url configured or paired",
+            "debug": {
+                "paired": paired,
+                "config_controller_url": config_ctrl_url or None,
+                "pairing_controller_url": pairing_ctrl_url,
+            },
+        }
+
+    browser = _find_browser()
+    if not browser:
+        logger.error("[launch-display] No browser found (Chrome or Edge required)")
+        return {
+            "success": False,
+            "message": "No supported browser found - install Chrome or Edge",
+            "debug": {
+                "checked_paths": [
+                    "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+                    "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+                    "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
+                    "C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe",
+                ],
+            },
+        }
+
+    final_url = build_display_url(ctrl_url, agent_id)
+    logger.info("[launch-display] final_url=%s  browser=%s", final_url, browser)
+
     loop = asyncio.get_event_loop()
-    result = await loop.run_in_executor(None, lambda: launch_display(ctrl_url, agent_id))
+    result = await loop.run_in_executor(None, lambda: launch_display(ctrl_url, agent_id, browser_path=browser))
+    logger.info("[launch-display] result=%s", result)
     return result

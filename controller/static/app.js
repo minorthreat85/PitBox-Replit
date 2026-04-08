@@ -4080,7 +4080,16 @@
               var rawMsg = r.message || (r.success ? 'Launched' : 'Failed');
               if (!r.success && (rawMsg === 'Not Found' || rawMsg === 'HTTP 404')) rawMsg = 'Agent needs manual deploy first (endpoint not available on installed version)';
               var msg = escapeHtml(rawMsg);
-              return '<div class="push-agents-row ' + cls + '"><span class="push-agents-icon">' + icon + '</span><span class="push-agents-id">' + escapeHtml(r.agent_id) + '</span><span class="push-agents-msg">' + msg + '</span></div>';
+              var debugHtml = '';
+              if (!r.success && r.debug) {
+                var parts = [];
+                if (r.debug.paired !== undefined) parts.push('paired: ' + r.debug.paired);
+                if (r.debug.config_controller_url) parts.push('config_url: ' + r.debug.config_controller_url);
+                if (r.debug.pairing_controller_url) parts.push('pairing_url: ' + r.debug.pairing_controller_url);
+                if (r.debug.checked_paths) parts.push('checked: ' + r.debug.checked_paths.length + ' browser paths');
+                if (parts.length > 0) debugHtml = '<br><small style="color:#999;font-size:0.8em">' + escapeHtml(parts.join(' | ')) + '</small>';
+              }
+              return '<div class="push-agents-row ' + cls + '"><span class="push-agents-icon">' + icon + '</span><span class="push-agents-id">' + escapeHtml(r.agent_id) + '</span><span class="push-agents-msg">' + msg + debugHtml + '</span></div>';
             }).join('');
             resultEl.innerHTML = rows;
             resultEl.classList.remove('hidden');
