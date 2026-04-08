@@ -780,6 +780,78 @@ a.pitbox-operator-banner-signin:hover {
 .push-agents-id { font-weight: 600; min-width: 5rem; flex-shrink: 0; }
 .push-agents-msg { color: var(--text-muted); flex: 1; }
 .push-agents-none { font-size: 0.85rem; color: var(--text-muted); margin: 0; }
+/* ── Sim update status table ─────────────────────────────────── */
+.updates-sim-status-table {
+    margin-top: 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    font-size: 0.85rem;
+    border: 1px solid var(--border-gray);
+    border-radius: 6px;
+    overflow: hidden;
+}
+.updates-sim-status-table.hidden { display: none; }
+.sim-upd-row {
+    display: grid;
+    grid-template-columns: 7rem 8rem 7rem 1fr;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.35rem 0.6rem;
+    border-bottom: 1px solid var(--border-gray);
+}
+.sim-upd-row:last-child { border-bottom: none; }
+.sim-upd-header {
+    background: var(--bg-secondary, #1e2028);
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    font-size: 0.72rem;
+    letter-spacing: 0.05em;
+}
+.sim-upd-col { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sim-upd-col-rig { font-weight: 600; display: flex; align-items: center; gap: 0.35rem; }
+.sim-upd-col-ver { color: var(--text-muted); }
+.sim-upd-col-info { color: var(--text-muted); font-size: 0.8rem; }
+.sim-upd-target { color: var(--accent-primary, #7c6af5); font-weight: 600; }
+.sim-upd-err-text { color: var(--color-red-primary, #ef4444); font-size: 0.78rem; }
+.sim-upd-dot {
+    width: 0.5rem; height: 0.5rem;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+.sim-upd-dot-online  { background: #4ade80; }
+.sim-upd-dot-offline { background: var(--text-muted); }
+/* Status badge */
+.sim-upd-badge {
+    display: inline-block;
+    padding: 0.1rem 0.45rem;
+    border-radius: 3px;
+    font-size: 0.76rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+.sim-upd-idle    { background: rgba(74,222,128,.12); color: #4ade80; }
+.sim-upd-pending { background: rgba(251,191,36,.14); color: #fbbf24; }
+.sim-upd-busy    { background: rgba(124,106,245,.14); color: var(--accent-primary, #7c6af5); }
+.sim-upd-failed  { background: rgba(239,68,68,.13); color: var(--color-red-primary, #ef4444); }
+.sim-upd-offline { background: rgba(100,100,120,.13); color: var(--text-muted); }
+/* Small inline buttons used in the sim status table */
+.btn-xs {
+    padding: 0.1rem 0.5rem;
+    font-size: 0.76rem;
+    border-radius: 3px;
+    border: 1px solid transparent;
+    cursor: pointer;
+    font-weight: 600;
+}
+.btn-warn {
+    background: rgba(251,191,36,.15);
+    border-color: rgba(251,191,36,.4);
+    color: #fbbf24;
+}
+.btn-warn:hover { background: rgba(251,191,36,.28); }
+.btn-warn:disabled { opacity: .5; cursor: default; }
 .input-error {
     border-color: var(--color-red-primary, #ef4444) !important;
     box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.25);

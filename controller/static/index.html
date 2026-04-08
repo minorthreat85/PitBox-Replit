@@ -624,6 +624,12 @@
                         <div id="updates-push-agents-result" class="updates-push-agents-result hidden"></div>
                     </div>
                     <div class="updates-push-agents-area">
+                        <div class="updates-dev-divider"><span>Sim Update Status</span></div>
+                        <p class="settings-updates-hint">View current agent version and update state on every sim. Use this to confirm updates have applied or to cancel a pending update.</p>
+                        <button type="button" id="updates-btn-refresh-sim-status" class="btn-secondary">Refresh sim status</button>
+                        <div id="updates-sim-status-table" class="updates-sim-status-table hidden"></div>
+                    </div>
+                    <div class="updates-push-agents-area">
                         <div class="updates-dev-divider"><span>Agent Binary</span></div>
                         <p class="settings-updates-hint">Push the latest PitBoxAgent.exe (from the controller) to all online sim PCs. Run <code>.\update.ps1</code> then <code>pyinstaller PitBoxAgent.spec</code> on the admin PC first, then click below.</p>
                         <button type="button" id="updates-btn-push-self-update" class="btn-secondary">Update agent on all sims</button>

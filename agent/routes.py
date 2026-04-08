@@ -217,6 +217,13 @@ async def ping():
     return {"status": "ok"}
 
 
+@router.get("/version")
+async def get_version():
+    """Return agent version (no auth required - used by controller health checks)."""
+    from pitbox_common.version import __version__
+    return {"version": __version__}
+
+
 @router.get("/status", dependencies=[Depends(verify_token)])
 async def get_status():
     """Get current agent status (heartbeat, ac, server, last_session from race.ini)."""
@@ -816,11 +823,63 @@ async def send_hotkey(request: HotkeyRequest):
         return {"success": False, "message": "Failed to send hotkey (Windows only)"}
     raise HTTPException(status_code=400, detail="action must be toggle_manual or back_to_pits")
 
+@router.get("/update/status", dependencies=[Depends(verify_token)])
+async def get_update_status_endpoint():
+    """Return current agent update state (status, version, pending details)."""
+    from agent.update_state import get_status as _get_update_state
+    return _get_update_state()
+
+
+@router.post("/update/cancel", dependencies=[Depends(verify_token)])
+async def cancel_update_endpoint():
+    """Cancel a pending update. Safe to call even if no update is pending."""
+    from agent.update_state import cancel_pending
+    state = cancel_pending()
+    logger.info("[update/cancel] Pending update cancelled, status now: %s", state.get("update_status"))
+    return {"success": True, "message": "Pending update cancelled", "state": state}
+
+
+@router.post("/update/apply-pending", dependencies=[Depends(verify_token)])
+async def apply_pending_update_endpoint():
+    """Apply a pending update immediately (ignores AC-running check). Used when operator confirms it is safe."""
+    from agent.update_state import get_pending, set_status
+    from agent.update_check import launch_pitbox_updater
+    from pitbox_common.version import __version__ as CURRENT_VERSION
+    pending = get_pending()
+    if not pending:
+        return {"success": False, "message": "No pending update to apply"}
+    installer_url = pending["installer_url"]
+    target_version = pending.get("target_version")
+    sha256 = pending.get("sha256") or ""
+    logger.info("[update/apply-pending] Applying pending update: %s -> %s", CURRENT_VERSION, target_version)
+    set_status("downloading", target_version=target_version)
+    loop = asyncio.get_event_loop()
+    launched = await loop.run_in_executor(None, launch_pitbox_updater, installer_url, target_version or "", sha256)
+    if launched:
+        set_status("installing", target_version=target_version)
+        return {
+            "success": True,
+            "message": f"Updater launched: {CURRENT_VERSION} -> {target_version}",
+            "current_version": CURRENT_VERSION,
+            "target_version": target_version,
+        }
+    set_status("failed", error="PitBoxUpdater.exe not found")
+    return {"success": False, "message": "PitBoxUpdater.exe not found", "current_version": CURRENT_VERSION}
+
+
 @router.post("/update", dependencies=[Depends(verify_token)])
 async def trigger_update():
-    """Check for latest release on GitHub and launch PitBoxUpdater.exe if an update is available."""
+    """
+    Check GitHub for a newer release and launch PitBoxUpdater.exe if one is found.
+    If Assetto Corsa is currently running, marks the update as PENDING instead of
+    launching immediately. Apply later via POST /update/apply-pending.
+    """
     from agent.update_check import check_for_update, launch_pitbox_updater
+    from agent.process_manager import get_process_status
+    from agent.update_state import set_pending, set_status, set_idle
     from pitbox_common.version import __version__ as CURRENT_VERSION
+
+    logger.info("[update] Triggered (current=%s)", CURRENT_VERSION)
 
     loop = asyncio.get_event_loop()
     result = await loop.run_in_executor(None, check_for_update)
@@ -829,53 +888,54 @@ async def trigger_update():
     latest = result.get("latest_version") or current
 
     if result.get("error") and not result.get("latest_version"):
-        return {
-            "success": False,
-            "update_available": False,
-            "current_version": current,
-            "latest_version": None,
-            "message": result.get("error") or "Update check failed",
-        }
+        msg = result.get("error") or "Update check failed"
+        logger.warning("[update] Check failed: %s", msg)
+        set_status("failed", error=msg)
+        return {"success": False, "update_available": False, "current_version": current,
+                "latest_version": None, "message": msg}
 
     if not result.get("update_available"):
-        return {
-            "success": True,
-            "update_available": False,
-            "current_version": current,
-            "latest_version": latest,
-            "message": f"Already up to date ({current})",
-        }
+        set_idle()
+        logger.info("[update] Already up to date (%s)", current)
+        return {"success": True, "update_available": False, "current_version": current,
+                "latest_version": latest, "message": f"Already up to date ({current})"}
 
     installer_url = result.get("installer_url") or ""
     installer_sha256 = result.get("installer_sha256") or ""
 
     if not installer_url:
-        return {
-            "success": False,
-            "update_available": True,
-            "current_version": current,
-            "latest_version": latest,
-            "message": "Update available but no installer asset found in release",
-        }
+        set_status("failed", error="No installer asset found in release")
+        return {"success": False, "update_available": True, "current_version": current,
+                "latest_version": latest,
+                "message": "Update available but no installer asset found in release"}
 
+    # Refuse to update while Assetto Corsa is running — mark pending instead
+    ac_status = get_process_status()
+    ac_running = ac_status.get("ac_running", False)
+    if ac_running:
+        logger.info("[update] AC running — deferring update to %s", latest)
+        set_pending(installer_url, target_version=latest,
+                    installer_sha256=installer_sha256 or None)
+        return {"success": True, "update_available": True, "update_status": "pending",
+                "current_version": current, "latest_version": latest,
+                "message": f"Update pending ({current} -> {latest}): will apply when AC exits"}
+
+    # AC not running — launch updater immediately
+    logger.info("[update] Launching updater %s -> %s", current, latest)
+    set_status("downloading", target_version=latest)
     launched = await loop.run_in_executor(
         None, launch_pitbox_updater, installer_url, latest, installer_sha256
     )
     if launched:
-        return {
-            "success": True,
-            "update_available": True,
-            "current_version": current,
-            "latest_version": latest,
-            "message": f"Updater launched: {current} → {latest}",
-        }
-    return {
-        "success": False,
-        "update_available": True,
-        "current_version": current,
-        "latest_version": latest,
-        "message": "Update available but PitBoxUpdater.exe not found on this machine",
-    }
+        set_status("installing", target_version=latest)
+        return {"success": True, "update_available": True, "update_status": "installing",
+                "current_version": current, "latest_version": latest,
+                "message": f"Updater launched ({current} -> {latest})"}
+    set_status("failed", error="PitBoxUpdater.exe not found on this machine")
+    return {"success": False, "update_available": True, "update_status": "failed",
+            "current_version": current, "latest_version": latest,
+            "message": "Update available but PitBoxUpdater.exe not found"}
+
 
 @router.post("/close-display", dependencies=[Depends(verify_token)])
 async def close_display_endpoint():

@@ -318,8 +318,17 @@ def _cm_command_to_uris(command: str, data: dict) -> list[str] | None:
     return None
 
 
-async def send_agent_command(agent_id: str, command: str, data: dict, timeout: float | None = 30.0) -> dict:
-    """Send a command to an agent or CM backend (resolved from enrolled rigs). timeout: total seconds (default 30)."""
+async def send_agent_command(
+    agent_id: str,
+    command: str,
+    data: dict,
+    timeout: float | None = 30.0,
+    method: str = "POST",
+) -> dict:
+    """Send a command to an agent or CM backend (resolved from enrolled rigs).
+    method: HTTP verb for agent backends (default POST). Use 'GET' for read-only endpoints.
+    timeout: total seconds (default 30).
+    """
     rig = get_enrolled_rig(agent_id)
     if not rig:
         return {"success": False, "message": f"Agent {agent_id} not found"}
@@ -342,10 +351,14 @@ async def send_agent_command(agent_id: str, command: str, data: dict, timeout: f
     # Agent backend
     base_url = f"http://{rig['host']}:{rig['port']}"
     headers = {"Authorization": f"Bearer {rig['token']}"}
+    http_method = method.upper()
 
     try:
         async with httpx.AsyncClient(timeout=timeout) as client:
-            response = await client.post(f"{base_url}/{command}", headers=headers, json=data)
+            if http_method == "GET":
+                response = await client.get(f"{base_url}/{command}", headers=headers, params=data or {})
+            else:
+                response = await client.post(f"{base_url}/{command}", headers=headers, json=data)
             response.raise_for_status()
             body = response.json() if response.content else {}
             return {**body, "success": body.get("success", True)}

@@ -34,7 +34,7 @@ Steam.exe starts (via Registry or Startup folder)
 ↓
 PitBoxAgent.exe starts (via Scheduled Task - ONLOGON, Run only when user is logged on)
 ↓
-Agent listens on port 9600
+Agent listens on its assigned port (9631–9638, one per sim PC)
   (Runs as logged-in user - CRITICAL for AC to show game window)
 ```
 
@@ -89,7 +89,7 @@ Web UI available at http://127.0.0.1:9600
    - Run as: Logged-in user (NOT SYSTEM)
    - Command: `PitBoxAgent.exe --config "C:\PitBox\agent_config.json"`
 3. Any existing PitBoxAgent **service** is removed (migration from old installs)
-4. Firewall rule added (TCP port 9600 inbound)
+4. Firewall rule added (TCP 9631–9638 inbound on each sim, TCP 9630 inbound on admin PC)
 5. **CRITICAL**: Agent must run as user so AC shows game window
 
 ### Controller Installation (Admin PC)
@@ -98,9 +98,9 @@ Web UI available at http://127.0.0.1:9600
    - Service Name: `PitBoxController`
    - Startup: Automatic
    - Runs as: SYSTEM
-   - Port: 9600 (reserved for Controller)
+   - Port: 9630 (Controller on Admin PC)
 3. Service starts immediately
-4. **IMPORTANT**: Edit config to set agent ports (9630-9637, not 9600)
+4. **IMPORTANT**: Edit each sim's agent_config.json to set the correct agent_port (9631 for Sim1, 9632 for Sim2, … 9638 for Sim8)
 
 ---
 
@@ -213,7 +213,7 @@ Get-Process acs -ErrorAction SilentlyContinue | Select-Object Name, Id, SessionI
 **A**: YES. Agent includes a Win32 window-focus routine that polls for the AC window and brings it to foreground using `SetForegroundWindow` and related APIs. This ensures AC is always the focused window, even if Chrome or other apps were active. See `FOREGROUND_FOCUS_FIX.md` for details.
 
 ### Q: Why don't agents use port 9600?
-**A**: Port 9600 conflicts with SimHub motion telemetry on sim PCs. Agents MUST use ports 9630-9637 (Sim1=9630, Sim2=9631, etc.). Port 9600 is reserved for Controller only (Admin PC). See `PORT_SCHEME.md` for details.
+**A**: Port 9600 conflicts with SimHub motion telemetry on sim PCs. Agents MUST use ports 9631–9638 (Sim1=9631, Sim2=9632, … Sim8=9638). The Controller runs on port 9630 (Admin PC). See `PORT_SCHEME.md` for details.
 
 ---
 
@@ -227,6 +227,6 @@ Get-Process acs -ErrorAction SilentlyContinue | Select-Object Name, Id, SessionI
 | AC window appears | User-session context | ✅ Fixed |
 | AC gains foreground focus | Win32 focus routine | ✅ Implemented |
 | Controller as service | NSSM + automatic startup | ✅ Kept (correct) |
-| SimHub motion compatibility | Port scheme (9630-9637) | ✅ Implemented |
+| SimHub motion compatibility | Port scheme (Controller=9630, Sims=9631–9638) | ✅ Implemented |
 
 **PitBox is now production-ready for sim lounge deployment.**

@@ -3714,6 +3714,7 @@
     bindUpdatesApply();
     bindDevPullButton();
     bindPushAgentsButton();
+    bindSimStatusButton();
     bindPushSelfUpdateButton();
     bindPushLaunchDisplayButton();
     bindPushCloseDisplayButton();
@@ -3814,6 +3815,130 @@
       });
     });
   }
+  var UPDATE_STATUS_LABELS = {
+    'idle': 'Up to date',
+    'pending': 'Pending',
+    'downloading': 'Downloading',
+    'installing': 'Installing',
+    'restarting': 'Restarting',
+    'failed': 'Failed',
+    'unknown': 'Offline',
+    'error': 'Error',
+    'querying': 'Querying…'
+  };
+  var UPDATE_STATUS_CLASSES = {
+    'idle': 'sim-upd-idle',
+    'pending': 'sim-upd-pending',
+    'downloading': 'sim-upd-busy',
+    'installing': 'sim-upd-busy',
+    'restarting': 'sim-upd-busy',
+    'failed': 'sim-upd-failed',
+    'unknown': 'sim-upd-offline',
+    'error': 'sim-upd-failed',
+    'querying': 'sim-upd-busy'
+  };
+
+  function renderSimUpdateStatusTable(results) {
+    var tableEl = document.getElementById('updates-sim-status-table');
+    if (!tableEl) return;
+    if (!results || results.length === 0) {
+      tableEl.innerHTML = '<p class="push-agents-none">No agent sims enrolled.</p>';
+      tableEl.classList.remove('hidden');
+      return;
+    }
+    var header = '<div class="sim-upd-header sim-upd-row">'
+      + '<span class="sim-upd-col sim-upd-col-rig">Sim</span>'
+      + '<span class="sim-upd-col sim-upd-col-ver">Version</span>'
+      + '<span class="sim-upd-col sim-upd-col-status">Status</span>'
+      + '<span class="sim-upd-col sim-upd-col-info">Info</span>'
+      + '</div>';
+    var rows = results.map(function (r) {
+      var status = r.update_status || 'unknown';
+      var statusLabel = UPDATE_STATUS_LABELS[status] || status;
+      var statusCls = UPDATE_STATUS_CLASSES[status] || 'sim-upd-idle';
+      var ver = r.current_version ? escapeHtml(r.current_version) : '—';
+      if (r.target_version && r.target_version !== r.current_version) {
+        ver += ' <span class="sim-upd-target">&#x2192; ' + escapeHtml(r.target_version) + '</span>';
+      }
+      var info = '';
+      if (r.last_update_error) {
+        info = '<span class="sim-upd-err-text">' + escapeHtml(r.last_update_error) + '</span>';
+      } else if (status === 'pending') {
+        info = '<button class="btn-xs btn-warn" data-agent-id="' + escapeHtml(r.agent_id) + '" data-action="cancel-update">Cancel</button>';
+      }
+      var onlineDot = r.online
+        ? '<span class="sim-upd-dot sim-upd-dot-online" title="Online"></span>'
+        : '<span class="sim-upd-dot sim-upd-dot-offline" title="Offline"></span>';
+      return '<div class="sim-upd-row">'
+        + '<span class="sim-upd-col sim-upd-col-rig">' + onlineDot + escapeHtml(r.agent_id) + '</span>'
+        + '<span class="sim-upd-col sim-upd-col-ver">' + ver + '</span>'
+        + '<span class="sim-upd-col sim-upd-col-status"><span class="sim-upd-badge ' + statusCls + '">' + escapeHtml(statusLabel) + '</span></span>'
+        + '<span class="sim-upd-col sim-upd-col-info">' + info + '</span>'
+        + '</div>';
+    }).join('');
+    tableEl.innerHTML = header + rows;
+    tableEl.classList.remove('hidden');
+    // Bind cancel buttons
+    tableEl.querySelectorAll('[data-action="cancel-update"]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var agentId = btn.dataset.agentId;
+        if (!agentId) return;
+        if (!confirm('Cancel pending update for ' + agentId + '?')) return;
+        btn.disabled = true; btn.textContent = '…';
+        ensureOperatorOrRedirect().then(function (ok) {
+          if (!ok) { btn.disabled = false; btn.textContent = 'Cancel'; return; }
+          pitboxFetch(API_BASE + '/agents/' + encodeURIComponent(agentId) + '/command', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ command: 'update/cancel' })
+          })
+          .then(function (r) { return r.json(); })
+          .then(function () {
+            showToast('Pending update cancelled for ' + agentId, 'success');
+            fetchSimUpdateStatuses();
+          })
+          .catch(function (err) {
+            showToast('Cancel failed: ' + (err.message || 'error'), 'error');
+            btn.disabled = false; btn.textContent = 'Cancel';
+          });
+        });
+      });
+    });
+  }
+
+  function fetchSimUpdateStatuses() {
+    var btn = document.getElementById('updates-btn-refresh-sim-status');
+    var tableEl = document.getElementById('updates-sim-status-table');
+    if (btn) { btn.disabled = true; btn.textContent = 'Refreshing…'; }
+    pitboxFetch(API_BASE + '/agents/update-status')
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (btn) { btn.disabled = false; btn.textContent = 'Refresh sim status'; }
+        renderSimUpdateStatusTable((data && data.results) || []);
+      })
+      .catch(function (err) {
+        if (btn) { btn.disabled = false; btn.textContent = 'Refresh sim status'; }
+        showToast('Failed to fetch sim update status: ' + (err.message || 'error'), 'error');
+        if (tableEl) {
+          tableEl.innerHTML = '<p class="push-agents-err">Error: ' + escapeHtml(err.message || 'network error') + '</p>';
+          tableEl.classList.remove('hidden');
+        }
+      });
+  }
+
+  function bindSimStatusButton() {
+    var btn = document.getElementById('updates-btn-refresh-sim-status');
+    if (!btn || btn.dataset.simStatusBound === '1') return;
+    btn.dataset.simStatusBound = '1';
+    btn.addEventListener('click', function () {
+      if (btn.disabled) return;
+      ensureOperatorOrRedirect().then(function (ok) {
+        if (!ok) return;
+        fetchSimUpdateStatuses();
+      });
+    });
+  }
+
   function bindPushSelfUpdateButton() {
     var btn = document.getElementById('updates-btn-push-self-update');
     var resultEl = document.getElementById('updates-push-self-update-result');

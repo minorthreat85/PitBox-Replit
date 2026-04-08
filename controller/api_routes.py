@@ -542,6 +542,61 @@ async def push_agent_update(_: None = Depends(require_operator)):
     return {"ok": True, "results": results}
 
 
+@router.get("/agents/update-status")
+async def get_agents_update_status(_: None = Depends(require_operator)):
+    """
+    Query update status from every enrolled sim agent.
+    Returns per-rig: current_version, target_version, update_status, last_update_error, online.
+    Offline agents are included with online=false and update_status=unknown.
+    """
+    cache = get_status_cache()
+    enrolled = enrolled_get_all_ordered()
+    agent_ids: list[str] = []
+    tasks = []
+    all_results: list[dict] = []
+    result_index: dict[str, int] = {}
+
+    for rig in enrolled:
+        agent_id = (rig.get("agent_id") or "").strip()
+        if not agent_id:
+            continue
+        backend = (rig.get("backend") or "agent").strip().lower()
+        if backend != "agent":
+            continue
+        s = cache.get(agent_id)
+        online = bool(s and getattr(s, "online", False))
+        entry: dict = {
+            "agent_id": agent_id,
+            "online": online,
+            "current_version": None,
+            "target_version": None,
+            "update_status": "unknown" if not online else "querying",
+            "last_update_error": None,
+        }
+        result_index[agent_id] = len(all_results)
+        all_results.append(entry)
+        if online:
+            agent_ids.append(agent_id)
+            tasks.append(send_agent_command(agent_id, "update/status", {}, timeout=10.0, method="GET"))
+
+    if tasks:
+        raw_results = await asyncio.gather(*tasks, return_exceptions=True)
+        for aid, raw in zip(agent_ids, raw_results):
+            idx = result_index[aid]
+            if isinstance(raw, Exception):
+                all_results[idx].update({"update_status": "error", "last_update_error": str(raw)})
+            else:
+                all_results[idx].update({
+                    "current_version":   raw.get("current_version"),
+                    "target_version":    raw.get("target_version"),
+                    "update_status":     raw.get("update_status", "idle"),
+                    "last_update_error": raw.get("last_update_error"),
+                    "rollback_available": raw.get("rollback_available", False),
+                })
+
+    return {"ok": True, "results": all_results}
+
+
 def _find_agent_binary() -> Path | None:
     """Find PitBoxAgent.exe — checks exe dir, cwd, dev dist, and common install paths."""
     candidates = [
