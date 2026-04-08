@@ -112,14 +112,37 @@ def _install_mumble() -> dict:
                 pass
 
 
+def _is_mumble_running() -> bool:
+    """Return True if mumble.exe is already running (Windows tasklist check)."""
+    if sys.platform != "win32":
+        return False
+    try:
+        r = subprocess.run(
+            ["tasklist", "/FI", "IMAGENAME eq mumble.exe", "/NH"],
+            capture_output=True, text=True, timeout=5,
+        )
+        return "mumble.exe" in r.stdout.lower()
+    except Exception:
+        return False
+
+
 def launch_mumble(mumble_exe: Optional[str] = None, server_url: Optional[str] = None) -> dict:
     """
     Launch the Mumble desktop client.
+    Idempotent: if mumble.exe is already running, logs that and returns without spawning
+    a duplicate.
     If Mumble is not found, automatically downloads and installs it first.
     Optional server_url: mumble://host[:port][/channel] — auto-connects on open.
     Returns dict with success, message.
     """
     global _mumble_proc
+
+    logger.info("launch_mumble called — server_url=%s", server_url or "(none)")
+
+    # Idempotency: don't spawn a second copy if already running
+    if _is_mumble_running():
+        logger.info("Mumble is already running — skipping launch")
+        return {"success": True, "message": "Mumble already running", "already_running": True}
 
     exe = _find_mumble(mumble_exe)
 
@@ -141,6 +164,7 @@ def launch_mumble(mumble_exe: Optional[str] = None, server_url: Optional[str] = 
     if server_url:
         cmd.append(server_url)
 
+    logger.info("Spawning Mumble: %s", " ".join(cmd))
     try:
         proc = subprocess.Popen(cmd, close_fds=True)
         _mumble_proc = proc
@@ -154,10 +178,12 @@ def launch_mumble(mumble_exe: Optional[str] = None, server_url: Optional[str] = 
 
 def close_mumble() -> dict:
     """
-    Kill the Mumble process launched by launch_mumble.
-    Falls back to taskkill by image name on Windows.
+    Kill the Mumble process.
+    Idempotent: if Mumble is not running, returns success without error.
+    Tries tracked PID first, then falls back to taskkill by image name on Windows.
     """
     global _mumble_proc
+    logger.info("close_mumble called")
     killed = False
     messages: list[str] = []
 
@@ -186,10 +212,14 @@ def close_mumble() -> dict:
             if r.returncode == 0:
                 killed = True
                 messages.append("Killed mumble.exe via taskkill")
-                logger.info("Closed Mumble via taskkill")
+                logger.info("Closed Mumble via taskkill /IM")
+            else:
+                # taskkill exit 128 = "no process found" — not an error, it's idempotent
+                logger.info("taskkill /IM mumble.exe — no process found (exit %s), already closed", r.returncode)
         except Exception as e:
             logger.debug("taskkill mumble.exe failed: %s", e)
 
     if killed:
         return {"success": True, "message": "; ".join(messages) or "Mumble closed"}
-    return {"success": False, "message": "No Mumble process found to close"}
+    # No process running — treat as success (idempotent close)
+    return {"success": True, "message": "Mumble was not running", "already_closed": True}

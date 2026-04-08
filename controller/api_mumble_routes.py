@@ -177,28 +177,57 @@ async def _push_to_all_agents(command: str) -> dict:
     cache = get_status_cache()
     enrolled = enrolled_get_all_ordered()
     agent_ids: list[str] = []
+    skipped: list[str] = []
     tasks = []
     for rig in enrolled:
         agent_id = (rig.get("agent_id") or "").strip()
         if not agent_id:
             continue
         if (rig.get("backend") or "agent").strip().lower() != "agent":
+            logger.debug("[%s] Skipping %s — CM backend", command, agent_id)
             continue
         s = cache.get(agent_id)
         if not (s and getattr(s, "online", False)):
+            logger.info("[%s] Skipping %s — offline", command, agent_id)
+            skipped.append(agent_id)
             continue
+        logger.info("[%s] Dispatching to %s", command, agent_id)
         agent_ids.append(agent_id)
         tasks.append(send_agent_command(agent_id, command, {}, timeout=15.0))
+
     if not tasks:
-        return {"ok": True, "results": [], "message": "No online agents found"}
+        logger.warning("[%s] No online agents to dispatch to (skipped=%s)", command, skipped)
+        return {"ok": True, "results": [], "skipped": skipped, "message": "No online agents found"}
+
+    logger.info("[%s] Dispatching to %d agent(s): %s", command, len(agent_ids), agent_ids)
     raw_results = await asyncio.gather(*tasks, return_exceptions=True)
     results = []
+    ok_count = 0
+    fail_count = 0
     for aid, raw in zip(agent_ids, raw_results):
         if isinstance(raw, Exception):
+            logger.error("[%s] %s → EXCEPTION: %s", command, aid, raw)
             results.append({"agent_id": aid, "success": False, "message": str(raw)})
+            fail_count += 1
         else:
+            success = raw.get("success", True)
+            msg = raw.get("message", "")
+            if success:
+                logger.info("[%s] %s → OK: %s", command, aid, msg)
+                ok_count += 1
+            else:
+                logger.warning("[%s] %s → FAIL: %s", command, aid, msg)
+                fail_count += 1
             results.append({"agent_id": aid, **raw})
-    return {"ok": True, "results": results}
+
+    logger.info("[%s] Done — %d ok, %d failed, %d skipped (offline)",
+                command, ok_count, fail_count, len(skipped))
+    return {
+        "ok": True,
+        "results": results,
+        "skipped": skipped,
+        "summary": f"{ok_count}/{len(agent_ids)} succeeded",
+    }
 
 
 @router.post("/agents/push-launch")

@@ -891,11 +891,14 @@ async def launch_mumble_endpoint():
     """Launch the Mumble desktop client on this sim PC."""
     from agent.mumble_client import launch_mumble
     from agent.config import get_config
+    logger.info("[launch-mumble] Request received")
     cfg = get_config()
     mumble_exe = getattr(cfg, "mumble_exe_path", None) or None
     server_url = getattr(cfg, "mumble_server_url", None) or None
+    logger.info("[launch-mumble] mumble_exe_path=%s  server_url=%s", mumble_exe or "(auto-detect)", server_url or "(none)")
     loop = asyncio.get_event_loop()
     result = await loop.run_in_executor(None, lambda: launch_mumble(mumble_exe, server_url))
+    logger.info("[launch-mumble] Result: %s", result)
     return result
 
 
@@ -903,8 +906,10 @@ async def launch_mumble_endpoint():
 async def close_mumble_endpoint():
     """Close the Mumble desktop client on this sim PC."""
     from agent.mumble_client import close_mumble
+    logger.info("[close-mumble] Request received")
     loop = asyncio.get_event_loop()
     result = await loop.run_in_executor(None, close_mumble)
+    logger.info("[close-mumble] Result: %s", result)
     return result
 
 
