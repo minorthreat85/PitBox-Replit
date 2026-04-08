@@ -512,12 +512,35 @@ async def agent_hotkey(agent_id: str, body: HotkeyBody, _: None = Depends(requir
 
 
 @router.post("/agents/push-update")
-async def push_agent_update(_: None = Depends(require_operator)):
-    """Send update command to every online enrolled agent. Each agent checks GitHub and launches PitBoxUpdater.exe if a newer version is available."""
+async def push_agent_update(
+    _: None = Depends(require_operator),
+    request: Request = None,
+):
+    """
+    Send update command to enrolled agents.
+    Body (all optional):
+      agent_ids: list[str]  - if given, only those agents; otherwise all online agents
+      target_version: str   - specific version to install (passed to each agent)
+    Each agent checks GitHub and launches its own PitBoxUpdater.exe installer.
+    """
+    body = {}
+    if request is not None:
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+    if not isinstance(body, dict):
+        body = {}
+
+    agent_ids_filter = body.get("agent_ids") or None
+    target_version = (body.get("target_version") or "").strip() or None
+
     cache = get_status_cache()
     enrolled = enrolled_get_all_ordered()
-    agent_ids: list[str] = []
+    chosen_ids = []
     tasks = []
+    offline = []
+
     for rig in enrolled:
         agent_id = (rig.get("agent_id") or "").strip()
         if not agent_id:
@@ -525,20 +548,100 @@ async def push_agent_update(_: None = Depends(require_operator)):
         backend = (rig.get("backend") or "agent").strip().lower()
         if backend != "agent":
             continue
-        status = cache.get(agent_id)
-        if not (status and getattr(status, "online", False)):
+        if agent_ids_filter and agent_id not in agent_ids_filter:
             continue
-        agent_ids.append(agent_id)
-        tasks.append(send_agent_command(agent_id, "update", {}, timeout=45.0))
+        status = cache.get(agent_id)
+        online = bool(status and getattr(status, "online", False))
+        if not online:
+            if agent_ids_filter and agent_id in agent_ids_filter:
+                offline.append({"agent_id": agent_id, "success": False,
+                                 "message": "Offline", "update_status": "unknown"})
+            continue
+        chosen_ids.append(agent_id)
+        payload = {}
+        if target_version:
+            payload["target_version"] = target_version
+        tasks.append(send_agent_command(agent_id, "update", payload, timeout=45.0))
+
     if not tasks:
-        return {"ok": True, "results": [], "message": "No online agents found"}
+        return {"ok": True, "results": offline or [], "message": "No online agents found"}
+
     raw_results = await asyncio.gather(*tasks, return_exceptions=True)
-    results = []
-    for aid, raw in zip(agent_ids, raw_results):
+    results = list(offline)
+    for aid, raw in zip(chosen_ids, raw_results):
         if isinstance(raw, Exception):
             results.append({"agent_id": aid, "success": False, "message": str(raw)})
         else:
             results.append({"agent_id": aid, **raw})
+    return {"ok": True, "results": results}
+
+
+@router.get("/agents/releases")
+async def get_agent_releases(_: None = Depends(require_operator)):
+    """
+    List available PitBox releases from GitHub (pitbox-releases repo).
+    Returns: [{version, tag_name, published_at, prerelease, has_installer}]
+    Used to populate the target version selector in the Updates UI.
+    """
+    loop = asyncio.get_event_loop()
+    from agent.update_check import list_releases as _list_releases
+    releases = await loop.run_in_executor(None, _list_releases)
+    return {"ok": True, "releases": releases}
+
+
+@router.post("/agents/cancel-updates")
+async def cancel_agent_updates(
+    _: None = Depends(require_operator),
+    request: Request = None,
+):
+    """
+    Cancel pending updates on specified agents (or all agents with pending status).
+    Body (all optional):
+      agent_ids: list[str] - if omitted, cancel on all online agents
+    """
+    body = {}
+    if request is not None:
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+    if not isinstance(body, dict):
+        body = {}
+
+    agent_ids_filter = body.get("agent_ids") or None
+
+    cache = get_status_cache()
+    enrolled = enrolled_get_all_ordered()
+    chosen_ids = []
+    tasks = []
+
+    for rig in enrolled:
+        agent_id = (rig.get("agent_id") or "").strip()
+        if not agent_id:
+            continue
+        backend = (rig.get("backend") or "agent").strip().lower()
+        if backend != "agent":
+            continue
+        if agent_ids_filter and agent_id not in agent_ids_filter:
+            continue
+        status = cache.get(agent_id)
+        online = bool(status and getattr(status, "online", False))
+        if not online:
+            continue
+        chosen_ids.append(agent_id)
+        tasks.append(send_agent_command(agent_id, "update/cancel", {}, timeout=10.0))
+
+    if not tasks:
+        return {"ok": True, "results": [], "message": "No online agents found"}
+
+    raw_results = await asyncio.gather(*tasks, return_exceptions=True)
+    results = []
+    for aid, raw in zip(chosen_ids, raw_results):
+        if isinstance(raw, Exception):
+            results.append({"agent_id": aid, "success": False, "message": str(raw)})
+        else:
+            results.append({"agent_id": aid, "success": raw.get("success", True),
+                             "message": raw.get("message", "OK")})
     return {"ok": True, "results": results}
 
 

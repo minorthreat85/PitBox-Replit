@@ -24,11 +24,101 @@ logger = logging.getLogger(__name__)
 DEFAULT_GITHUB_OWNER = "minorthreat85"
 DEFAULT_GITHUB_REPO = "pitbox-releases"
 GITHUB_LATEST_URL = "https://api.github.com/repos/{owner}/{repo}/releases/latest"
+GITHUB_TAG_URL    = "https://api.github.com/repos/{owner}/{repo}/releases/tags/{tag}"
+GITHUB_LIST_URL   = "https://api.github.com/repos/{owner}/{repo}/releases?per_page={limit}"
 HTTP_TIMEOUT = 10
 
 # PitBoxUpdater.exe (installer-based) - same as controller
 DEFAULT_PITBOX_UPDATER_EXE = Path(os.environ.get("PITBOX_UPDATER_INSTALLER_EXE", r"C:\PitBox\updater\PitBoxUpdater.exe"))
 INSTALLER_ASSET_PATTERN = re.compile(r"PitBoxInstaller[-_].*\.exe$", re.I)
+
+
+def _fetch_release_json(url: str) -> dict | None:
+    """Fetch a GitHub release JSON dict, or return None on error."""
+    import json as _json
+    try:
+        req = Request(url, headers={"Accept": "application/vnd.github.v3+json"})
+        with urlopen(req, timeout=HTTP_TIMEOUT) as resp:
+            return _json.loads(resp.read().decode("utf-8"))
+    except Exception as e:
+        logger.debug("Release fetch failed %s: %s", url, e)
+        return None
+
+
+def _extract_release_info(release: dict, current: str | None = None) -> dict:
+    """Extract version/installer info from a GitHub release dict."""
+    import json as _json
+    from pitbox_common.update_integrity import parse_release_sha256_annotations
+
+    tag_name = (release.get("tag_name") or "").strip()
+    latest_version = tag_name[1:] if tag_name.startswith("v") else tag_name if tag_name else None
+
+    installer_url = None
+    installer_name: str | None = None
+    for asset in release.get("assets", []):
+        name = asset.get("name") or ""
+        if INSTALLER_ASSET_PATTERN.search(name):
+            installer_url = asset.get("browser_download_url") or asset.get("url") or ""
+            installer_name = name
+            break
+
+    checksums = parse_release_sha256_annotations(release.get("body") or "")
+    installer_sha256: str | None = None
+    if installer_name:
+        installer_sha256 = checksums.get(installer_name)
+        if not installer_sha256:
+            for k, v in checksums.items():
+                if k.lower() == installer_name.lower():
+                    installer_sha256 = v
+                    break
+
+    return {
+        "version": latest_version,
+        "tag_name": tag_name,
+        "release_url": release.get("html_url"),
+        "installer_url": installer_url,
+        "installer_sha256": installer_sha256,
+        "installer_name": installer_name,
+        "prerelease": bool(release.get("prerelease")),
+        "published_at": release.get("published_at"),
+        "has_installer": bool(installer_url),
+    }
+
+
+def list_releases(
+    owner: str = DEFAULT_GITHUB_OWNER,
+    repo: str = DEFAULT_GITHUB_REPO,
+    limit: int = 15,
+    include_prereleases: bool = False,
+) -> list[dict]:
+    """
+    Return list of available releases from GitHub (newest first).
+    Each entry: {version, published_at, prerelease, has_installer, tag_name}.
+    """
+    url = GITHUB_LIST_URL.format(owner=owner, repo=repo, limit=limit)
+    import json as _json
+    try:
+        req = Request(url, headers={"Accept": "application/vnd.github.v3+json"})
+        with urlopen(req, timeout=HTTP_TIMEOUT) as resp:
+            releases = _json.loads(resp.read().decode("utf-8"))
+    except Exception as e:
+        logger.debug("list_releases failed: %s", e)
+        return []
+    results = []
+    for r in (releases if isinstance(releases, list) else []):
+        info = _extract_release_info(r)
+        if not info["version"]:
+            continue
+        if info["prerelease"] and not include_prereleases:
+            continue
+        results.append({
+            "version": info["version"],
+            "tag_name": info["tag_name"],
+            "published_at": info["published_at"],
+            "prerelease": info["prerelease"],
+            "has_installer": info["has_installer"],
+        })
+    return results
 
 
 def _parse_semver(version_str: str) -> tuple[int, int, int, str]:
@@ -68,77 +158,68 @@ def check_for_update(
     owner: str = DEFAULT_GITHUB_OWNER,
     repo: str = DEFAULT_GITHUB_REPO,
     current: str | None = None,
-) -> dict[str, Any]:
+    target_version: str | None = None,
+) -> dict:
     """
-    Fetch latest release from GitHub and compare with current version.
-    Returns dict with: update_available, latest_version, release_url, installer_url (for PitBoxInstaller*.exe), error.
+    Fetch a GitHub release and compare with current version.
+    If target_version is specified, fetch that specific release tag instead of "latest".
+    When a specific version is requested, update_available is True if the installer is found,
+    regardless of whether current < target (allows downgrades / re-installs).
+    Returns: update_available, latest_version, release_url, installer_url, installer_sha256, error.
     """
     current = current or CURRENT_VERSION
-    url = GITHUB_LATEST_URL.format(owner=owner, repo=repo)
-    try:
-        req = Request(url, headers={"Accept": "application/vnd.github.v3+json"})
-        with urlopen(req, timeout=HTTP_TIMEOUT) as resp:
-            data = resp.read().decode("utf-8")
-        import json
-        release = json.loads(data)
-    except (URLError, HTTPError, OSError, ValueError) as e:
-        logger.debug("Update check failed: %s", e)
-        return {
-            "update_available": False,
-            "latest_version": None,
-            "release_url": None,
-            "installer_url": None,
-            "installer_sha256": None,
-            "error": str(e),
-        }
-    tag_name = (release.get("tag_name") or "").strip()
-    latest_version = tag_name[1:] if tag_name.startswith("v") else tag_name if tag_name else None
+    _err_base: dict = {
+        "update_available": False, "latest_version": None, "release_url": None,
+        "installer_url": None, "installer_sha256": None, "error": None,
+    }
+
+    if target_version:
+        # Normalise: strip leading v
+        tv = target_version.lstrip("v").strip()
+        # Try tag with and without leading v
+        release = None
+        for tag in [f"v{tv}", tv]:
+            url = GITHUB_TAG_URL.format(owner=owner, repo=repo, tag=tag)
+            release = _fetch_release_json(url)
+            if release:
+                break
+        if not release:
+            return {**_err_base, "error": f"Release not found for version {target_version}"}
+    else:
+        url = GITHUB_LATEST_URL.format(owner=owner, repo=repo)
+        release = _fetch_release_json(url)
+        if not release:
+            return {**_err_base, "error": "Update check failed: could not reach GitHub"}
+
+    info = _extract_release_info(release, current)
+    latest_version = info["version"]
     if not latest_version:
-        return {
-            "update_available": False,
-            "latest_version": None,
-            "release_url": None,
-            "installer_url": None,
-            "installer_sha256": None,
-            "error": "No tag in release",
-        }
-    # Resolve installer asset URL (PitBoxInstaller_*.exe)
-    installer_url = None
-    installer_name: str | None = None
-    for asset in release.get("assets", []):
-        name = asset.get("name") or ""
-        if INSTALLER_ASSET_PATTERN.search(name):
-            installer_url = asset.get("browser_download_url") or asset.get("url") or ""
-            installer_name = name
-            break
-    checksums = parse_release_sha256_annotations(release.get("body") or "")
-    installer_sha256: str | None = None
-    if installer_name:
-        installer_sha256 = checksums.get(installer_name)
-        if not installer_sha256:
-            for k, v in checksums.items():
-                if k.lower() == installer_name.lower():
-                    installer_sha256 = v
-                    break
-    # Ignore prereleases for the prompt
-    _, _, _, prerelease = _parse_semver(latest_version)
-    if prerelease:
-        logger.debug("Ignoring prerelease tag: %s", tag_name)
-        return {
-            "update_available": False,
-            "latest_version": latest_version,
-            "release_url": release.get("html_url"),
-            "installer_url": installer_url,
-            "installer_sha256": installer_sha256,
-            "error": None,
-        }
-    update_available = _compare_semver(current, latest_version) < 0
+        return {**_err_base, "error": "No tag in release"}
+
+    if not target_version:
+        # For "latest" mode, skip prereleases
+        if info["prerelease"]:
+            logger.debug("Ignoring prerelease tag: %s", info["tag_name"])
+            return {
+                **_err_base,
+                "update_available": False,
+                "latest_version": latest_version,
+                "release_url": info["release_url"],
+                "installer_url": info["installer_url"],
+                "installer_sha256": info["installer_sha256"],
+            }
+        update_available = _compare_semver(current, latest_version) < 0
+    else:
+        # For a specific version, update_available = installer is present
+        # (allows re-install / downgrade)
+        update_available = bool(info["installer_url"])
+
     return {
         "update_available": update_available,
         "latest_version": latest_version,
-        "release_url": release.get("html_url"),
-        "installer_url": installer_url,
-        "installer_sha256": installer_sha256,
+        "release_url": info["release_url"],
+        "installer_url": info["installer_url"],
+        "installer_sha256": info["installer_sha256"],
         "error": None,
     }
 

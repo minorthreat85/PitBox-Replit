@@ -617,23 +617,24 @@
                         <button type="button" id="updates-btn-dev-pull" class="btn-secondary updates-dev-pull-btn">Pull &amp; rebuild</button>
                         <p class="settings-updates-hint">Pulls latest code from GitHub, builds, and restarts PitBox &mdash; same as running <code>update.ps1</code>.</p>
                     </div>
-                    <div class="updates-push-agents-area">
-                        <div class="updates-dev-divider"><span>Sim Agents</span></div>
-                        <p class="settings-updates-hint">Push an update to all online sim agents. Each agent checks GitHub and launches its updater automatically.</p>
-                        <button type="button" id="updates-btn-push-agents" class="btn-secondary">Push update to all sims</button>
-                        <div id="updates-push-agents-result" class="updates-push-agents-result hidden"></div>
-                    </div>
-                    <div class="updates-push-agents-area">
-                        <div class="updates-dev-divider"><span>Sim Update Status</span></div>
-                        <p class="settings-updates-hint">View current agent version and update state on every sim. Use this to confirm updates have applied or to cancel a pending update.</p>
-                        <button type="button" id="updates-btn-refresh-sim-status" class="btn-secondary">Refresh sim status</button>
+                    <div class="updates-push-agents-area updates-agent-updates-area">
+                        <div class="updates-dev-divider"><span>Agent Updates</span></div>
+                        <div class="updates-version-selector-row">
+                            <label for="updates-agent-version-select" class="updates-version-label">Target version:</label>
+                            <select id="updates-agent-version-select" class="updates-version-select">
+                                <option value="latest">Latest (auto)</option>
+                            </select>
+                            <button type="button" id="updates-btn-load-releases" class="btn-xs btn-secondary-xs" title="Refresh release list from GitHub">Refresh list</button>
+                            <span id="updates-releases-hint" class="updates-releases-hint"></span>
+                        </div>
                         <div id="updates-sim-status-table" class="updates-sim-status-table hidden"></div>
-                    </div>
-                    <div class="updates-push-agents-area">
-                        <div class="updates-dev-divider"><span>Agent Binary</span></div>
-                        <p class="settings-updates-hint">Push the latest PitBoxAgent.exe (from the controller) to all online sim PCs. Run <code>.\update.ps1</code> then <code>pyinstaller PitBoxAgent.spec</code> on the admin PC first, then click below.</p>
-                        <button type="button" id="updates-btn-push-self-update" class="btn-secondary">Update agent on all sims</button>
-                        <div id="updates-push-self-update-result" class="updates-push-agents-result hidden"></div>
+                        <div class="updates-agent-action-row">
+                            <button type="button" id="updates-btn-update-selected" class="btn-primary" disabled>Update Selected</button>
+                            <button type="button" id="updates-btn-update-idle" class="btn-secondary">Update All Idle</button>
+                            <button type="button" id="updates-btn-cancel-pending" class="btn-warn-outline">Cancel Pending</button>
+                            <button type="button" id="updates-btn-refresh-sim-status" class="btn-secondary-xs" title="Refresh sim status">&#8635; Refresh</button>
+                        </div>
+                        <div id="updates-agent-result" class="updates-push-agents-result hidden"></div>
                     </div>
                     <div class="updates-push-agents-area">
                         <div class="updates-dev-divider"><span>Sim Displays</span></div>

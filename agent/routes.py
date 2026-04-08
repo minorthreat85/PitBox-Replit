@@ -800,6 +800,10 @@ async def reset_rig(request: ResetRigRequest):
     return {"success": True, "message": message.strip(), "requires_restart": ac_running}
 
 
+class UpdateBody(BaseModel):
+    target_version: str | None = None
+
+
 class HotkeyRequest(BaseModel):
     """Request to send a hotkey to AC (employee control)."""
     action: str  # "toggle_manual" | "back_to_pits"
@@ -868,9 +872,10 @@ async def apply_pending_update_endpoint():
 
 
 @router.post("/update", dependencies=[Depends(verify_token)])
-async def trigger_update():
+async def trigger_update(body: UpdateBody = None):
     """
     Check GitHub for a newer release and launch PitBoxUpdater.exe if one is found.
+    If a target_version is specified, that exact version is installed.
     If Assetto Corsa is currently running, marks the update as PENDING instead of
     launching immediately. Apply later via POST /update/apply-pending.
     """
@@ -882,7 +887,8 @@ async def trigger_update():
     logger.info("[update] Triggered (current=%s)", CURRENT_VERSION)
 
     loop = asyncio.get_event_loop()
-    result = await loop.run_in_executor(None, check_for_update)
+    target_ver = (body.target_version or "").strip() if body else ""
+    result = await loop.run_in_executor(None, lambda: check_for_update(target_version=target_ver or None))
 
     current = CURRENT_VERSION
     latest = result.get("latest_version") or current

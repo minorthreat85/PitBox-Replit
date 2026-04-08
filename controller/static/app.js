@@ -3769,84 +3769,47 @@
         });
     });
   }
-  function bindPushAgentsButton() {
-    var btn = document.getElementById('updates-btn-push-agents');
-    var resultEl = document.getElementById('updates-push-agents-result');
-    if (!btn || btn.dataset.pushAgentsBound === '1') return;
-    btn.dataset.pushAgentsBound = '1';
-    btn.addEventListener('click', function () {
-      if (btn.disabled) return;
-      btn.disabled = true;
-      btn.textContent = 'Pushing…';
-      if (resultEl) { resultEl.classList.add('hidden'); resultEl.innerHTML = ''; }
-      ensureOperatorOrRedirect().then(function (ok) {
-        if (!ok) { btn.disabled = false; btn.textContent = 'Push update to all sims'; return; }
-        pitboxFetch(API_BASE + '/agents/push-update', { method: 'POST' })
-          .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
-          .then(function (res) {
-            btn.disabled = false;
-            btn.textContent = 'Push update to all sims';
-            if (!resultEl) return;
-            var results = (res.data && res.data.results) || [];
-            if (results.length === 0) {
-              resultEl.innerHTML = '<p class="push-agents-none">No online agents found.</p>';
-              resultEl.classList.remove('hidden');
-              return;
-            }
-            var rows = results.map(function (r) {
-              var icon = r.success ? '✓' : '✗';
-              var cls = r.success ? 'push-agents-ok' : 'push-agents-err';
-              var rawMsg = r.message || (r.success ? 'OK' : 'Failed');
-              if (!r.success && (rawMsg === 'Not Found' || rawMsg === 'HTTP 404')) rawMsg = 'Agent needs manual deploy first (endpoint not available on installed version)';
-              var msg = escapeHtml(rawMsg);
-              var version = r.update_available
-                ? escapeHtml(' (' + (r.current_version || '?') + ' → ' + (r.latest_version || '?') + ')')
-                : (r.latest_version ? escapeHtml(' (v' + r.latest_version + ', up to date)') : '');
-              return '<div class="push-agents-row ' + cls + '"><span class="push-agents-icon">' + icon + '</span><span class="push-agents-id">' + escapeHtml(r.agent_id) + '</span><span class="push-agents-msg">' + msg + version + '</span></div>';
-            }).join('');
-            resultEl.innerHTML = rows;
-            resultEl.classList.remove('hidden');
-          })
-          .catch(function (err) {
-            btn.disabled = false;
-            btn.textContent = 'Push update to all sims';
-            showToast('Push update failed: ' + (err.message || 'network error'), 'error');
-          });
-      });
-    });
-  }
+  /* ── Agent update status labels and badge classes ─────────── */
   var UPDATE_STATUS_LABELS = {
-    'idle': 'Up to date',
-    'pending': 'Pending',
-    'downloading': 'Downloading',
-    'installing': 'Installing',
-    'restarting': 'Restarting',
-    'failed': 'Failed',
-    'unknown': 'Offline',
-    'error': 'Error',
-    'querying': 'Querying…'
+    'idle': 'Up to date', 'pending': 'Pending', 'downloading': 'Downloading',
+    'installing': 'Installing', 'restarting': 'Restarting', 'failed': 'Failed',
+    'unknown': 'Offline', 'error': 'Error', 'querying': 'Querying\u2026'
   };
   var UPDATE_STATUS_CLASSES = {
-    'idle': 'sim-upd-idle',
-    'pending': 'sim-upd-pending',
-    'downloading': 'sim-upd-busy',
-    'installing': 'sim-upd-busy',
-    'restarting': 'sim-upd-busy',
-    'failed': 'sim-upd-failed',
-    'unknown': 'sim-upd-offline',
-    'error': 'sim-upd-failed',
-    'querying': 'sim-upd-busy'
+    'idle': 'sim-upd-idle', 'pending': 'sim-upd-pending',
+    'downloading': 'sim-upd-busy', 'installing': 'sim-upd-busy',
+    'restarting': 'sim-upd-busy', 'failed': 'sim-upd-failed',
+    'unknown': 'sim-upd-offline', 'error': 'sim-upd-failed', 'querying': 'sim-upd-busy'
   };
+  /* Track current sim statuses for action button logic */
+  var _simStatuses = [];
+
+  function _getCheckedSimIds() {
+    var boxes = document.querySelectorAll('#updates-sim-status-table input[type="checkbox"][data-sim-id]');
+    var ids = [];
+    boxes.forEach(function (cb) { if (cb.checked) ids.push(cb.dataset.simId); });
+    return ids;
+  }
+
+  function _updateActionButtons() {
+    var checked = _getCheckedSimIds();
+    var btnSel = document.getElementById('updates-btn-update-selected');
+    if (btnSel) btnSel.disabled = checked.length === 0;
+  }
 
   function renderSimUpdateStatusTable(results) {
     var tableEl = document.getElementById('updates-sim-status-table');
     if (!tableEl) return;
+    _simStatuses = results || [];
     if (!results || results.length === 0) {
       tableEl.innerHTML = '<p class="push-agents-none">No agent sims enrolled.</p>';
       tableEl.classList.remove('hidden');
+      _updateActionButtons();
       return;
     }
+    var allChecked = false;
     var header = '<div class="sim-upd-header sim-upd-row">'
+      + '<span class="sim-upd-col sim-upd-col-chk"><input type="checkbox" id="sim-upd-check-all" title="Select all" /></span>'
       + '<span class="sim-upd-col sim-upd-col-rig">Sim</span>'
       + '<span class="sim-upd-col sim-upd-col-ver">Version</span>'
       + '<span class="sim-upd-col sim-upd-col-status">Status</span>'
@@ -3856,20 +3819,22 @@
       var status = r.update_status || 'unknown';
       var statusLabel = UPDATE_STATUS_LABELS[status] || status;
       var statusCls = UPDATE_STATUS_CLASSES[status] || 'sim-upd-idle';
-      var ver = r.current_version ? escapeHtml(r.current_version) : '—';
+      var ver = r.current_version ? escapeHtml(r.current_version) : '\u2014';
       if (r.target_version && r.target_version !== r.current_version) {
         ver += ' <span class="sim-upd-target">&#x2192; ' + escapeHtml(r.target_version) + '</span>';
       }
       var info = '';
       if (r.last_update_error) {
         info = '<span class="sim-upd-err-text">' + escapeHtml(r.last_update_error) + '</span>';
-      } else if (status === 'pending') {
-        info = '<button class="btn-xs btn-warn" data-agent-id="' + escapeHtml(r.agent_id) + '" data-action="cancel-update">Cancel</button>';
       }
       var onlineDot = r.online
         ? '<span class="sim-upd-dot sim-upd-dot-online" title="Online"></span>'
         : '<span class="sim-upd-dot sim-upd-dot-offline" title="Offline"></span>';
+      var chk = r.online
+        ? '<input type="checkbox" class="sim-upd-chk" data-sim-id="' + escapeHtml(r.agent_id) + '" />'
+        : '<input type="checkbox" class="sim-upd-chk" disabled title="Offline" />';
       return '<div class="sim-upd-row">'
+        + '<span class="sim-upd-col sim-upd-col-chk">' + chk + '</span>'
         + '<span class="sim-upd-col sim-upd-col-rig">' + onlineDot + escapeHtml(r.agent_id) + '</span>'
         + '<span class="sim-upd-col sim-upd-col-ver">' + ver + '</span>'
         + '<span class="sim-upd-col sim-upd-col-status"><span class="sim-upd-badge ' + statusCls + '">' + escapeHtml(statusLabel) + '</span></span>'
@@ -3878,46 +3843,35 @@
     }).join('');
     tableEl.innerHTML = header + rows;
     tableEl.classList.remove('hidden');
-    // Bind cancel buttons
-    tableEl.querySelectorAll('[data-action="cancel-update"]').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        var agentId = btn.dataset.agentId;
-        if (!agentId) return;
-        if (!confirm('Cancel pending update for ' + agentId + '?')) return;
-        btn.disabled = true; btn.textContent = '…';
-        ensureOperatorOrRedirect().then(function (ok) {
-          if (!ok) { btn.disabled = false; btn.textContent = 'Cancel'; return; }
-          pitboxFetch(API_BASE + '/agents/' + encodeURIComponent(agentId) + '/command', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ command: 'update/cancel' })
-          })
-          .then(function (r) { return r.json(); })
-          .then(function () {
-            showToast('Pending update cancelled for ' + agentId, 'success');
-            fetchSimUpdateStatuses();
-          })
-          .catch(function (err) {
-            showToast('Cancel failed: ' + (err.message || 'error'), 'error');
-            btn.disabled = false; btn.textContent = 'Cancel';
-          });
+    /* Bind select-all */
+    var checkAll = document.getElementById('sim-upd-check-all');
+    if (checkAll) {
+      checkAll.addEventListener('change', function () {
+        tableEl.querySelectorAll('.sim-upd-chk:not(:disabled)').forEach(function (cb) {
+          cb.checked = checkAll.checked;
         });
+        _updateActionButtons();
       });
+    }
+    tableEl.querySelectorAll('.sim-upd-chk').forEach(function (cb) {
+      cb.addEventListener('change', _updateActionButtons);
     });
+    _updateActionButtons();
   }
 
-  function fetchSimUpdateStatuses() {
+  function fetchSimUpdateStatuses(onDone) {
     var btn = document.getElementById('updates-btn-refresh-sim-status');
     var tableEl = document.getElementById('updates-sim-status-table');
-    if (btn) { btn.disabled = true; btn.textContent = 'Refreshing…'; }
+    if (btn) { btn.disabled = true; btn.textContent = '\u21BB Refreshing\u2026'; }
     pitboxFetch(API_BASE + '/agents/update-status')
       .then(function (r) { return r.json(); })
       .then(function (data) {
-        if (btn) { btn.disabled = false; btn.textContent = 'Refresh sim status'; }
+        if (btn) { btn.disabled = false; btn.textContent = '\u21BB Refresh'; }
         renderSimUpdateStatusTable((data && data.results) || []);
+        if (typeof onDone === 'function') onDone();
       })
       .catch(function (err) {
-        if (btn) { btn.disabled = false; btn.textContent = 'Refresh sim status'; }
+        if (btn) { btn.disabled = false; btn.textContent = '\u21BB Refresh'; }
         showToast('Failed to fetch sim update status: ' + (err.message || 'error'), 'error');
         if (tableEl) {
           tableEl.innerHTML = '<p class="push-agents-err">Error: ' + escapeHtml(err.message || 'network error') + '</p>';
@@ -3926,69 +3880,176 @@
       });
   }
 
-  function bindSimStatusButton() {
-    var btn = document.getElementById('updates-btn-refresh-sim-status');
-    if (!btn || btn.dataset.simStatusBound === '1') return;
-    btn.dataset.simStatusBound = '1';
-    btn.addEventListener('click', function () {
-      if (btn.disabled) return;
-      ensureOperatorOrRedirect().then(function (ok) {
-        if (!ok) return;
-        fetchSimUpdateStatuses();
+  function loadAgentReleases() {
+    var sel = document.getElementById('updates-agent-version-select');
+    var hint = document.getElementById('updates-releases-hint');
+    var btn = document.getElementById('updates-btn-load-releases');
+    if (!sel) return;
+    if (btn) { btn.disabled = true; btn.textContent = 'Loading\u2026'; }
+    if (hint) hint.textContent = '';
+    pitboxFetch(API_BASE + '/agents/releases')
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (btn) { btn.disabled = false; btn.textContent = 'Refresh list'; }
+        var releases = (data && data.releases) || [];
+        var prev = sel.value;
+        /* Rebuild options */
+        while (sel.options.length > 0) sel.remove(0);
+        var latestOpt = document.createElement('option');
+        latestOpt.value = 'latest';
+        latestOpt.textContent = 'Latest (auto)';
+        sel.appendChild(latestOpt);
+        releases.forEach(function (r) {
+          var opt = document.createElement('option');
+          opt.value = r.version;
+          var label = 'v' + r.version;
+          if (r.published_at) {
+            var d = new Date(r.published_at);
+            label += '  (' + d.toLocaleDateString() + ')';
+          }
+          if (!r.has_installer) label += '  \u26a0 no installer';
+          opt.textContent = label;
+          if (!r.has_installer) opt.style.color = 'var(--color-yellow, #fbbf24)';
+          sel.appendChild(opt);
+        });
+        /* Restore selection if still present */
+        if (prev) {
+          for (var i = 0; i < sel.options.length; i++) {
+            if (sel.options[i].value === prev) { sel.selectedIndex = i; break; }
+          }
+        }
+        if (hint) hint.textContent = releases.length ? releases.length + ' releases loaded' : 'No releases found';
+      })
+      .catch(function (err) {
+        if (btn) { btn.disabled = false; btn.textContent = 'Refresh list'; }
+        if (hint) hint.textContent = 'Could not load releases';
       });
-    });
   }
 
-  function bindPushSelfUpdateButton() {
-    var btn = document.getElementById('updates-btn-push-self-update');
-    var resultEl = document.getElementById('updates-push-self-update-result');
-    if (!btn || btn.dataset.selfUpdateBound === '1') return;
-    btn.dataset.selfUpdateBound = '1';
-    btn.addEventListener('click', function () {
-      if (btn.disabled) return;
-      if (!confirm('Push the latest PitBoxAgent.exe to all online sims?\n\nMake sure you ran update.ps1 + pyinstaller on the admin PC first.\n\nEach sim agent will restart automatically (~5 seconds).')) return;
-      btn.disabled = true;
-      btn.textContent = 'Updating…';
+  function _showAgentActionResult(results, resultEl) {
+    if (!resultEl) return;
+    if (!results || results.length === 0) {
+      resultEl.innerHTML = '<p class="push-agents-none">No online agents targeted.</p>';
+      resultEl.classList.remove('hidden');
+      return;
+    }
+    var rows = results.map(function (r) {
+      var icon = r.success ? '\u2713' : '\u2717';
+      var cls = r.success ? 'push-agents-ok' : 'push-agents-err';
+      var rawMsg = r.message || (r.success ? 'OK' : 'Failed');
+      var extra = '';
+      if (r.update_status === 'pending') extra = ' (pending \u2014 AC is running)';
+      else if (r.update_status === 'installing') extra = ' (installer launched)';
+      else if (r.update_available && r.latest_version) extra = ' (' + escapeHtml(r.current_version || '?') + ' \u2192 ' + escapeHtml(r.latest_version) + ')';
+      return '<div class="push-agents-row ' + cls + '"><span class="push-agents-icon">' + icon + '</span>'
+        + '<span class="push-agents-id">' + escapeHtml(r.agent_id) + '</span>'
+        + '<span class="push-agents-msg">' + escapeHtml(rawMsg) + escapeHtml(extra) + '</span></div>';
+    }).join('');
+    resultEl.innerHTML = rows;
+    resultEl.classList.remove('hidden');
+  }
+
+  function bindAgentUpdatesSection() {
+    var refreshBtn  = document.getElementById('updates-btn-refresh-sim-status');
+    var loadRelBtn  = document.getElementById('updates-btn-load-releases');
+    var selBtn      = document.getElementById('updates-btn-update-selected');
+    var idleBtn     = document.getElementById('updates-btn-update-idle');
+    var cancelBtn   = document.getElementById('updates-btn-cancel-pending');
+    var versionSel  = document.getElementById('updates-agent-version-select');
+    var resultEl    = document.getElementById('updates-agent-result');
+
+    if (refreshBtn && !refreshBtn.dataset.agentUpdatesBound) {
+      refreshBtn.dataset.agentUpdatesBound = '1';
+      refreshBtn.addEventListener('click', function () {
+        if (refreshBtn.disabled) return;
+        ensureOperatorOrRedirect().then(function (ok) { if (ok) fetchSimUpdateStatuses(); });
+      });
+    }
+    if (loadRelBtn && !loadRelBtn.dataset.agentUpdatesBound) {
+      loadRelBtn.dataset.agentUpdatesBound = '1';
+      loadRelBtn.addEventListener('click', function () {
+        if (loadRelBtn.disabled) return;
+        loadAgentReleases();
+      });
+    }
+
+    function _doUpdate(agentIds) {
+      var ver = versionSel ? versionSel.value : 'latest';
+      var payload = {};
+      if (ver && ver !== 'latest') payload.target_version = ver;
+      if (agentIds && agentIds.length > 0) payload.agent_ids = agentIds;
       if (resultEl) { resultEl.classList.add('hidden'); resultEl.innerHTML = ''; }
       ensureOperatorOrRedirect().then(function (ok) {
-        if (!ok) { btn.disabled = false; btn.textContent = 'Update agent on all sims'; return; }
-        pitboxFetch(API_BASE + '/agents/push-self-update', { method: 'POST' })
-          .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
-          .then(function (res) {
-            btn.disabled = false;
-            btn.textContent = 'Update agent on all sims';
-            if (!resultEl) return;
-            if (res.data && res.data.detail) {
-              resultEl.innerHTML = '<p class="push-agents-err">' + escapeHtml(res.data.detail) + '</p>';
-              resultEl.classList.remove('hidden');
-              return;
-            }
-            var results = (res.data && res.data.results) || [];
-            if (results.length === 0) {
-              resultEl.innerHTML = '<p class="push-agents-none">No online agents found.</p>';
-              resultEl.classList.remove('hidden');
-              return;
-            }
-            var rows = results.map(function (r) {
-              var icon = r.success ? '✓' : '✗';
-              var cls = r.success ? 'push-agents-ok' : 'push-agents-err';
-              var rawMsg = r.message || (r.success ? 'Updating' : 'Failed');
-              if (!r.success && (rawMsg === 'Not Found' || rawMsg === 'HTTP 404')) rawMsg = 'Agent too old for self-update — download manually from admin PC';
-              return '<div class="push-agents-row ' + cls + '"><span class="push-agents-icon">' + icon + '</span><span class="push-agents-id">' + escapeHtml(r.agent_id) + '</span><span class="push-agents-msg">' + escapeHtml(rawMsg) + '</span></div>';
-            }).join('');
-            var url = (res.data && res.data.download_url) ? '<p style="font-size:.75rem;color:var(--text-muted);margin-top:6px;">Download URL: ' + escapeHtml(res.data.download_url) + '</p>' : '';
-            resultEl.innerHTML = rows + url;
-            resultEl.classList.remove('hidden');
-            showToast('Agent update sent to ' + results.filter(function(r){return r.success;}).length + '/' + results.length + ' sims', 'success');
+        if (!ok) return;
+        pitboxFetch(API_BASE + '/agents/push-update', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          _showAgentActionResult((data && data.results) || [], resultEl);
+          setTimeout(function () { fetchSimUpdateStatuses(); }, 2000);
+        })
+        .catch(function (err) {
+          showToast('Update failed: ' + (err.message || 'network error'), 'error');
+        });
+      });
+    }
+
+    if (selBtn && !selBtn.dataset.agentUpdatesBound) {
+      selBtn.dataset.agentUpdatesBound = '1';
+      selBtn.addEventListener('click', function () {
+        if (selBtn.disabled) return;
+        var ids = _getCheckedSimIds();
+        if (ids.length === 0) { showToast('Select at least one sim first', 'warn'); return; }
+        _doUpdate(ids);
+      });
+    }
+    if (idleBtn && !idleBtn.dataset.agentUpdatesBound) {
+      idleBtn.dataset.agentUpdatesBound = '1';
+      idleBtn.addEventListener('click', function () {
+        if (idleBtn.disabled) return;
+        var ver = (versionSel && versionSel.value !== 'latest') ? versionSel.value : null;
+        var label = ver ? 'v' + ver : 'the latest version';
+        if (!confirm('Send update (' + label + ') to all online idle sims?')) return;
+        _doUpdate(null);
+      });
+    }
+    if (cancelBtn && !cancelBtn.dataset.agentUpdatesBound) {
+      cancelBtn.dataset.agentUpdatesBound = '1';
+      cancelBtn.addEventListener('click', function () {
+        if (cancelBtn.disabled) return;
+        var ids = _getCheckedSimIds();
+        var body = ids.length > 0 ? { agent_ids: ids } : {};
+        var label = ids.length > 0 ? ids.join(', ') : 'all sims';
+        if (!confirm('Cancel pending updates on ' + label + '?')) return;
+        if (resultEl) { resultEl.classList.add('hidden'); resultEl.innerHTML = ''; }
+        ensureOperatorOrRedirect().then(function (ok) {
+          if (!ok) return;
+          pitboxFetch(API_BASE + '/agents/cancel-updates', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+          })
+          .then(function (r) { return r.json(); })
+          .then(function (data) {
+            _showAgentActionResult((data && data.results) || [], resultEl);
+            showToast('Cancel sent to ' + (data && data.results ? data.results.length : 0) + ' sim(s)', 'success');
+            setTimeout(function () { fetchSimUpdateStatuses(); }, 1500);
           })
           .catch(function (err) {
-            btn.disabled = false;
-            btn.textContent = 'Update agent on all sims';
-            showToast('Self-update failed: ' + (err.message || 'network error'), 'error');
+            showToast('Cancel failed: ' + (err.message || 'network error'), 'error');
           });
+        });
       });
-    });
+    }
+
+    /* Auto-load releases and status on first bind */
+    loadAgentReleases();
+    fetchSimUpdateStatuses();
   }
+
   function bindPushLaunchDisplayButton() {
     var btn = document.getElementById('updates-btn-push-launch-display');
     var resultEl = document.getElementById('updates-push-launch-display-result');

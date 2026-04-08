@@ -792,9 +792,39 @@ a.pitbox-operator-banner-signin:hover {
     overflow: hidden;
 }
 .updates-sim-status-table.hidden { display: none; }
+/* ── Agent Updates section controls ──────────────────────────── */
+.updates-agent-updates-area { margin-top: 1rem; }
+.updates-version-selector-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.75rem;
+}
+.updates-version-label { font-size: 0.85rem; color: var(--text-muted); flex-shrink: 0; }
+.updates-version-select {
+    flex: 1;
+    min-width: 10rem;
+    max-width: 22rem;
+    padding: 0.3rem 0.5rem;
+    background: var(--bg-secondary, #1e2028);
+    border: 1px solid var(--border-gray);
+    border-radius: 4px;
+    color: var(--text-primary, #f0f0f0);
+    font-size: 0.85rem;
+}
+.updates-releases-hint { font-size: 0.78rem; color: var(--text-muted); }
+.updates-agent-action-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.6rem;
+    align-items: center;
+}
+/* ── Sim update status table ─────────────────────────────────── */
 .sim-upd-row {
     display: grid;
-    grid-template-columns: 7rem 8rem 7rem 1fr;
+    grid-template-columns: 1.5rem 7rem 8rem 7rem 1fr;
     align-items: center;
     gap: 0.5rem;
     padding: 0.35rem 0.6rem;
@@ -810,6 +840,7 @@ a.pitbox-operator-banner-signin:hover {
     letter-spacing: 0.05em;
 }
 .sim-upd-col { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sim-upd-col-chk { display: flex; align-items: center; justify-content: center; }
 .sim-upd-col-rig { font-weight: 600; display: flex; align-items: center; gap: 0.35rem; }
 .sim-upd-col-ver { color: var(--text-muted); }
 .sim-upd-col-info { color: var(--text-muted); font-size: 0.8rem; }
@@ -836,15 +867,20 @@ a.pitbox-operator-banner-signin:hover {
 .sim-upd-busy    { background: rgba(124,106,245,.14); color: var(--accent-primary, #7c6af5); }
 .sim-upd-failed  { background: rgba(239,68,68,.13); color: var(--color-red-primary, #ef4444); }
 .sim-upd-offline { background: rgba(100,100,120,.13); color: var(--text-muted); }
-/* Small inline buttons used in the sim status table */
-.btn-xs {
-    padding: 0.1rem 0.5rem;
-    font-size: 0.76rem;
+/* Small buttons */
+.btn-xs, .btn-secondary-xs {
+    padding: 0.15rem 0.55rem;
+    font-size: 0.78rem;
     border-radius: 3px;
-    border: 1px solid transparent;
+    border: 1px solid var(--border-gray);
     cursor: pointer;
-    font-weight: 600;
+    font-weight: 500;
+    background: var(--bg-secondary, #1e2028);
+    color: var(--text-muted);
+    white-space: nowrap;
 }
+.btn-xs:hover, .btn-secondary-xs:hover { border-color: var(--accent-primary, #7c6af5); color: var(--text-primary, #f0f0f0); }
+.btn-xs:disabled, .btn-secondary-xs:disabled { opacity: .5; cursor: default; }
 .btn-warn {
     background: rgba(251,191,36,.15);
     border-color: rgba(251,191,36,.4);
@@ -852,6 +888,19 @@ a.pitbox-operator-banner-signin:hover {
 }
 .btn-warn:hover { background: rgba(251,191,36,.28); }
 .btn-warn:disabled { opacity: .5; cursor: default; }
+.btn-warn-outline {
+    padding: 0.3rem 0.9rem;
+    font-size: 0.85rem;
+    border-radius: 5px;
+    border: 1px solid rgba(251,191,36,.45);
+    background: transparent;
+    color: #fbbf24;
+    cursor: pointer;
+    font-weight: 600;
+    white-space: nowrap;
+}
+.btn-warn-outline:hover { background: rgba(251,191,36,.12); }
+.btn-warn-outline:disabled { opacity: .5; cursor: default; }
 .input-error {
     border-color: var(--color-red-primary, #ef4444) !important;
     box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.25);
