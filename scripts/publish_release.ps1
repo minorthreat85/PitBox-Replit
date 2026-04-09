@@ -186,6 +186,14 @@ if (Test-Path $controllerSetupPath) {
     Write-Host "  Skipping PitBoxControllerSetup_$VERSION.exe (not found in dist)" -ForegroundColor Yellow
 }
 
+# Upload PitBoxUpdater.exe if present
+$updaterPath = Join-Path $distDir "PitBoxUpdater.exe"
+if (Test-Path $updaterPath) {
+    Upload-ReleaseAsset -ReleaseId $release.id -AssetPath $updaterPath -AssetName "PitBoxUpdater.exe" -Headers $headers
+} else {
+    Write-Host "  Skipping PitBoxUpdater.exe (not found in dist)" -ForegroundColor Yellow
+}
+
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Green
 Write-Host "  Release v$VERSION published!" -ForegroundColor Green

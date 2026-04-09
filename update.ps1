@@ -3,13 +3,37 @@ $ErrorActionPreference = "Stop"
 
 Set-Location $PSScriptRoot
 
+# PitBox Dev Update Script
+# PURPOSE: Dev iteration deployment for an EXISTING PitBox installation.
+#
+# SERVICE RESTART BEHAVIOR:
+#   Always starts the controller service after a successful deploy.
+#   If the service was running, it is stopped first, then restarted.
+#   If it was not running, it is started.
+#   The script always ends with an HTTP health check to verify the app is serving.
+
 $ServiceName      = "PitBoxController"
-$InstallBinDir    = "C:\PitBox\installed"
-$ControllerExeDst = Join-Path $InstallBinDir "PitBoxController.exe"
 $AgentExeDst      = "C:\PitBox\Agent\bin\PitBoxAgent.exe"
 $UpdaterExeDst    = "C:\PitBox\updater\PitBoxUpdater.exe"
 $ControllerPort   = 9630
 $HealthUrl        = "http://localhost:$ControllerPort/health"
+
+# Auto-detect controller EXE location from known installer layouts:
+#   Standalone controller installer: C:\PitBox\Controller\PitBoxController.exe
+#   Unified installer:              C:\PitBox\PitBoxController.exe
+#   Legacy/custom:                  C:\PitBox\installed\PitBoxController.exe
+$ControllerExeDst = $null
+$searchPaths = @(
+    "C:\PitBox\Controller\PitBoxController.exe",
+    "C:\PitBox\PitBoxController.exe",
+    "C:\PitBox\installed\PitBoxController.exe"
+)
+foreach ($p in $searchPaths) {
+    if (Test-Path $p) {
+        $ControllerExeDst = $p
+        break
+    }
+}
 
 function Write-Step([string]$Message) {
     Write-Host $Message -ForegroundColor Cyan
@@ -30,10 +54,7 @@ function Fail([string]$Message, [int]$ExitCode = 1) {
 
 function Restore-GeneratedFiles {
     Write-Step "Restoring generated files before pull..."
-    $generatedFiles = @(
-        "version.ini"
-    )
-
+    $generatedFiles = @("version.ini")
     foreach ($gf in $generatedFiles) {
         if (Test-Path $gf) {
             git restore -- $gf 2>$null
@@ -70,55 +91,57 @@ function Assert-FileExists([string]$Path, [string]$Label) {
 
 function Stop-ControllerService {
     $svc = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
-    $serviceExisted = $null -ne $svc
-    $serviceWasRunning = $serviceExisted -and $svc.Status -eq "Running"
-    $serviceStopped = $false
-
-    if ($serviceWasRunning) {
-        Write-Step "Stopping $ServiceName service..."
-        try {
-            Stop-Service -Name $ServiceName -Force -ErrorAction Stop
-            Start-Sleep -Seconds 3
-            Write-Ok "Service stopped."
-            $serviceStopped = $true
-        }
-        catch {
-            Write-Warn "WARNING: Could not stop $ServiceName (may need admin rights)."
-            Write-Warn "  $($_.Exception.Message)"
-            Write-Warn "  Continuing with deploy -- you may need to restart the service manually."
-        }
-    } else {
-        Write-Ok "$ServiceName service was not running."
+    if (-not $svc) {
+        Write-Ok "$ServiceName service not found (not installed as service)."
+        return $false
     }
-
-    return @{
-        Existed    = $serviceExisted
-        WasRunning = $serviceWasRunning
-        Stopped    = $serviceStopped
+    if ($svc.Status -ne "Running") {
+        Write-Ok "$ServiceName service was not running."
+        return $false
+    }
+    Write-Step "Stopping $ServiceName service..."
+    try {
+        Stop-Service -Name $ServiceName -Force -ErrorAction Stop
+        Start-Sleep -Seconds 3
+        Write-Ok "Service stopped."
+        return $true
+    }
+    catch {
+        Write-Warn "WARNING: Could not stop $ServiceName (may need admin rights)."
+        Write-Warn "  $($_.Exception.Message)"
+        Write-Warn "  Continuing with deploy -- restart the service manually after."
+        return $false
     }
 }
 
 function Start-ControllerService {
+    $svc = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
+    if (-not $svc) {
+        Write-Warn "NOTE: $ServiceName service not found -- not starting."
+        Write-Warn "  Run the PitBox installer to register the service."
+        return $false
+    }
     Write-Step "Starting $ServiceName service..."
     try {
         Start-Service -Name $ServiceName -ErrorAction Stop
         Start-Sleep -Seconds 3
-
         $svcCheck = Get-Service -Name $ServiceName -ErrorAction Stop
         if ($svcCheck.Status -ne "Running") {
             Write-Warn "WARNING: $ServiceName did not start correctly."
-            return
+            return $false
         }
-
-        Write-Ok "Service restarted."
+        Write-Ok "Service started."
+        return $true
     }
     catch {
         Write-Warn "WARNING: Could not start $ServiceName (may need admin rights)."
         Write-Warn "  $($_.Exception.Message)"
         Write-Warn "  Start manually: Start-Service $ServiceName"
-        return
+        return $false
     }
+}
 
+function Test-ControllerHealth {
     Write-Step "Checking controller health at $HealthUrl ..."
     $healthy = $false
     for ($i = 1; $i -le 10; $i++) {
@@ -134,10 +157,11 @@ function Start-ControllerService {
     if ($healthy) {
         Write-Ok "Controller is healthy (HTTP 200 on port $ControllerPort)."
     } else {
-        Write-Warn "WARNING: Service is running but HTTP health check failed after 20s."
+        Write-Warn "WARNING: HTTP health check failed after 20s."
         Write-Warn "  The app may still be starting, or there may be an error."
         Write-Warn "  Check logs at C:\PitBox\logs\ or run: Invoke-WebRequest $HealthUrl"
     }
+    return $healthy
 }
 
 function Deploy-Artifacts {
@@ -147,13 +171,26 @@ function Deploy-Artifacts {
         [string]$UpdaterSrc
     )
 
-    if (-not (Test-Path $InstallBinDir)) {
-        Fail "Controller install dir not found: $InstallBinDir -- run the PitBox installer first."
+    if ($ControllerExeDst) {
+        $controllerDir = Split-Path $ControllerExeDst -Parent
+        if (Test-Path $controllerDir) {
+            Write-Step "Deploying PitBoxController.exe -> $ControllerExeDst"
+            Copy-Item -Path $ControllerSrc -Destination $ControllerExeDst -Force -ErrorAction Stop
+            Write-Ok "PitBoxController.exe deployed."
+        } else {
+            Fail "Controller dir not found: $controllerDir -- run the PitBox installer first."
+        }
+    } else {
+        Write-Warn "WARNING: No existing PitBoxController.exe found in known install paths."
+        Write-Warn "  Searched: $($searchPaths -join ', ')"
+        Write-Warn "  Skipping controller deploy. Run the PitBox installer first."
     }
 
     $agentDir = Split-Path $AgentExeDst -Parent
-    if (-not (Test-Path $agentDir)) {
-        Fail "Agent install dir not found: $agentDir -- run the PitBox installer first."
+    if (Test-Path $agentDir) {
+        Write-Step "Deploying PitBoxAgent.exe -> $AgentExeDst"
+        Copy-Item -Path $AgentSrc -Destination $AgentExeDst -Force -ErrorAction Stop
+        Write-Ok "PitBoxAgent.exe deployed."
     }
 
     $updaterDir = Split-Path $UpdaterExeDst -Parent
@@ -161,30 +198,24 @@ function Deploy-Artifacts {
         New-Item -ItemType Directory -Path $updaterDir -Force | Out-Null
         Write-Ok "Created updater dir: $updaterDir"
     }
-
-    try {
-        Write-Step "Deploying PitBoxController.exe..."
-        Copy-Item -Path $ControllerSrc -Destination $ControllerExeDst -Force -ErrorAction Stop
-        Write-Ok "PitBoxController.exe deployed."
-
-        Write-Step "Deploying PitBoxAgent.exe..."
-        Copy-Item -Path $AgentSrc -Destination $AgentExeDst -Force -ErrorAction Stop
-        Write-Ok "PitBoxAgent.exe deployed."
-
-        Write-Step "Deploying PitBoxUpdater.exe..."
-        Copy-Item -Path $UpdaterSrc -Destination $UpdaterExeDst -Force -ErrorAction Stop
-        Write-Ok "PitBoxUpdater.exe deployed."
-    }
-    catch {
-        Fail "Deployment failed: $($_.Exception.Message)"
-    }
+    Write-Step "Deploying PitBoxUpdater.exe -> $UpdaterExeDst"
+    Copy-Item -Path $UpdaterSrc -Destination $UpdaterExeDst -Force -ErrorAction Stop
+    Write-Ok "PitBoxUpdater.exe deployed."
 }
+
+# ======== MAIN ========
 
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host "  PitBox Dev Update" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
+
+if ($ControllerExeDst) {
+    Write-Ok "Controller found at: $ControllerExeDst"
+} else {
+    Write-Warn "WARNING: No existing controller EXE found. Will skip controller deploy."
+}
 
 Restore-GeneratedFiles
 Git-PullLatest
@@ -198,31 +229,24 @@ Assert-FileExists -Path $controllerSrc -Label "Controller build output"
 Assert-FileExists -Path $agentSrc -Label "Agent build output"
 Assert-FileExists -Path $updaterSrc -Label "Updater build output"
 
-$serviceState = Stop-ControllerService
+$wasStopped = Stop-ControllerService
 
 try {
     Deploy-Artifacts -ControllerSrc $controllerSrc -AgentSrc $agentSrc -UpdaterSrc $updaterSrc
 }
 catch {
-    if ($serviceState.WasRunning) {
-        try {
-            Start-Service -Name $ServiceName -ErrorAction SilentlyContinue
-        } catch {}
-    }
-    throw
+    Write-Host "Deploy failed: $($_.Exception.Message)" -ForegroundColor Red
+    try { Start-Service -Name $ServiceName -ErrorAction SilentlyContinue } catch {}
+    exit 1
 }
 
-if ($serviceState.Stopped) {
-    Start-ControllerService
-} elseif ($serviceState.WasRunning) {
-    Write-Host ""
-    Write-Warn "NOTE: Service was running but could not be stopped (permissions)."
-    Write-Warn "  Files were deployed. Restart the service manually to pick up changes:"
-    Write-Warn "  Restart-Service $ServiceName"
-} else {
-    Write-Host ""
-    Write-Warn "NOTE: Service was not running before update -- not starting it."
-    Write-Warn "  Start manually: Start-Service $ServiceName"
+# Always start service and health-check after successful deploy
+$started = Start-ControllerService
+if ($started) {
+    $healthy = Test-ControllerHealth
+    if (-not $healthy) {
+        Fail "Update deployed but controller health check failed."
+    }
 }
 
 Write-Host ""
