@@ -13,6 +13,17 @@ if ($svc -and $svc.Status -eq "Running") {
     Write-Host "  Service stopped." -ForegroundColor Gray
 }
 
+Write-Host "Restoring generated files before pull..." -ForegroundColor Cyan
+$generatedFiles = @("version.ini")
+foreach ($gf in $generatedFiles) {
+    if (Test-Path $gf) {
+        git checkout -- $gf 2>$null
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host "  Restored $gf" -ForegroundColor Gray
+        }
+    }
+}
+
 Write-Host "Pulling latest from GitHub..." -ForegroundColor Cyan
 git pull
 if ($LASTEXITCODE -ne 0) {
@@ -36,6 +47,8 @@ $controllerSrc = "$PSScriptRoot\dist\PitBoxController.exe"
 $controllerDst = "$InstallBinDir\PitBoxController.exe"
 $agentSrc      = "$PSScriptRoot\dist\PitBoxAgent.exe"
 $agentDst      = "C:\PitBox\Agent\bin\PitBoxAgent.exe"
+$updaterSrc    = "$PSScriptRoot\dist\PitBoxUpdater.exe"
+$updaterDst    = "C:\PitBox\updater\PitBoxUpdater.exe"
 
 if (Test-Path $controllerSrc) {
     if (Test-Path $InstallBinDir) {
@@ -51,11 +64,22 @@ if (Test-Path $controllerSrc) {
 }
 
 if (Test-Path $agentSrc) {
-    if (Test-Path $InstallBinDir) {
-        Write-Host "Deploying PitBoxAgent.exe -> C:\PitBox\Agent\bin ..." -ForegroundColor Cyan
+    $agentDir = Split-Path $agentDst -Parent
+    if (Test-Path $agentDir) {
+        Write-Host "Deploying PitBoxAgent.exe -> $agentDir ..." -ForegroundColor Cyan
         Copy-Item -Path $agentSrc -Destination $agentDst -Force
         Write-Host "  PitBoxAgent.exe deployed." -ForegroundColor Gray
     }
+}
+
+if (Test-Path $updaterSrc) {
+    $updaterDir = Split-Path $updaterDst -Parent
+    if (-not (Test-Path $updaterDir)) {
+        New-Item -ItemType Directory -Path $updaterDir -Force | Out-Null
+    }
+    Write-Host "Deploying PitBoxUpdater.exe -> $updaterDir ..." -ForegroundColor Cyan
+    Copy-Item -Path $updaterSrc -Destination $updaterDst -Force
+    Write-Host "  PitBoxUpdater.exe deployed." -ForegroundColor Gray
 }
 
 if ($serviceStopped) {
@@ -64,4 +88,6 @@ if ($serviceStopped) {
     Write-Host "  Service restarted." -ForegroundColor Gray
 }
 
+Write-Host ""
+Write-Host "Update complete." -ForegroundColor Green
 exit 0
