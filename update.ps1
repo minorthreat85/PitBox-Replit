@@ -1,15 +1,16 @@
+$principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
+if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+    Write-Host "Elevating privileges..." -ForegroundColor Yellow
+    $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
+    $args = "-NoProfile -ExecutionPolicy Bypass -Command `"Set-Location '$scriptDir'; & '$($MyInvocation.MyCommand.Definition)'`""
+    Start-Process powershell.exe -ArgumentList $args -Verb RunAs
+    exit 0
+}
+
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 Set-Location $PSScriptRoot
-
-$principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
-if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-    Write-Host "Elevating privileges..." -ForegroundColor Yellow
-    $args = "-ExecutionPolicy Bypass -File `"$PSCommandPath`""
-    Start-Process powershell.exe -ArgumentList $args -Verb RunAs
-    exit 0
-}
 
 $ServiceName      = "PitBoxController"
 $InstallBinDir    = "C:\PitBox\installed\bin"
