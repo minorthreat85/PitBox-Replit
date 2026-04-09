@@ -15,6 +15,7 @@ import re
 import subprocess
 import sys
 import tkinter as tk
+import tkinter.ttk as ttk
 from pathlib import Path
 from threading import Thread
 from urllib.request import Request, urlopen
@@ -137,7 +138,7 @@ def download_file(
     url: str,
     dest: Path,
     token: str | None,
-    on_progress: None | ((int, int) -> None),
+    on_progress,  # Optional[Callable[[int, int], None]]
     log: logging.Logger,
 ) -> None:
     """Download url to dest. Optional on_progress(written, total)."""
@@ -324,7 +325,7 @@ def main() -> int:
     status_label.pack(pady=5, padx=20, fill=tk.X)
 
     progress_var = tk.DoubleVar(value=0.0)
-    progress = tk.Progressbar(root, variable=progress_var, maximum=100, length=400)
+    progress = ttk.Progressbar(root, variable=progress_var, maximum=100, length=400)
     progress.pack(pady=10, padx=20, fill=tk.X)
 
     log_text = tk.Text(root, height=8, font=("Consolas", 8), wrap=tk.WORD, state=tk.DISABLED)

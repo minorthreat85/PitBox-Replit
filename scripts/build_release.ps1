@@ -202,25 +202,8 @@ if ($LASTEXITCODE -eq 0 -and (Test-Path "dist\PitBoxTray.exe")) {
     Write-Host "  Warning: PitBoxTray.exe build failed (non-fatal, tray feature will be unavailable)" -ForegroundColor Yellow
 }
 
-# Build external updater (stdlib only; lives outside controller install)
-if (Test-Path "updater\pitbox_updater.py") {
-    Write-Host ""
-    Write-Host "Building pitbox_updater.exe (ZIP-based updater)..." -ForegroundColor Green
-    $updaterErr = Join-Path $PWD "build_pitbox_updater_stderr.txt"
-    $updaterOut = Join-Path $PWD "build_pitbox_updater_stdout.txt"
-    $psi = Start-Process -FilePath $buildPython -ArgumentList "-m","PyInstaller","pitbox_updater.spec","--clean","--noconfirm" -NoNewWindow -Wait -PassThru -RedirectStandardError $updaterErr -RedirectStandardOutput $updaterOut
-    if (Test-Path "dist\pitbox_updater.exe") {
-        Remove-Item $updaterErr -ErrorAction SilentlyContinue
-        Remove-Item $updaterOut -ErrorAction SilentlyContinue
-        Write-Host "  pitbox_updater.exe built (deploy to C:\PitBox\updater\ to avoid overwrite)" -ForegroundColor Gray
-    } else {
-        Write-Host "  Warning: pitbox_updater.exe build failed" -ForegroundColor Yellow
-        if ($psi.ExitCode -ne 0) { Write-Host "  Exit code: $($psi.ExitCode)" -ForegroundColor Yellow }
-        Write-Host "  Logs: $updaterOut, $updaterErr" -ForegroundColor Gray
-    }
-}
-
 # Build PitBoxUpdater.exe (installer-based updater with UI; used by Controller and Agent)
+# This is REQUIRED — build stops if it fails.
 if (Test-Path "updater\pitbox_updater_installer.py") {
     Write-Host ""
     Write-Host "Building PitBoxUpdater.exe (installer-based updater)..." -ForegroundColor Green
@@ -230,12 +213,30 @@ if (Test-Path "updater\pitbox_updater_installer.py") {
     if (Test-Path "dist\PitBoxUpdater.exe") {
         Remove-Item $updater2Err -ErrorAction SilentlyContinue
         Remove-Item $updater2Out -ErrorAction SilentlyContinue
-        Write-Host "  PitBoxUpdater.exe built (included in installer at C:\PitBox\updater\)" -ForegroundColor Gray
+        $updaterSize = (Get-Item "dist\PitBoxUpdater.exe").Length / 1MB
+        Write-Host "  PitBoxUpdater.exe built: $([math]::Round($updaterSize, 2)) MB (included in installer at C:\PitBox\updater\)" -ForegroundColor Gray
     } else {
-        Write-Host "  Warning: PitBoxUpdater.exe build failed" -ForegroundColor Yellow
-        if ($psi2.ExitCode -ne 0) { Write-Host "  Exit code: $($psi2.ExitCode)" -ForegroundColor Yellow }
-        Write-Host "  Logs: $updater2Out, $updater2Err" -ForegroundColor Gray
+        Write-Host ""
+        Write-Host "ERROR: PitBoxUpdater.exe build FAILED — build halted." -ForegroundColor Red
+        if ($psi2.ExitCode -ne 0) { Write-Host "  PyInstaller exit code: $($psi2.ExitCode)" -ForegroundColor Red }
+        if (Test-Path $updater2Err) {
+            Write-Host ""
+            Write-Host "--- PitBoxUpdater stderr ---" -ForegroundColor Yellow
+            Get-Content $updater2Err | ForEach-Object { Write-Host "  $_" -ForegroundColor Yellow }
+        }
+        if (Test-Path $updater2Out) {
+            Write-Host ""
+            Write-Host "--- PitBoxUpdater stdout (last 30 lines) ---" -ForegroundColor Yellow
+            Get-Content $updater2Out | Select-Object -Last 30 | ForEach-Object { Write-Host "  $_" -ForegroundColor Yellow }
+        }
+        Write-Host ""
+        Write-Host "Full logs: $updater2Out, $updater2Err" -ForegroundColor Gray
+        exit 1
     }
+} else {
+    Write-Host ""
+    Write-Host "ERROR: updater\pitbox_updater_installer.py not found — cannot build PitBoxUpdater.exe" -ForegroundColor Red
+    exit 1
 }
 
 # Clean build artifacts
@@ -504,11 +505,10 @@ $agentSetupName = "dist\PitBoxAgentSetup_$version.exe"
 if (Test-Path $agentSetupName) {
     Write-Host "  [x] PitBoxAgentSetup_$version.exe (Agent standalone)" -ForegroundColor Green
 }
-if (Test-Path "dist\pitbox_updater.exe") {
-    Write-Host "  [x] pitbox_updater.exe (ZIP-based external updater)" -ForegroundColor Green
-}
 if (Test-Path "dist\PitBoxUpdater.exe") {
     Write-Host "  [x] PitBoxUpdater.exe (installer-based updater, Controller + Agent)" -ForegroundColor Green
+} else {
+    Write-Host "  [ ] PitBoxUpdater.exe MISSING (should have been built)" -ForegroundColor Red
 }
 
 Write-Host ""
