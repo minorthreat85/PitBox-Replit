@@ -4,7 +4,7 @@ $ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot
 
 $ServiceName      = "PitBoxController"
-$InstallBinDir    = "C:\PitBox\installed\bin"
+$InstallBinDir    = "C:\PitBox\installed"
 $ControllerExeDst = Join-Path $InstallBinDir "PitBoxController.exe"
 $AgentExeDst      = "C:\PitBox\Agent\bin\PitBoxAgent.exe"
 $UpdaterExeDst    = "C:\PitBox\updater\PitBoxUpdater.exe"
