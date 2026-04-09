@@ -18,25 +18,39 @@ $HealthUrl        = "http://localhost:$ControllerPort/health"
 $AgentExeDst      = "C:\PitBox\Agent\bin\PitBoxAgent.exe"
 $UpdaterExeDst    = "C:\PitBox\updater\PitBoxUpdater.exe"
 
-# Detect controller EXE path from the Windows service registration.
-# This is the authoritative source -- it's where the service actually runs from.
+# Detect controller EXE path.
+# NSSM-managed services store the real app path in the registry, not in the
+# WMI PathName (which points to nssm.exe itself). Check registry first.
 # Fallback: search known installer layouts.
 $ControllerExeDst = $null
 
 $svc = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
 if ($svc) {
-    $svcWmi = Get-WmiObject Win32_Service -Filter "Name='$ServiceName'" -ErrorAction SilentlyContinue
-    if ($svcWmi -and $svcWmi.PathName) {
-        $svcPath = $svcWmi.PathName.Trim('"')
-        if (Test-Path $svcPath) {
-            $ControllerExeDst = $svcPath
+    # Check NSSM registry key for the real Application path
+    $nssmRegPath = "HKLM:\SYSTEM\CurrentControlSet\Services\$ServiceName\Parameters"
+    $nssmApp = $null
+    try {
+        $nssmApp = (Get-ItemProperty -Path $nssmRegPath -Name "Application" -ErrorAction Stop).Application
+    } catch {}
+
+    if ($nssmApp -and (Test-Path $nssmApp)) {
+        $ControllerExeDst = $nssmApp
+    } else {
+        # Non-NSSM service: try WMI PathName directly
+        $svcWmi = Get-WmiObject Win32_Service -Filter "Name='$ServiceName'" -ErrorAction SilentlyContinue
+        if ($svcWmi -and $svcWmi.PathName) {
+            $svcPath = $svcWmi.PathName.Trim('"')
+            # Only use if it actually points to PitBoxController.exe (not nssm.exe)
+            if ($svcPath -like "*PitBoxController*" -and (Test-Path $svcPath)) {
+                $ControllerExeDst = $svcPath
+            }
         }
     }
 }
 
 if (-not $ControllerExeDst) {
     # Fallback: check known installer paths in priority order
-    #   Unified installer (pitbox.iss):      C:\PitBox\PitBoxController.exe
+    #   Unified installer (pitbox.iss):        C:\PitBox\PitBoxController.exe
     #   Standalone installer (controller.iss): C:\PitBox\Controller\PitBoxController.exe
     $fallbackPaths = @(
         "C:\PitBox\PitBoxController.exe",
