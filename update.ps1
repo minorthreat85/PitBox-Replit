@@ -148,12 +148,12 @@ function Deploy-Artifacts {
     )
 
     if (-not (Test-Path $InstallBinDir)) {
-        Fail "Controller install dir not found: $InstallBinDir"
+        Fail "Controller install dir not found: $InstallBinDir -- run the PitBox installer first."
     }
 
     $agentDir = Split-Path $AgentExeDst -Parent
     if (-not (Test-Path $agentDir)) {
-        Fail "Agent install dir not found: $agentDir"
+        Fail "Agent install dir not found: $agentDir -- run the PitBox installer first."
     }
 
     $updaterDir = Split-Path $UpdaterExeDst -Parent
