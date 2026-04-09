@@ -53,6 +53,7 @@ if (-not $ControllerExeDst) {
     #   Unified installer (pitbox.iss):        C:\PitBox\PitBoxController.exe
     #   Standalone installer (controller.iss): C:\PitBox\Controller\PitBoxController.exe
     $fallbackPaths = @(
+        "C:\PitBox\installed\PitBoxController.exe",
         "C:\PitBox\PitBoxController.exe",
         "C:\PitBox\Controller\PitBoxController.exe"
     )
@@ -97,9 +98,17 @@ function Restore-GeneratedFiles {
 
 function Git-PullLatest {
     Write-Step "Pulling latest from GitHub..."
+    $scriptHash = (Get-FileHash -Path $PSCommandPath -Algorithm MD5).Hash
     git pull
     if ($LASTEXITCODE -ne 0) {
         Fail "git pull failed."
+    }
+    # If update.ps1 itself changed, re-launch with the new version
+    $newHash = (Get-FileHash -Path $PSCommandPath -Algorithm MD5).Hash
+    if ($scriptHash -ne $newHash) {
+        Write-Host "  update.ps1 was updated by pull -- restarting with new version..." -ForegroundColor Yellow
+        & $PSCommandPath
+        exit $LASTEXITCODE
     }
 }
 
