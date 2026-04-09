@@ -4,34 +4,49 @@ $ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot
 
 # PitBox Dev Update Script
-# PURPOSE: Dev iteration deployment for an EXISTING PitBox installation.
+# Runs from the dev repo (C:\Users\info\pitbox), builds, and deploys
+# to the installed runtime locations used by the PitBox installer.
 #
-# SERVICE RESTART BEHAVIOR:
-#   Always starts the controller service after a successful deploy.
-#   If the service was running, it is stopped first, then restarted.
-#   If it was not running, it is started.
-#   The script always ends with an HTTP health check to verify the app is serving.
+# SERVICE BEHAVIOR: Always starts the controller service after deploy
+# and verifies it with an HTTP health check.
 
 $ServiceName      = "PitBoxController"
-$AgentExeDst      = "C:\PitBox\Agent\bin\PitBoxAgent.exe"
-$UpdaterExeDst    = "C:\PitBox\updater\PitBoxUpdater.exe"
 $ControllerPort   = 9630
 $HealthUrl        = "http://localhost:$ControllerPort/health"
 
-# Auto-detect controller EXE location from known installer layouts:
-#   Standalone controller installer: C:\PitBox\Controller\PitBoxController.exe
-#   Unified installer:              C:\PitBox\PitBoxController.exe
-#   Legacy/custom:                  C:\PitBox\installed\PitBoxController.exe
+# Agent and Updater paths are consistent across all installers
+$AgentExeDst      = "C:\PitBox\Agent\bin\PitBoxAgent.exe"
+$UpdaterExeDst    = "C:\PitBox\updater\PitBoxUpdater.exe"
+
+# Detect controller EXE path from the Windows service registration.
+# This is the authoritative source -- it's where the service actually runs from.
+# Fallback: search known installer layouts.
 $ControllerExeDst = $null
-$searchPaths = @(
-    "C:\PitBox\Controller\PitBoxController.exe",
-    "C:\PitBox\PitBoxController.exe",
-    "C:\PitBox\installed\PitBoxController.exe"
-)
-foreach ($p in $searchPaths) {
-    if (Test-Path $p) {
-        $ControllerExeDst = $p
-        break
+
+$svc = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
+if ($svc) {
+    $svcWmi = Get-WmiObject Win32_Service -Filter "Name='$ServiceName'" -ErrorAction SilentlyContinue
+    if ($svcWmi -and $svcWmi.PathName) {
+        $svcPath = $svcWmi.PathName.Trim('"')
+        if (Test-Path $svcPath) {
+            $ControllerExeDst = $svcPath
+        }
+    }
+}
+
+if (-not $ControllerExeDst) {
+    # Fallback: check known installer paths in priority order
+    #   Unified installer (pitbox.iss):      C:\PitBox\PitBoxController.exe
+    #   Standalone installer (controller.iss): C:\PitBox\Controller\PitBoxController.exe
+    $fallbackPaths = @(
+        "C:\PitBox\PitBoxController.exe",
+        "C:\PitBox\Controller\PitBoxController.exe"
+    )
+    foreach ($p in $fallbackPaths) {
+        if (Test-Path $p) {
+            $ControllerExeDst = $p
+            break
+        }
     }
 }
 
@@ -92,7 +107,7 @@ function Assert-FileExists([string]$Path, [string]$Label) {
 function Stop-ControllerService {
     $svc = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
     if (-not $svc) {
-        Write-Ok "$ServiceName service not found (not installed as service)."
+        Write-Ok "$ServiceName service not registered."
         return $false
     }
     if ($svc.Status -ne "Running") {
@@ -117,7 +132,7 @@ function Stop-ControllerService {
 function Start-ControllerService {
     $svc = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
     if (-not $svc) {
-        Write-Warn "NOTE: $ServiceName service not found -- not starting."
+        Write-Warn "NOTE: $ServiceName service not registered -- cannot start."
         Write-Warn "  Run the PitBox installer to register the service."
         return $false
     }
@@ -158,7 +173,6 @@ function Test-ControllerHealth {
         Write-Ok "Controller is healthy (HTTP 200 on port $ControllerPort)."
     } else {
         Write-Warn "WARNING: HTTP health check failed after 20s."
-        Write-Warn "  The app may still be starting, or there may be an error."
         Write-Warn "  Check logs at C:\PitBox\logs\ or run: Invoke-WebRequest $HealthUrl"
     }
     return $healthy
@@ -172,17 +186,14 @@ function Deploy-Artifacts {
     )
 
     if ($ControllerExeDst) {
-        $controllerDir = Split-Path $ControllerExeDst -Parent
-        if (Test-Path $controllerDir) {
-            Write-Step "Deploying PitBoxController.exe -> $ControllerExeDst"
-            Copy-Item -Path $ControllerSrc -Destination $ControllerExeDst -Force -ErrorAction Stop
-            Write-Ok "PitBoxController.exe deployed."
-        } else {
-            Fail "Controller dir not found: $controllerDir -- run the PitBox installer first."
-        }
+        Write-Step "Deploying PitBoxController.exe -> $ControllerExeDst"
+        Copy-Item -Path $ControllerSrc -Destination $ControllerExeDst -Force -ErrorAction Stop
+        Write-Ok "PitBoxController.exe deployed."
     } else {
-        Write-Warn "WARNING: No existing PitBoxController.exe found in known install paths."
-        Write-Warn "  Searched: $($searchPaths -join ', ')"
+        Write-Warn "WARNING: Could not find installed PitBoxController.exe."
+        Write-Warn "  Checked service registration and known paths:"
+        Write-Warn "    C:\PitBox\PitBoxController.exe (unified installer)"
+        Write-Warn "    C:\PitBox\Controller\PitBoxController.exe (standalone installer)"
         Write-Warn "  Skipping controller deploy. Run the PitBox installer first."
     }
 
@@ -212,10 +223,13 @@ Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 
 if ($ControllerExeDst) {
-    Write-Ok "Controller found at: $ControllerExeDst"
+    Write-Ok "Controller install path: $ControllerExeDst"
 } else {
-    Write-Warn "WARNING: No existing controller EXE found. Will skip controller deploy."
+    Write-Warn "WARNING: No installed controller found. Will skip controller deploy."
 }
+Write-Ok "Agent install path:     $AgentExeDst"
+Write-Ok "Updater install path:   $UpdaterExeDst"
+Write-Host ""
 
 Restore-GeneratedFiles
 Git-PullLatest
@@ -240,7 +254,6 @@ catch {
     exit 1
 }
 
-# Always start service and health-check after successful deploy
 $started = Start-ControllerService
 if ($started) {
     $healthy = Test-ControllerHealth
