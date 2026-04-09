@@ -1,16 +1,14 @@
-$principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
-if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-    Write-Host "Elevating privileges..." -ForegroundColor Yellow
-    $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
-    $args = "-NoProfile -ExecutionPolicy Bypass -Command `"Set-Location '$scriptDir'; & '$($MyInvocation.MyCommand.Definition)'`""
-    Start-Process powershell.exe -ArgumentList $args -Verb RunAs
-    exit 0
-}
-
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 Set-Location $PSScriptRoot
+
+$principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
+if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+    Write-Host "ERROR: This script must be run as Administrator." -ForegroundColor Red
+    Write-Host "  Right-click PowerShell -> Run as Administrator, then run this script again." -ForegroundColor Yellow
+    exit 1
+}
 
 $ServiceName      = "PitBoxController"
 $InstallBinDir    = "C:\PitBox\installed\bin"
