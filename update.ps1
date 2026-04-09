@@ -208,23 +208,38 @@ function Deploy-Artifacts {
         [string]$UpdaterSrc
     )
 
+    $script:controllerDeployed = $false
+
     if ($ControllerExeDst) {
         Write-Step "Deploying PitBoxController.exe -> $ControllerExeDst"
-        Copy-Item -Path $ControllerSrc -Destination $ControllerExeDst -Force -ErrorAction Stop
-        Write-Ok "PitBoxController.exe deployed."
+        try {
+            Copy-Item -Path $ControllerSrc -Destination $ControllerExeDst -Force -ErrorAction Stop
+            Write-Ok "PitBoxController.exe deployed."
+            $script:controllerDeployed = $true
+        }
+        catch {
+            Write-Warn "WARNING: Could not overwrite PitBoxController.exe (file is locked by running service)."
+            Write-Warn "  To deploy the controller, run this script as Administrator,"
+            Write-Warn "  or stop the service first: Stop-Service $ServiceName"
+            Write-Warn "  Continuing with agent and updater deploy..."
+        }
     } else {
         Write-Warn "WARNING: Could not find installed PitBoxController.exe."
-        Write-Warn "  Checked service registration and known paths:"
-        Write-Warn "    C:\PitBox\PitBoxController.exe (unified installer)"
-        Write-Warn "    C:\PitBox\Controller\PitBoxController.exe (standalone installer)"
+        Write-Warn "  Checked service registration and known paths."
         Write-Warn "  Skipping controller deploy. Run the PitBox installer first."
     }
 
     $agentDir = Split-Path $AgentExeDst -Parent
     if (Test-Path $agentDir) {
         Write-Step "Deploying PitBoxAgent.exe -> $AgentExeDst"
-        Copy-Item -Path $AgentSrc -Destination $AgentExeDst -Force -ErrorAction Stop
-        Write-Ok "PitBoxAgent.exe deployed."
+        try {
+            Copy-Item -Path $AgentSrc -Destination $AgentExeDst -Force -ErrorAction Stop
+            Write-Ok "PitBoxAgent.exe deployed."
+        }
+        catch {
+            Write-Warn "WARNING: Could not overwrite PitBoxAgent.exe (file may be locked)."
+            Write-Warn "  $($_.Exception.Message)"
+        }
     }
 
     $updaterDir = Split-Path $UpdaterExeDst -Parent
@@ -233,8 +248,14 @@ function Deploy-Artifacts {
         Write-Ok "Created updater dir: $updaterDir"
     }
     Write-Step "Deploying PitBoxUpdater.exe -> $UpdaterExeDst"
-    Copy-Item -Path $UpdaterSrc -Destination $UpdaterExeDst -Force -ErrorAction Stop
-    Write-Ok "PitBoxUpdater.exe deployed."
+    try {
+        Copy-Item -Path $UpdaterSrc -Destination $UpdaterExeDst -Force -ErrorAction Stop
+        Write-Ok "PitBoxUpdater.exe deployed."
+    }
+    catch {
+        Write-Warn "WARNING: Could not overwrite PitBoxUpdater.exe (file may be locked)."
+        Write-Warn "  $($_.Exception.Message)"
+    }
 }
 
 # ======== MAIN ========
@@ -277,14 +298,24 @@ catch {
     exit 1
 }
 
-$started = Start-ControllerService
-if ($started) {
-    $healthy = Test-ControllerHealth
-    if (-not $healthy) {
-        Fail "Update deployed but controller health check failed."
+if ($script:controllerDeployed) {
+    $started = Start-ControllerService
+    if ($started) {
+        $healthy = Test-ControllerHealth
+        if (-not $healthy) {
+            Fail "Update deployed but controller health check failed."
+        }
     }
+    Write-Host ""
+    Write-Host "Update complete." -ForegroundColor Green
+} else {
+    Write-Host ""
+    Write-Host "Update partially complete." -ForegroundColor Yellow
+    Write-Host "  Agent and Updater were deployed." -ForegroundColor Yellow
+    Write-Host "  Controller was NOT deployed (file locked by running service)." -ForegroundColor Yellow
+    Write-Host "  To finish: run this script as Administrator, or manually:" -ForegroundColor Yellow
+    Write-Host "    Stop-Service $ServiceName" -ForegroundColor Yellow
+    Write-Host "    Copy-Item dist\PitBoxController.exe $ControllerExeDst -Force" -ForegroundColor Yellow
+    Write-Host "    Start-Service $ServiceName" -ForegroundColor Yellow
 }
-
-Write-Host ""
-Write-Host "Update complete." -ForegroundColor Green
 exit 0
