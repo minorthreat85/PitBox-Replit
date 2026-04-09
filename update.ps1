@@ -3,13 +3,6 @@ $ErrorActionPreference = "Stop"
 
 Set-Location $PSScriptRoot
 
-$principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
-if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-    Write-Host "ERROR: This script must be run as Administrator." -ForegroundColor Red
-    Write-Host "  Right-click PowerShell -> Run as Administrator, then run this script again." -ForegroundColor Yellow
-    exit 1
-}
-
 $ServiceName      = "PitBoxController"
 $InstallBinDir    = "C:\PitBox\installed\bin"
 $ControllerExeDst = Join-Path $InstallBinDir "PitBoxController.exe"
