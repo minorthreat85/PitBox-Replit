@@ -454,6 +454,12 @@ async def legacy_status():
     return "Controller is running."
 
 
+@app.get("/health")
+async def health_check():
+    """HTTP health check used by update.ps1 to verify the app is serving."""
+    return {"status": "ok", "version": PITBOX_VERSION}
+
+
 @app.get("/favicon.ico")
 async def serve_favicon():
     """Serve PitBox favicon."""
