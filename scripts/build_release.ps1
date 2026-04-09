@@ -203,7 +203,7 @@ if ($LASTEXITCODE -eq 0 -and (Test-Path "dist\PitBoxTray.exe")) {
 }
 
 # Build PitBoxUpdater.exe (installer-based updater with UI; used by Controller and Agent)
-# This is REQUIRED — build stops if it fails.
+# This is REQUIRED -- build stops if it fails.
 if (Test-Path "updater\pitbox_updater_installer.py") {
     Write-Host ""
     Write-Host "Building PitBoxUpdater.exe (installer-based updater)..." -ForegroundColor Green
@@ -217,7 +217,7 @@ if (Test-Path "updater\pitbox_updater_installer.py") {
         Write-Host "  PitBoxUpdater.exe built: $([math]::Round($updaterSize, 2)) MB (included in installer at C:\PitBox\updater\)" -ForegroundColor Gray
     } else {
         Write-Host ""
-        Write-Host "ERROR: PitBoxUpdater.exe build FAILED — build halted." -ForegroundColor Red
+        Write-Host "ERROR: PitBoxUpdater.exe build FAILED -- build halted." -ForegroundColor Red
         if ($psi2.ExitCode -ne 0) { Write-Host "  PyInstaller exit code: $($psi2.ExitCode)" -ForegroundColor Red }
         if (Test-Path $updater2Err) {
             Write-Host ""
@@ -235,7 +235,7 @@ if (Test-Path "updater\pitbox_updater_installer.py") {
     }
 } else {
     Write-Host ""
-    Write-Host "ERROR: updater\pitbox_updater_installer.py not found — cannot build PitBoxUpdater.exe" -ForegroundColor Red
+    Write-Host "ERROR: updater\pitbox_updater_installer.py not found -- cannot build PitBoxUpdater.exe" -ForegroundColor Red
     exit 1
 }
 

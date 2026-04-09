@@ -110,7 +110,7 @@ try {
     $existingRelease = Invoke-RestMethod `
         -Uri "https://api.github.com/repos/$GITHUB_OWNER/$GITHUB_REPO/releases/tags/$tagName" `
         -Headers $headers -Method Get -ErrorAction Stop
-    Write-Host "  Release $tagName already exists (id=$($existingRelease.id)) — updating notes..." -ForegroundColor Yellow
+    Write-Host "  Release $tagName already exists (id=$($existingRelease.id)) -- updating notes..." -ForegroundColor Yellow
 } catch {
     $existingRelease = $null
 }
@@ -147,7 +147,7 @@ function Upload-ReleaseAsset {
     param($ReleaseId, $AssetPath, $AssetName, $Headers)
     $existingAsset = $release.assets | Where-Object { $_.name -eq $AssetName } | Select-Object -First 1
     if ($existingAsset) {
-        Write-Host "  Asset $AssetName already attached — deleting and re-uploading..." -ForegroundColor Yellow
+        Write-Host "  Asset $AssetName already attached -- deleting and re-uploading..." -ForegroundColor Yellow
         Invoke-RestMethod `
             -Uri "https://api.github.com/repos/$GITHUB_OWNER/$GITHUB_REPO/releases/assets/$($existingAsset.id)" `
             -Headers $Headers -Method Delete | Out-Null
