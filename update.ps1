@@ -72,6 +72,7 @@ function Stop-ControllerService {
     $svc = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
     $serviceExisted = $null -ne $svc
     $serviceWasRunning = $serviceExisted -and $svc.Status -eq "Running"
+    $serviceStopped = $false
 
     if ($serviceWasRunning) {
         Write-Step "Stopping $ServiceName service..."
@@ -79,9 +80,12 @@ function Stop-ControllerService {
             Stop-Service -Name $ServiceName -Force -ErrorAction Stop
             Start-Sleep -Seconds 3
             Write-Ok "Service stopped."
+            $serviceStopped = $true
         }
         catch {
-            Fail "Failed to stop $ServiceName. $($_.Exception.Message)"
+            Write-Warn "WARNING: Could not stop $ServiceName (may need admin rights)."
+            Write-Warn "  $($_.Exception.Message)"
+            Write-Warn "  Continuing with deploy -- you may need to restart the service manually."
         }
     } else {
         Write-Ok "$ServiceName service was not running."
@@ -90,6 +94,7 @@ function Stop-ControllerService {
     return @{
         Existed    = $serviceExisted
         WasRunning = $serviceWasRunning
+        Stopped    = $serviceStopped
     }
 }
 
@@ -101,13 +106,17 @@ function Start-ControllerService {
 
         $svcCheck = Get-Service -Name $ServiceName -ErrorAction Stop
         if ($svcCheck.Status -ne "Running") {
-            Fail "ERROR: $ServiceName did not restart correctly."
+            Write-Warn "WARNING: $ServiceName did not start correctly."
+            return
         }
 
         Write-Ok "Service restarted."
     }
     catch {
-        Fail "Failed to start $ServiceName. $($_.Exception.Message)"
+        Write-Warn "WARNING: Could not start $ServiceName (may need admin rights)."
+        Write-Warn "  $($_.Exception.Message)"
+        Write-Warn "  Start manually: Start-Service $ServiceName"
+        return
     }
 
     Write-Step "Checking controller health at $HealthUrl ..."
@@ -125,12 +134,9 @@ function Start-ControllerService {
     if ($healthy) {
         Write-Ok "Controller is healthy (HTTP 200 on port $ControllerPort)."
     } else {
-        Write-Host ""
-        Write-Host "WARNING: Service is running but HTTP health check failed after 20s." -ForegroundColor Red
-        Write-Host "  The app may still be starting, or there may be an error." -ForegroundColor Yellow
-        Write-Host "  Check logs at C:\PitBox\logs\ or run: Invoke-WebRequest $HealthUrl" -ForegroundColor Yellow
-        Write-Host ""
-        Fail "Health check failed."
+        Write-Warn "WARNING: Service is running but HTTP health check failed after 20s."
+        Write-Warn "  The app may still be starting, or there may be an error."
+        Write-Warn "  Check logs at C:\PitBox\logs\ or run: Invoke-WebRequest $HealthUrl"
     }
 }
 
@@ -206,8 +212,13 @@ catch {
     throw
 }
 
-if ($serviceState.WasRunning) {
+if ($serviceState.Stopped) {
     Start-ControllerService
+} elseif ($serviceState.WasRunning) {
+    Write-Host ""
+    Write-Warn "NOTE: Service was running but could not be stopped (permissions)."
+    Write-Warn "  Files were deployed. Restart the service manually to pick up changes:"
+    Write-Warn "  Restart-Service $ServiceName"
 } else {
     Write-Host ""
     Write-Warn "NOTE: Service was not running before update -- not starting it."
