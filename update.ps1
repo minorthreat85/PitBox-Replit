@@ -17,10 +17,11 @@ Write-Host "Restoring generated files before pull..." -ForegroundColor Cyan
 $generatedFiles = @("version.ini")
 foreach ($gf in $generatedFiles) {
     if (Test-Path $gf) {
-        git checkout -- $gf 2>$null
-        if ($LASTEXITCODE -eq 0) {
-            Write-Host "  Restored $gf" -ForegroundColor Gray
+        git restore $gf 2>$null
+        if ($LASTEXITCODE -ne 0) {
+            git checkout -- $gf 2>$null
         }
+        Write-Host "  Restored $gf" -ForegroundColor Gray
     }
 }
 
