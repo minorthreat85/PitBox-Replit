@@ -19,7 +19,7 @@
         <nav class="sidebar-nav">
             <a href="/garage" class="nav-link" data-route="/garage"><span class="nav-icon" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 21V7l10-4 10 4v14"/><path d="M4 21V9"/><path d="M20 21V9"/><path d="M4 15h4"/><path d="M10 15h4"/><path d="M16 15h4"/></svg></span><span class="nav-label">Garage</span></a>
             <a href="/sims" class="nav-link" data-route="/sims"><span class="nav-icon" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="3" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/></svg></span><span class="nav-label">Sim Rigs</span></a>
-            <a href="/mumble" class="nav-link" data-route="/mumble"><span class="nav-icon" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg></span><span class="nav-label">Pit Comms</span></a>
+            <a href="/mumble" class="nav-link" data-route="/mumble"><span class="nav-icon" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg></span><span class="nav-label">Voice Comms</span></a>
             <a href="/server-config" class="nav-link" data-route="/server-config"><span class="nav-icon" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="8" x="2" y="2" rx="2"/><rect width="20" height="8" x="2" y="14" rx="2"/></svg></span><span class="nav-label">Server</span></a>
             <a href="/bookings" class="nav-link" data-route="/bookings"><span class="nav-icon" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="m9 16 2 2 4-4"/></svg></span><span class="nav-label">Bookings</span></a>
             <a href="/live-timing" class="nav-link" data-route="/live-timing"><span class="nav-icon" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span><span class="nav-label">Live Timing</span></a>
@@ -951,8 +951,8 @@
             <div class="page-header">
                 <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
                     <div>
-                        <h1 class="page-title">MUMBLE</h1>
-                        <p class="page-subtitle">Voice comms admin &mdash; channels, users, push to rigs</p>
+                        <h1 class="page-title"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:8px;"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>VOICE COMMS</h1>
+                        <p class="page-subtitle">Voice comms admin &mdash; channels, users</p>
                     </div>
                     <div>
                         <div style="display:flex;gap:8px;align-items:center;">
@@ -986,7 +986,7 @@
 
             <!-- Config section -->
             <details style="border:1px solid var(--border-color,#2a2b2f);border-radius:6px;">
-                <summary style="font-size:.8rem;font-weight:600;color:var(--text-muted);cursor:pointer;padding:10px 14px;list-style:none;user-select:none;">Mumble Connection Settings</summary>
+                <summary style="font-size:.8rem;font-weight:600;color:var(--text-muted);cursor:pointer;padding:10px 14px;list-style:none;user-select:none;">Voice Comms Connection Settings</summary>
                 <div style="padding:12px 14px 14px;display:flex;flex-direction:column;gap:10px;">
                     <div class="config-form-row">
                         <label class="config-label">Protocol</label>
