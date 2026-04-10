@@ -593,6 +593,16 @@ begin
   begin
     if IsComponentSelected('controller') then
       StopService('PitBoxController');
+    if IsComponentSelected('agent') then
+    begin
+      Log('Killing any running PitBoxAgent.exe before install...');
+      Exec('taskkill.exe', '/F /IM PitBoxAgent.exe', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+      if ResultCode = 0 then
+        Log('PitBoxAgent.exe killed successfully')
+      else
+        Log('No running PitBoxAgent.exe found (exit ' + IntToStr(ResultCode) + ')');
+      Sleep(1500);
+    end;
   end;
   if CurStep = ssPostInstall then
   begin
