@@ -443,14 +443,14 @@ begin
 end;
 
 // ---------------------------------------------------------------------------
-// Mumble auto-launch batch file (all-users Startup folder)
+// Mumble auto-launch batch file (current user Startup folder)
 // ---------------------------------------------------------------------------
 
 procedure CreateMumbleStartupBat;
 var
   StartupPath, BatFile, BatContents: String;
 begin
-  StartupPath := ExpandConstant('{commonstartup}');
+  StartupPath := ExpandConstant('{userstartup}');
   BatFile := StartupPath + '\launch_mumble.bat';
   BatContents :=
     '@echo off' + #13#10 +
@@ -469,7 +469,7 @@ procedure RemoveMumbleStartupBat;
 var
   BatFile: String;
 begin
-  BatFile := ExpandConstant('{commonstartup}') + '\launch_mumble.bat';
+  BatFile := ExpandConstant('{userstartup}') + '\launch_mumble.bat';
   if FileExists(BatFile) then
   begin
     if DeleteFile(BatFile) then
