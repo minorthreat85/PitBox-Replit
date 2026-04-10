@@ -964,12 +964,6 @@
                 </div>
             </div>
 
-            <!-- Push to Rigs -->
-            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:16px;">
-                <button type="button" id="mumble-btn-launch-all" class="btn-secondary">Launch Mumble on all rigs</button>
-                <button type="button" id="mumble-btn-close-all" class="btn-secondary">Close Mumble on all rigs</button>
-                <div id="mumble-push-result" class="hidden" style="font-size:.8rem;color:var(--text-muted);width:100%;"></div>
-            </div>
 
             <!-- Voice channel tree -->
             <div style="background:var(--card-bg,#18191c);border:1px solid var(--border-color,#2a2b2f);border-radius:8px;display:flex;flex-direction:column;overflow:hidden;min-height:240px;margin-bottom:16px;">
@@ -1024,10 +1018,6 @@
                             <label class="config-label" for="mumble-cfg-token">gRPC token</label>
                             <input type="password" id="mumble-cfg-token" class="config-input" placeholder="Leave blank if not set" autocomplete="new-password">
                         </div>
-                    </div>
-                    <div class="config-form-row">
-                        <label class="config-label" for="mumble-cfg-exe">mumble.exe path<br><small class="config-label-hint">on sim PCs</small></label>
-                        <input type="text" id="mumble-cfg-exe" class="config-input" placeholder="C:\Program Files\Mumble\mumble.exe">
                     </div>
                     <button type="button" id="mumble-cfg-save" class="btn-secondary">Save settings</button>
                     <p id="mumble-cfg-hint" class="settings-updates-hint">ICE port 6502 is the Murmur default. Leave secret blank unless <code>icesecretwrite</code> is set in murmur.ini.</p>

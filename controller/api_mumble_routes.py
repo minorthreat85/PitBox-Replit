@@ -10,8 +10,6 @@ Endpoints:
   POST /api/mumble/users/{session}/kick    — kick user
   POST /api/mumble/channels/{channel_id}/mute — mute/unmute all in channel
   POST /api/mumble/message         — send text message to channel
-  POST /api/mumble/agents/push-launch  — launch Mumble on all sim PCs
-  POST /api/mumble/agents/push-close   — close Mumble on all sim PCs
   GET  /api/mumble/config          — get current Mumble connection config
   PUT  /api/mumble/config          — update Mumble connection config
 """
@@ -26,9 +24,6 @@ from pydantic import BaseModel
 
 from controller.operator_auth import require_operator
 from controller.mumble_client import MumbleClientError, get_mumble_client, reset_mumble_client
-from controller.enrolled_rigs import get_all_ordered as enrolled_get_all_ordered
-from controller.agent_poller import get_status_cache
-from controller.api_routes import send_agent_command
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/mumble", tags=["mumble"])
@@ -171,100 +166,6 @@ async def send_message(body: MessageBody, _: None = Depends(require_operator)):
         raise _mumble_error(e, "SendMessage")
 
 
-# ── Agent push: launch / close Mumble client on sim PCs ────────────────────────
-
-async def _push_to_all_agents(command: str) -> dict:
-    cache = get_status_cache()
-    enrolled = enrolled_get_all_ordered()
-    logger.info("[%s] Controller request received — checking %d enrolled rigs", command, len(enrolled))
-
-    agent_ids: list[str] = []
-    tasks = []
-    # All results pre-populated so every rig appears in the response
-    all_results: list[dict] = []
-    result_index: dict[str, int] = {}
-
-    for rig in enrolled:
-        agent_id = (rig.get("agent_id") or "").strip()
-        if not agent_id:
-            continue
-        backend = (rig.get("backend") or "agent").strip().lower()
-        if backend != "agent":
-            logger.debug("[%s] Skipping %s — CM backend", command, agent_id)
-            continue
-        s = cache.get(agent_id)
-        online = bool(s and getattr(s, "online", False))
-        entry: dict = {
-            "agent_id":  agent_id,
-            "online":    online,
-            "attempted": online,
-            "success":   False,
-            "message":   "" if online else "Offline — not attempted",
-        }
-        result_index[agent_id] = len(all_results)
-        all_results.append(entry)
-
-        if online:
-            logger.info("[%s] Dispatching to %s", command, agent_id)
-            agent_ids.append(agent_id)
-            tasks.append(send_agent_command(agent_id, command, {}, timeout=15.0))
-        else:
-            logger.info("[%s] Skipping %s — offline", command, agent_id)
-
-    if not tasks:
-        offline_ids = [r["agent_id"] for r in all_results if not r["online"]]
-        logger.warning("[%s] No online agents to dispatch to (offline=%s)", command, offline_ids)
-        return {
-            "ok": True,
-            "results": all_results,
-            "summary": f"0/{len(all_results)} online",
-            "message": "No online agents found",
-        }
-
-    logger.info("[%s] Dispatching to %d agent(s): %s", command, len(agent_ids), agent_ids)
-    raw_results = await asyncio.gather(*tasks, return_exceptions=True)
-
-    ok_count = 0
-    fail_count = 0
-    for aid, raw in zip(agent_ids, raw_results):
-        idx = result_index[aid]
-        if isinstance(raw, Exception):
-            logger.error("[%s] %s → EXCEPTION: %s", command, aid, raw)
-            all_results[idx].update({"success": False, "message": str(raw)})
-            fail_count += 1
-        else:
-            success = raw.get("success", True)
-            msg = raw.get("message", "")
-            if success:
-                logger.info("[%s] %s → OK: %s", command, aid, msg)
-                ok_count += 1
-            else:
-                logger.warning("[%s] %s → FAIL: %s", command, aid, msg)
-                fail_count += 1
-            all_results[idx].update({**raw, "agent_id": aid, "online": True, "attempted": True})
-
-    online_count = len(agent_ids)
-    logger.info("[%s] Done — %d ok, %d failed, %d offline",
-                command, ok_count, fail_count, len(all_results) - online_count)
-    return {
-        "ok": True,
-        "results": all_results,
-        "summary": f"{ok_count}/{online_count} succeeded ({len(all_results) - online_count} offline)",
-    }
-
-
-@router.post("/agents/push-launch")
-async def push_launch_mumble(_: None = Depends(require_operator)):
-    """Send launch-mumble command to every online enrolled agent."""
-    return await _push_to_all_agents("launch-mumble")
-
-
-@router.post("/agents/push-close")
-async def push_close_mumble(_: None = Depends(require_operator)):
-    """Send close-mumble command to every online enrolled agent."""
-    return await _push_to_all_agents("close-mumble")
-
-
 # ── Config ─────────────────────────────────────────────────────────────────────
 
 class MumbleConfigBody(BaseModel):
@@ -274,7 +175,6 @@ class MumbleConfigBody(BaseModel):
     mumble_secret: Optional[str] = None
     mumble_grpc_port: Optional[int] = None
     mumble_token: Optional[str] = None
-    mumble_exe_path: Optional[str] = None
 
 
 @router.get("/config")
@@ -289,7 +189,6 @@ async def get_mumble_config(_: None = Depends(require_operator)):
             "mumble_secret": "" if not getattr(cfg, "mumble_secret", None) else "***",
             "mumble_grpc_port": getattr(cfg, "mumble_grpc_port", None) or 50051,
             "mumble_token": "" if not getattr(cfg, "mumble_token", None) else "***",
-            "mumble_exe_path": getattr(cfg, "mumble_exe_path", None) or "",
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -316,8 +215,6 @@ async def put_mumble_config(body: MumbleConfigBody, _: None = Depends(require_op
             new_data["mumble_grpc_port"] = body.mumble_grpc_port
         if body.mumble_token is not None and body.mumble_token != "***":
             new_data["mumble_token"] = body.mumble_token
-        if body.mumble_exe_path is not None:
-            new_data["mumble_exe_path"] = body.mumble_exe_path.strip()
         new_cfg = cfg.__class__(**new_data)
         config_path = get_config_path()
         if config_path:

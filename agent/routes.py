@@ -958,50 +958,6 @@ async def close_display_endpoint():
     return result
 
 
-@router.post("/launch-mumble", dependencies=[Depends(verify_token)])
-async def launch_mumble_endpoint():
-    """Launch the Mumble desktop client on this sim PC."""
-    from urllib.parse import quote
-    from agent.mumble_client import launch_mumble
-    from agent.config import get_config
-    logger.info("[launch-mumble] Request received")
-    cfg = get_config()
-
-    # Rig identity
-    rig_name = (cfg.agent_id or "").strip() or "Unknown"
-
-    # Mumble server settings (from config, with hardened defaults)
-    server_host = cfg.mumble_server_host or "192.168.1.200"
-    server_port = cfg.mumble_server_port or 64738
-    password    = cfg.mumble_server_password or "fastestlap"
-    channel     = cfg.mumble_channel or "Race Control"
-    mumble_exe  = cfg.mumble_exe_path or None
-
-    # Build mumble:// URL: mumble://<username>:<password>@<host>:<port>/<channel>
-    username_enc = quote(rig_name, safe="")
-    password_enc = quote(password, safe="")
-    channel_enc  = quote(channel,  safe="")
-    server_url = f"mumble://{username_enc}:{password_enc}@{server_host}:{server_port}/{channel_enc}"
-
-    logger.info("[launch-mumble] rig=%s  exe=%s", rig_name, mumble_exe or "(auto-detect)")
-    logger.info("[launch-mumble] url=%s", server_url)
-
-    loop = asyncio.get_event_loop()
-    result = await loop.run_in_executor(None, lambda: launch_mumble(mumble_exe, server_url))
-    result["rig_name"] = rig_name
-    logger.info("[launch-mumble] Result for %s: %s", rig_name, result)
-    return result
-
-
-@router.post("/close-mumble", dependencies=[Depends(verify_token)])
-async def close_mumble_endpoint():
-    """Close the Mumble desktop client on this sim PC."""
-    from agent.mumble_client import close_mumble
-    logger.info("[close-mumble] Request received")
-    loop = asyncio.get_event_loop()
-    result = await loop.run_in_executor(None, close_mumble)
-    logger.info("[close-mumble] Result: %s", result)
-    return result
 
 
 @router.get("/debug/environment", dependencies=[Depends(verify_token)])
