@@ -6720,12 +6720,28 @@
 
   var _mumbleCollapsed = {};
 
+  function _mumbleSortUsers(arr) {
+    return arr.slice().sort(function (a, b) {
+      var na = (a.name || '').toLowerCase();
+      var nb = (b.name || '').toLowerCase();
+      if (na === 'admin') return -1;
+      if (nb === 'admin') return 1;
+      var ma = na.match(/^sim-?(\d+)$/);
+      var mb = nb.match(/^sim-?(\d+)$/);
+      if (ma && mb) return parseInt(ma[1], 10) - parseInt(mb[1], 10);
+      if (ma) return -1;
+      if (mb) return 1;
+      return na < nb ? -1 : na > nb ? 1 : 0;
+    });
+  }
+
   function _mumbleUsersByChannel(users) {
     var m = {};
     (users || []).forEach(function (u) {
       if (!m[u.channel_id]) m[u.channel_id] = [];
       m[u.channel_id].push(u);
     });
+    Object.keys(m).forEach(function (k) { m[k] = _mumbleSortUsers(m[k]); });
     return m;
   }
 
@@ -6796,18 +6812,34 @@
       html += '<div class="mbl-ch-users">';
       usersHere.forEach(function (u) {
         var isMuted = u.mute || u.suppress;
-        var mutedTag = u.self_mute
-          ? '<span class="mbl-user-muted mbl-self-mute" title="Self-muted">&#128263;</span>'
-          : (isMuted ? '<span class="mbl-user-muted mbl-server-mute" title="Server-muted">&#128264;</span>' : '');
+        var isSelfMute = u.self_mute;
+        var showMuted = isMuted || isSelfMute;
+        var micIcon = showMuted
+          ? '<svg class="mbl-mic-icon mbl-mic-muted" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#e55" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+            '<path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>' +
+            '<path d="M19 10v2a7 7 0 0 1-14 0v-2"/>' +
+            '<line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>' +
+            '<line x1="1" y1="1" x2="23" y2="23" stroke="#e55" stroke-width="2.5"/>' +
+            '</svg>'
+          : '<svg class="mbl-mic-icon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+            '<path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>' +
+            '<path d="M19 10v2a7 7 0 0 1-14 0v-2"/>' +
+            '<line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>' +
+            '</svg>';
+        var muteTitle = isSelfMute ? 'Self-muted' : (isMuted ? 'Server-muted' : 'Unmuted');
         var muteLbl = isMuted ? 'Unmute' : 'Mute';
         var muteCls = isMuted ? 'mbl-btn-mute-active' : '';
-        html += '<div class="mbl-user" draggable="true" data-session="' + u.session + '"' +
+        html += '<div class="mbl-user" draggable="true" data-session="' + u.session + '" data-channel-id="' + u.channel_id + '"' +
+          ' title="' + muteTitle + ' — double-click to toggle mute"' +
           ' style="padding-left:' + userIndent + 'px;"' +
           ' ondragstart="window._mumbleDragStart(event,' + u.session + ')"' +
-          ' ondragend="window._mumbleDragEnd(event)">' +
-          '<span class="mbl-user-icon">&#128100;</span>' +
+          ' ondragend="window._mumbleDragEnd(event)"' +
+          ' ondragover="window._mumbleDragOverUser(event)"' +
+          ' ondragleave="window._mumbleDragLeave(event)"' +
+          ' ondrop="window._mumbleDrop(event,' + u.channel_id + ')"' +
+          ' ondblclick="window._mumbleMuteUser(' + u.session + ',' + !isMuted + ')">' +
+          '<span class="mbl-user-icon">' + micIcon + '</span>' +
           '<span class="mbl-user-name">' + escapeHtml(u.name) + '</span>' +
-          mutedTag +
           '<span class="mbl-user-actions">' +
           '<button type="button" class="' + muteCls + '" onclick="window._mumbleMuteUser(' + u.session + ',' + !isMuted + ');event.stopPropagation();">' + muteLbl + '</button>' +
           '<button type="button" class="mbl-btn-kick" onclick="window._mumbleKickUser(' + u.session + ',\'' + escapeHtml(u.name) + '\');event.stopPropagation();">Kick</button>' +
@@ -6915,6 +6947,17 @@
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
     e.currentTarget.classList.add('mbl-drag-over');
+  };
+
+  window._mumbleDragOverUser = function (e) {
+    if (_mumbleDragSession == null) return;
+    var target = e.currentTarget;
+    var targetSession = target.getAttribute('data-session');
+    if (String(_mumbleDragSession) === targetSession) return;
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = 'move';
+    target.classList.add('mbl-drag-over');
   };
 
   window._mumbleDragLeave = function (e) {
