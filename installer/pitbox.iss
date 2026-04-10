@@ -82,8 +82,6 @@ Source: "..\dist\tools\update_pitbox.ps1"; DestDir: "{app}\tools"; Components: c
 ; Mumble 1.3.4 MSI bundled for offline silent install on sim PCs
 Source: "assets\mumble-1.3.4.msi"; DestDir: "{app}\tools"; Components: agent; Flags: ignoreversion
 
-; Mumble client configurator (sets username, server favourite, mumble_server_url in agent config)
-Source: "..\scripts\configure_mumble_client.ps1"; DestDir: "{app}\tools"; Components: agent; Flags: ignoreversion
 
 ; NSSM (bundled)
 Source: "..\tools\nssm.exe"; DestDir: "{app}\tools"; Components: nssm; Flags: ignoreversion
@@ -131,17 +129,6 @@ Root: HKCU; Subkey: "SOFTWARE\Microsoft\Windows\CurrentVersion\Run"; ValueType: 
 ; Note: Service installation and config creation happens in [Code] section
 ; This section is for optional post-install actions
 
-; Configure Mumble client for Race Control voice comms.
-; Runs as the ORIGINAL (non-elevated) user so the Windows Startup shortcut is
-; created in the correct user profile.
-; Reads agent_id from agent config -> builds mumble:// URL -> writes
-; mumble_server_url into agent config -> creates Startup folder shortcut that
-; auto-launches Mumble with the Race Control URL on every login.
-Filename: "powershell.exe"; \
-  Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\tools\configure_mumble_client.ps1"" -AgentConfigPath ""{app}\Agent\config\agent_config.json"" -MumbleServerHost ""192.168.1.200"" -MumbleServerPort 64738 -MumbleChannel ""Race Control"""; \
-  Flags: runhidden runasoriginaluser; \
-  Components: agent; \
-  StatusMsg: "Configuring Mumble voice comms..."
 
 [Code]
 var
@@ -456,6 +443,45 @@ begin
 end;
 
 // ---------------------------------------------------------------------------
+// Mumble auto-launch batch file (all-users Startup folder)
+// ---------------------------------------------------------------------------
+
+procedure CreateMumbleStartupBat;
+var
+  StartupPath, BatFile, BatContents: String;
+begin
+  StartupPath := ExpandConstant('{commonstartup}');
+  BatFile := StartupPath + '\launch_mumble.bat';
+  BatContents :=
+    '@echo off' + #13#10 +
+    'timeout /t 5 >nul' + #13#10 +
+    'start "" "mumble://%COMPUTERNAME%@192.168.1.200:64738/Race%%20Control"' + #13#10;
+
+  Log('Writing Mumble auto-launch bat to: ' + BatFile);
+
+  if SaveStringToFile(BatFile, BatContents, False) then
+    Log('Mumble auto-launch bat created successfully')
+  else
+    Log('ERROR: Failed to write Mumble auto-launch bat to ' + BatFile);
+end;
+
+procedure RemoveMumbleStartupBat;
+var
+  BatFile: String;
+begin
+  BatFile := ExpandConstant('{commonstartup}') + '\launch_mumble.bat';
+  if FileExists(BatFile) then
+  begin
+    if DeleteFile(BatFile) then
+      Log('Removed Mumble auto-launch bat: ' + BatFile)
+    else
+      Log('WARNING: Could not delete Mumble auto-launch bat: ' + BatFile);
+  end
+  else
+    Log('Mumble auto-launch bat not found (nothing to remove): ' + BatFile);
+end;
+
+// ---------------------------------------------------------------------------
 // Mumble 1.3.4 detection
 // ---------------------------------------------------------------------------
 
@@ -641,6 +667,10 @@ begin
       Log('--- Mumble pre-check ---');
       InstallMumble;
       Log('--- Mumble pre-check done ---');
+
+      Log('--- Mumble auto-launch bat ---');
+      CreateMumbleStartupBat();
+      Log('--- Mumble auto-launch bat done ---');
     end;
 
     // Agent: Remove any existing service, create Scheduled Task (NO SERVICE - runs as user)
@@ -717,6 +747,7 @@ begin
     RemoveAgentServiceIfExists();
     RemoveAgentScheduledTask();
     RemoveAgentFirewallRule();
+    RemoveMumbleStartupBat();
 
     // Controller: Stop and remove service, remove hosts entry
     if ServiceExists('PitBoxController') then
