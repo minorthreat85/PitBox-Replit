@@ -89,3 +89,18 @@ HTTPServer(("127.0.0.1", 9999), Handler).serve_forever()
 
 - From `127.0.0.1`: PUT /api/config should work
 - From another host (e.g. LAN): should return 403 "Config updates allowed only from localhost"
+
+### 7. Unified orchestrator (POST /api/update/run)
+
+1. Start controller.
+2. `POST /api/update/run` (no body required).
+3. Response: 200 with `{"ok": true, ...}` or 409 if already running.
+4. Poll `GET /api/update/summary` -- `overall` transitions through `updating` -> `up_to_date` (or `has_failures`).
+5. Fleet counters in summary: `fleet.updated`, `fleet.in_progress`, `fleet.pending_idle`, `fleet.failed`, `fleet.offline`, `fleet.outdated`.
+
+### 8. Summary endpoint (GET /api/update/summary)
+
+1. Before any update: `overall` = `up_to_date` and `message` = `PitBox is up to date`.
+2. After triggering update: `overall` = `updating` and `message` describes progress.
+3. Fields: `current_version`, `target_version`, `controller.status`, `fleet.*`, `release.*`, `agents[]`.
+4. 409 test: call `POST /api/update/run` twice quickly; second call should return 409.

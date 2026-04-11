@@ -25,4 +25,13 @@ Short checklist for shipping a controller or bundle build. Adjust for your signi
 
 - **[`PITBOX_UPDATER.md`](PITBOX_UPDATER.md)** — update channel behaviour  
 - **[`UPDATE_TESTING.md`](UPDATE_TESTING.md)** — updater QA  
-- **[`API_GET_ROUTES.md`](API_GET_ROUTES.md)** — GET route auth matrix  
+- **[`API_GET_ROUTES.md`](API_GET_ROUTES.md)** — GET route auth matrix
+
+## Smoke test (v1.6.0+ unified orchestrator)
+
+1. Start controller, open main UI, go to Settings > Updates.
+2. Verify the **PitBox Update** card shows: Installed version, Latest version, status pill, "Update PitBox" button, "Check for Updates" link.
+3. Click **Check for Updates** -- summary refreshes within a few seconds.
+4. Click **Update PitBox** -- `POST /api/update/run` triggers; status pill shows "Updating".
+5. Poll `GET /api/update/summary` or watch the UI -- rollout summary shows controller + fleet progress.
+6. Confirm `overall` transitions to `up_to_date` when complete.

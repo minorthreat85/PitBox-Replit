@@ -100,9 +100,9 @@ Run `.\scripts\build_release.ps1 -Dev` from the repo root on Windows. Outputs:
 
 Publish: `.\scripts\publish_release.ps1 -Dev` uploads all installers to GitHub Releases.
 
-## Agent Update Flow
+## Agent Update Flow (v1.6.0+)
 
-Controller sends `POST /update` to agents → agent queries GitHub releases → locates `PitBoxUpdater.exe` at `C:\PitBox\updater\` → launches updater with installer URL and SHA-256 → updater downloads, verifies, and runs the installer → agent service restarts.
+Controller is the single release authority. Operator clicks "Update PitBox" → `POST /api/update/run` → controller checks GitHub, updates itself if needed, then rolls out to all enrolled sims. Idle sims update immediately; busy sims are queued as `pending_idle` and auto-update when AC session ends. Agents no longer check GitHub autonomously.
 
 ## Debug Endpoints
 

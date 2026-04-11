@@ -80,14 +80,15 @@ Service/task names are defined in one place at the top of `pitbox_updater_instal
 
 - If `PitBoxUpdater.exe` is missing, the controller falls back to `update_pitbox.ps1` (PowerShell).
 
-## How Agent uses it
+## How Agent uses it (v1.6.0+)
 
-- On startup, the agent runs an update check in the background. If an update is available, an installer URL is found, **and** the release notes include a matching `pitbox_sha256` comment for that installer asset:
-  1. A MessageBox is shown: “Click OK to start the updater now.”
-  2. When the user clicks OK, the agent runs `PitBoxUpdater.exe` with `--asset-url`, `--version`, and `--expected-sha256` via `subprocess.Popen`.
-  3. The updater window appears and performs download, verify, stop, install, restart.
+Agents **no longer check GitHub autonomously**. The controller is the single release authority.
 
-If the release has no SHA-256 metadata for the installer, the agent shows the manual “download from releases” message instead of one-click update.
+- When the controller rolls out an update to a sim agent via `POST /api/update/run`, it sends the asset URL, version, and SHA-256 to the agent.
+- The agent launches `PitBoxUpdater.exe` with `--asset-url`, `--version`, and `--expected-sha256` via `subprocess.Popen`.
+- If the agent is busy (AC session in progress), it defers the update and reports `pending_idle`. The controller retries when the agent becomes idle.
+
+Legacy: The agent startup update check is disabled by default (`UPDATE_CHECK_ON_STARTUP = False` in `agent/main.py`). It can be re-enabled for standalone testing.
 
 ## Packaging and build
 
@@ -107,21 +108,21 @@ If the release has no SHA-256 metadata for the installer, the agent shows the ma
 4. If an update is available, click **Download update & restart**.
 5. **Expected**: A UAC prompt may appear; then a **PitBox Updater** window opens, shows “Updating: Controller”, downloads the installer, stops the controller service, runs the Inno installer, then restarts the controller. Logs in `C:\PitBox\logs\PitBoxUpdater.log`.
 
-### Agent update (MessageBox → OK)
+### Agent update (controller-driven, v1.6.0+)
 
 1. Install PitBox with **Agent** so that `C:\PitBox\updater\PitBoxUpdater.exe` exists.
-2. Run the agent (e.g. from the **PitBox Agent** scheduled task or manually).
-3. Ensure a newer release with `PitBoxInstaller_*.exe` exists so the startup update check sees an update.
-4. **Expected**: A MessageBox “PitBox Agent — Update available” with “Click OK to start the updater now.”
-5. Click **OK**.
-6. **Expected**: PitBox Updater window opens, shows “Updating: Agent”, downloads the installer, stops the agent (task/process), runs the installer, restarts the agent. Check `C:\PitBox\logs\PitBoxUpdater.log`.
+2. Ensure the controller has a newer release available.
+3. Open the controller Web UI > **Settings > Updates** and click **Update PitBox**.
+4. **Expected**: Controller rolls out the update to the agent. Agent launches PitBoxUpdater.exe automatically.
+5. If agent is busy (AC running), it defers and reports `pending_idle`. Wait for AC to stop; agent updates automatically.
+6. Check `C:\PitBox\logs\PitBoxUpdater.log` on the sim PC.
 
 ### Standalone CLI (optional)
 
 1. Open a command prompt (or PowerShell) as Administrator.
 2. Run:
    ```cmd
-   "C:\PitBox\updater\PitBoxUpdater.exe" --target controller --asset-url "https://github.com/.../releases/download/.../PitBoxInstaller_1.4.3.exe" --version 1.4.3
+   "C:\PitBox\updater\PitBoxUpdater.exe" --target controller --asset-url "https://github.com/.../releases/download/.../PitBoxInstaller_1.4.3.exe" --version 1.4.3 --expected-sha256 "<64 hex chars>"
    ```
 3. **Expected**: Updater window appears and runs the full flow; installer runs visibly.
 

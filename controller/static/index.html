@@ -597,6 +597,12 @@
                 <div class="settings-updates-main">
 
                     <div class="config-section" id="upd-main-card">
+                        <h4 class="config-section-heading">PitBox Update</h4>
+                        <div id="upd-version-line" style="font-size:.85rem;margin-bottom:6px;">
+                            <span>Installed <strong id="upd-installed-ver">--</strong></span>
+                            <span style="margin:0 6px;color:var(--text-muted,#666);">&middot;</span>
+                            <span>Latest <strong id="upd-latest-ver">--</strong></span>
+                        </div>
                         <div class="updates-status-row" style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
                             <span id="updates-pill" class="pill-up-to-date" aria-live="polite">Checking&hellip;</span>
                             <span id="updates-overall-status" style="font-size:.85rem;color:var(--text-muted,#888);">--</span>
@@ -605,11 +611,10 @@
                             <p class="updates-error-box-title">Unable to check for updates</p>
                             <p id="updates-error-body" class="updates-error-box-body"></p>
                         </div>
-                        <div id="updates-version-info" style="display:flex;gap:24px;flex-wrap:wrap;margin-bottom:14px;font-size:.85rem;">
-                            <span>Installed: <strong id="upd-installed-ver">--</strong></span>
-                            <span>Latest: <strong id="upd-latest-ver">--</strong></span>
+                        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+                            <button type="button" id="updates-btn-run" class="btn-primary" style="padding:10px 28px;font-size:.95rem;">Update PitBox</button>
+                            <button type="button" id="updates-btn-check" class="btn-link" style="font-size:.8rem;background:none;border:none;color:var(--text-muted,#888);cursor:pointer;text-decoration:underline;padding:0;">Check for Updates</button>
                         </div>
-                        <button type="button" id="updates-btn-run" class="btn-primary" style="padding:10px 28px;font-size:.95rem;">Update PitBox</button>
                         <div id="updates-progress" class="updates-progress hidden" role="status" style="margin-top:10px;">
                             <p id="updates-progress-message"></p>
                             <p id="updates-progress-percent" class="settings-updates-muted"></p>
@@ -669,7 +674,6 @@
                             <div>
                                 <h5 style="font-size:.8rem;font-weight:600;margin:0 0 6px;">Controller</h5>
                                 <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                                    <button type="button" id="updates-btn-check" class="btn-secondary" style="padding:6px 14px;">Check for Updates</button>
                                     <button type="button" id="updates-btn-apply" class="btn-secondary" disabled>Update Controller Only</button>
                                 </div>
                             </div>

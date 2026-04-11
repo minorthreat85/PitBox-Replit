@@ -230,3 +230,58 @@ Get-Process acs -ErrorAction SilentlyContinue | Select-Object Name, Id, SessionI
 | SimHub motion compatibility | Port scheme (Controller=9630, Sims=9631–9638) | ✅ Implemented |
 
 **PitBox is now production-ready for sim lounge deployment.**
+
+---
+
+## Update System Architecture (v1.6.0+)
+
+### Design principle
+
+The **controller is the single release authority**. Agents do not independently check GitHub Releases. The normal update flow is:
+
+1. Operator clicks **Update PitBox** (single button).
+2. Controller checks GitHub for the latest approved release.
+3. Controller updates itself first if needed (via PitBoxUpdater.exe).
+4. Controller rolls the same version out to all enrolled sims/agents.
+5. Idle sims update immediately; busy sims are queued as `pending_idle` and auto-update when their AC session ends.
+
+### Update routes
+
+| Route | Purpose |
+|-------|--------|
+| `POST /api/update/run` | One-click unified orchestrator (primary) |
+| `GET /api/update/summary` | Normalized system-wide status for the UI |
+| `POST /api/update/controller/apply` | Manual controller-only update (Advanced) |
+| `POST /api/update/fleet/start` | Manual fleet rollout (Advanced) |
+| `POST /api/update/fleet/cancel` | Cancel pending fleet updates |
+| `POST /api/update/fleet/retry` | Retry failed fleet updates |
+
+### Key modules
+
+| Module | Role |
+|--------|------|
+| `controller/release_service.py` | GitHub release discovery, caching, version comparison |
+| `controller/fleet_state.py` | Persistent per-agent rollout state (`fleet_state.json`) |
+| `controller/api_update_routes.py` | All `/api/update/*` routes, orchestrator logic |
+
+### Agent behavior
+
+Agents act as controlled executors:
+- Report installed version and update state.
+- Accept staged update instructions from the controller.
+- Defer update if AC is running (report `pending_idle`).
+- Launch local PitBoxUpdater.exe when instructed.
+- Report success/failure back to the controller.
+
+Agents do **not** autonomously perform GitHub release discovery.
+
+### UI structure
+
+The Updates page has three visual sections:
+1. **PitBox Update** card -- version info, status pill, single "Update PitBox" button, "Check for Updates" link, rollout summary.
+2. **View Details** (collapsed) -- per-sim status table.
+3. **Advanced** (collapsed) -- manual fleet control, controller-only update, developer tools, diagnostics.
+
+### Fallback / recovery tools
+
+Scripts like `push_agent_to_sims.ps1` and `deploy_agent.ps1` remain available for recovery/manual use only. They are not part of the normal update flow.

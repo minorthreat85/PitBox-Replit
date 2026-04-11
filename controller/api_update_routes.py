@@ -515,6 +515,11 @@ async def unified_summary(_: None = Depends(_get_require_operator_if_pw())):
             elif not approved:
                 updated_count += 1
 
+    outdated_count = total_sims - updated_count - failed_count - pending_idle - in_progress
+    if outdated_count < 0:
+        outdated_count = 0
+    offline_count = sum(1 for a in filtered_agents if not a.get("online"))
+
     overall = "up_to_date"
     if _orchestrator_state["phase"] not in ("idle", "done", "error"):
         overall = "updating"
@@ -526,18 +531,43 @@ async def unified_summary(_: None = Depends(_get_require_operator_if_pw())):
         overall = "has_failures"
     elif pending_idle > 0:
         overall = "pending"
-    elif release_status.get("update_available"):
+    elif release_status.get("update_available") or outdated_count > 0:
         overall = "available"
+
+    message = ""
+    if overall == "up_to_date":
+        message = "PitBox is up to date"
+    elif overall == "updating":
+        message = "Update in progress"
+    elif overall == "available":
+        message = "A new version is available"
+    elif overall == "has_failures":
+        message = f"{failed_count} sim(s) failed to update"
+    elif overall == "pending":
+        message = f"{pending_idle} sim(s) will update when idle"
+
+    ctrl_status = "up_to_date"
+    if controller_updating:
+        ctrl_status = "updating"
+    elif release_status.get("update_available"):
+        ctrl_status = "update_available"
 
     return {
         "ok": True,
+        "current_version": release_status.get("current_version"),
+        "target_version": approved,
+        "update_available": release_status.get("update_available", False) or outdated_count > 0 or pending_idle > 0,
         "overall": overall,
+        "message": message,
         "orchestrator_phase": _orchestrator_state["phase"],
         "controller": {
+            "status": ctrl_status,
+            "installed_version": release_status.get("current_version"),
             "current_version": release_status.get("current_version"),
             "latest_version": release_status.get("latest_version"),
             "update_available": release_status.get("update_available", False),
             "state": updater_state,
+            "error": release_status.get("error"),
             "message": updater.get("message", "") if updater else "",
             "percent": updater.get("percent", 0) if updater else 0,
         },
@@ -548,7 +578,10 @@ async def unified_summary(_: None = Depends(_get_require_operator_if_pw())):
             "pending_idle": pending_idle,
             "in_progress": in_progress,
             "failed": failed_count,
+            "outdated": outdated_count,
+            "offline": offline_count,
         },
+        "details": filtered_agents,
         "agents": filtered_agents,
         "release": {
             "name": release_status.get("release_name"),

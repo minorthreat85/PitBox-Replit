@@ -3570,8 +3570,8 @@
     var overall = s.overall || 'up_to_date';
     var hasError = !!(s.error);
 
-    var current = versionString(ctrl.current_version);
-    var latest = versionString(ctrl.latest_version);
+    var current = versionString(s.current_version || ctrl.current_version);
+    var latest = versionString(s.target_version || ctrl.latest_version);
 
     if (installedEl) installedEl.textContent = current;
     if (latestEl) latestEl.textContent = latest;
@@ -3585,14 +3585,7 @@
       else { pillEl.textContent = 'Up to date'; pillEl.className = 'pill-up-to-date'; }
     }
 
-    var statusText = '';
-    if (overall === 'updating') statusText = 'Update in progress...';
-    else if (overall === 'available') statusText = 'A new version is available';
-    else if (overall === 'has_failures') statusText = 'Some sims failed to update';
-    else if (overall === 'pending') statusText = 'Sims queued to update when idle';
-    else if (hasError) statusText = '';
-    else statusText = 'Everything is up to date';
-    if (overallEl) overallEl.textContent = statusText;
+    if (overallEl) overallEl.textContent = hasError ? '' : (s.message || '');
 
     var isUpdating = overall === 'updating';
     if (btnRun) {
@@ -3613,17 +3606,23 @@
       else { errorBox.classList.add('hidden'); }
     }
 
+    var ctrlLabel = 'Up to date';
+    if (ctrl.status === 'updating') ctrlLabel = 'Updating';
+    else if (ctrl.status === 'update_available') ctrlLabel = 'Update available';
+    else if (ctrl.state === 'error') ctrlLabel = 'Error';
     if (rolloutCtrl) {
-      if (ctrl.update_available) rolloutCtrl.textContent = 'Controller: Update available (' + current + ' \u2192 ' + latest + ')';
-      else rolloutCtrl.textContent = 'Controller: ' + current;
+      rolloutCtrl.textContent = 'Controller: ' + ctrlLabel;
     }
     if (rolloutSims) {
-      var parts = [];
       if (fleet.total > 0) {
-        parts.push(fleet.updated + '/' + fleet.total + ' updated');
-        if (fleet.in_progress > 0) parts.push(fleet.in_progress + ' in progress');
+        var simParts = [];
+        simParts.push(fleet.updated + ' updated');
+        if (fleet.in_progress > 0) simParts.push(fleet.in_progress + ' in progress');
+        if (fleet.outdated > 0) simParts.push(fleet.outdated + ' outdated');
+        rolloutSims.textContent = 'Sims: ' + simParts.join(', ');
+      } else {
+        rolloutSims.textContent = '';
       }
-      rolloutSims.textContent = fleet.total > 0 ? ('Sims: ' + parts.join(', ')) : 'Sims: None enrolled';
     }
     if (rolloutPending) {
       rolloutPending.textContent = fleet.pending_idle > 0 ? (fleet.pending_idle + ' sim(s) will update when idle') : '';
@@ -3632,7 +3631,7 @@
       rolloutFailed.textContent = fleet.failed > 0 ? (fleet.failed + ' sim(s) failed') : '';
     }
     if (rolloutActions) {
-      rolloutActions.classList.toggle('hidden', fleet.failed === 0);
+      rolloutActions.classList.toggle('hidden', !fleet.failed || fleet.failed === 0);
     }
 
     var showRelease = !!(rel.name);
@@ -3645,11 +3644,11 @@
       }
     }
 
-    renderSimUpdateStatusTable(s.agents || []);
+    renderSimUpdateStatusTable(s.agents || s.details || []);
 
     var badge = document.getElementById('update-available-badge');
     var ccPill = document.getElementById('cc-pill-update');
-    var showBadge = overall === 'available';
+    var showBadge = overall === 'available' || overall === 'pending' || !!(s.update_available);
     if (badge) badge.classList.toggle('hidden', !showBadge);
     if (ccPill) ccPill.classList.toggle('hidden', !showBadge);
   }
