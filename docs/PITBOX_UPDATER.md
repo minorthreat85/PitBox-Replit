@@ -98,6 +98,37 @@ Legacy: The agent startup update check is disabled by default (`UPDATE_CHECK_ON_
 
 ---
 
+## State normalization and recovery
+
+On startup, both controller and agent normalize stale update states left over from interrupted updates or unclean shutdowns.
+
+**Controller** (`controller/updater.py`):
+- `normalize_updater_state_on_startup()` runs during lifespan init.
+- Resets in-memory `_INSTALL_STATE` to idle.
+- Reads `status.json` from disk; if it has a transitional state (`downloading`, `installing`, etc.) and no `pitbox_updater.exe` process is running, deletes the file.
+- `get_updater_status()` also normalizes on every read: transitional states without a running updater process or within staleness thresholds are reported as `error` with a recovery message.
+
+**Agent** (`agent/update_state.py`):
+- `normalize_on_startup()` runs during agent init.
+- If `update_status` is transitional and no updater process is running:
+  - If `target_version == current_version`, sets idle (update completed but state was not cleaned).
+  - Otherwise, sets `failed` with a recovery message.
+
+**Manual recovery** (UI):
+- **Advanced > Controller > Reset Update State** button calls `POST /api/update/reset-state`.
+- Clears the orchestrator state and runs `normalize_updater_state_on_startup()` again.
+- Useful when the UI is stuck showing "Updating..." after a failed or interrupted update.
+
+Staleness thresholds (controller `status.json`):
+| State | Threshold |
+|-------|----------|
+| starting | 2 min |
+| downloading | 30 min |
+| verifying | 10 min |
+| installing | 15 min |
+
+---
+
 ## Manual test procedure
 
 ### Controller update (Download update & restart)

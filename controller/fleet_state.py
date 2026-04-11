@@ -70,6 +70,18 @@ def _default_agent_state(agent_id: str) -> dict:
     }
 
 
+def reset_all_agent_states() -> None:
+    """Clear all per-agent update statuses and errors (keeps agent IDs)."""
+    state = load_state()
+    for aid, agent in state.get("agents", {}).items():
+        agent["update_status"] = "unknown"
+        agent["target_version"] = None
+        agent["last_update_error"] = None
+    state["target_version"] = None
+    save_state(state)
+    logger.info("Fleet rollout state reset for %d agents", len(state.get("agents", {})))
+
+
 def load_state() -> dict:
     p = _state_path()
     try:

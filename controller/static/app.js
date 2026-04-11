@@ -3838,6 +3838,7 @@
     bindUnifiedRunButton();
     bindControllerApply();
     bindControllerCheck();
+    bindResetStateButton();
     bindFleetActions();
     bindDevPullButton();
     bindPushLaunchDisplayButton();
@@ -3950,6 +3951,25 @@
           btn.textContent = 'Update Controller Only';
           if (progressWrap) progressWrap.classList.add('hidden');
         });
+    });
+  }
+
+  function bindResetStateButton() {
+    var btn = document.getElementById('updates-btn-reset-state');
+    if (!btn || btn.dataset.bound === '1') return;
+    btn.dataset.bound = '1';
+    btn.addEventListener('click', function () {
+      if (!confirm('Reset all update state? This clears any stuck update status.')) return;
+      btn.disabled = true;
+      btn.textContent = 'Resetting\u2026';
+      pitboxFetch(API_BASE + '/update/reset-state', { method: 'POST' })
+        .then(function (r) { return r.json().then(function (d) { if (!r.ok) throw new Error(d.detail || d.message || r.statusText); return d; }); })
+        .then(function () {
+          showToast('Update state cleared', 'success');
+          fetchUnifiedSummary();
+        })
+        .catch(function (err) { showToast('Reset failed: ' + (err.message || err), 'error'); })
+        .finally(function () { btn.disabled = false; btn.textContent = 'Reset Update State'; });
     });
   }
 

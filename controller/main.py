@@ -262,16 +262,12 @@ async def lifespan(app: FastAPI):
         yield
         return
     try:
-        # Clear any leftover updater status file from a previous update run
-        import os
-        from pathlib import Path
-        status_file = Path(os.environ.get("PITBOX_UPDATES_DIR", r"C:\PitBox\updates")) / "status.json"
-        if status_file.exists():
-            try:
-                status_file.unlink()
-                logger.info("Cleared previous updater status.json")
-            except OSError:
-                pass
+        try:
+            from controller.updater import normalize_updater_state_on_startup
+            normalize_updater_state_on_startup()
+            logger.info("Updater state normalized on startup")
+        except Exception as e:
+            logger.warning("Updater state normalization failed: %s", e)
         config_path = _find_config_path()
         # When using canonical path and it doesn't exist, try one-time migration from legacy.
         if _is_canonical_config_path(config_path) and not config_path.exists():

@@ -104,3 +104,17 @@ HTTPServer(("127.0.0.1", 9999), Handler).serve_forever()
 2. After triggering update: `overall` = `updating` and `message` describes progress.
 3. Fields: `current_version`, `target_version`, `controller.status`, `fleet.*`, `release.*`, `agents[]`.
 4. 409 test: call `POST /api/update/run` twice quickly; second call should return 409.
+### 9. State normalization on startup
+
+1. Create a stale `C:\PitBox\updates\status.json` with `{"state": "downloading", "message": "test"}` (no `updated_at` field).
+2. Start controller.
+3. Expected: `GET /api/update/controller/status` returns `state=error` with recovery message, not `downloading`.
+4. Verify logs show `Clearing stale updater status.json`.
+
+### 10. Reset Update State (POST /api/update/reset-state)
+
+1. Trigger an update that gets stuck (or manually set orchestrator state).
+2. `POST /api/update/reset-state`.
+3. Expected: 200 with `{"ok": true, "message": "Update state cleared"}`.
+4. `GET /api/update/summary` should show `overall=up_to_date` (assuming no pending updates).
+5. UI: Advanced > Controller > Reset Update State button should clear stuck state.

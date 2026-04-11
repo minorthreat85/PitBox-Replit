@@ -94,6 +94,41 @@ def save_state(state: dict) -> None:
         logger.error("Could not save update state to %s: %s", p, e)
 
 
+def normalize_on_startup() -> None:
+    """Called once at agent startup to clean up stale transitional states."""
+    state = load_state()
+    status = state.get("update_status", "idle")
+    if status in ("idle", "pending", "failed"):
+        return
+    _is_updater_running = False
+    try:
+        import psutil
+        names = {"pitbox_updater.exe", "pitboxupdater.exe"}
+        for proc in psutil.process_iter(["name"]):
+            if (proc.info.get("name") or "").lower() in names:
+                _is_updater_running = True
+                break
+    except Exception:
+        pass
+    if _is_updater_running:
+        logger.info("Updater process running — keeping update_status '%s'", status)
+        return
+    from pitbox_common.version import __version__
+    target = state.get("target_version")
+    if target and target == __version__:
+        logger.info("Stale update_status '%s' but target version matches current — setting idle", status)
+        state["update_status"] = "idle"
+        state["target_version"] = None
+        state["last_update_error"] = None
+        state["pending_installer_url"] = None
+        state["pending_installer_sha256"] = None
+    else:
+        logger.warning("Stale update_status '%s' with no active updater — setting failed", status)
+        state["update_status"] = "failed"
+        state["last_update_error"] = "Recovered from stale update state after restart."
+    save_state(state)
+
+
 def get_status() -> dict:
     """Return current update state with fresh current_version."""
     return load_state()

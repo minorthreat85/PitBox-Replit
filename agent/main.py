@@ -211,6 +211,13 @@ def main():
         except Exception as e:
             logger.debug("Event emit at startup: %s", e)
 
+        try:
+            from agent.update_state import normalize_on_startup
+            normalize_on_startup()
+            logger.info("Agent update state normalized on startup")
+        except Exception as e:
+            logger.debug("Agent update state normalization: %s", e)
+
         # Agent update checks are now controller-driven (v1.6.0+).
         # The agent no longer independently checks GitHub for updates at startup.
         # Updates are pushed by the controller via POST /api/update.

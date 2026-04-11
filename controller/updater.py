@@ -542,11 +542,106 @@ def get_update_status() -> dict[str, Any]:
     }
 
 
+_STALE_THRESHOLDS = {
+    "starting": 120,
+    "downloading": 1800,
+    "verifying": 600,
+    "installing": 900,
+}
+
+
+def is_updater_process_running() -> bool:
+    """Check if an external updater process is actually running."""
+    try:
+        import psutil
+        names = {"pitbox_updater.exe", "pitboxupdater.exe"}
+        for proc in psutil.process_iter(["name"]):
+            if (proc.info.get("name") or "").lower() in names:
+                return True
+    except Exception:
+        pass
+    return False
+
+
+def _is_install_thread_active() -> bool:
+    """Check if the in-memory background install thread is running."""
+    with _INSTALL_LOCK:
+        st = _INSTALL_STATE.get("state", "idle")
+    return st not in ("idle", "done", "error")
+
+
+def _normalize_disk_status(data: dict) -> dict:
+    """Normalize a status.json entry — return corrected state dict."""
+    state = data.get("state", "idle")
+    if state in ("idle", "done", "error"):
+        return {
+            "state": state,
+            "message": data.get("message", ""),
+            "percent": data.get("percent", 0),
+        }
+    if is_updater_process_running():
+        return {
+            "state": state,
+            "message": data.get("message", ""),
+            "percent": data.get("percent", 0),
+        }
+    threshold = _STALE_THRESHOLDS.get(state, 600)
+    updated_at = data.get("updated_at") or data.get("started_at")
+    if updated_at:
+        try:
+            age = time.time() - float(updated_at)
+            if age < threshold:
+                return {
+                    "state": state,
+                    "message": data.get("message", ""),
+                    "percent": data.get("percent", 0),
+                }
+        except (ValueError, TypeError):
+            pass
+    logger.warning("Stale updater state '%s' with no active process — normalizing to error", state)
+    return {
+        "state": "error",
+        "message": "Recovered from stale update state left over from a previous session.",
+        "percent": 0,
+    }
+
+
+def normalize_updater_state_on_startup(work_dir: Path | None = None) -> None:
+    """Called once at controller startup to clean up stale updater state."""
+    with _INSTALL_LOCK:
+        _INSTALL_STATE["state"] = "idle"
+        _INSTALL_STATE["message"] = ""
+        _INSTALL_STATE["percent"] = 0
+
+    wd = work_dir or DEFAULT_WORK_DIR
+    path = wd / "status.json"
+    if not path.exists():
+        return
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+        state = data.get("state", "idle")
+        if state in ("idle", "done", "error"):
+            return
+        if is_updater_process_running():
+            logger.info("Updater process is running — keeping status.json state '%s'", state)
+            return
+        logger.warning("Clearing stale updater status.json (state='%s') — no updater process running", state)
+        path.unlink(missing_ok=True)
+    except (OSError, json.JSONDecodeError) as e:
+        logger.warning("Could not read/clean status.json on startup: %s", e)
+        try:
+            path.unlink(missing_ok=True)
+        except OSError:
+            pass
+
+
 def get_updater_status(work_dir: Path | None = None) -> dict[str, Any]:
     """
     Return current update state.
     Checks in-memory _INSTALL_STATE first (set by the background download/install thread),
     then falls back to status.json written by the external pitbox_updater.exe.
+    Normalizes stale transitional states.
     """
     with _INSTALL_LOCK:
         mem = _INSTALL_STATE.copy()
@@ -560,11 +655,7 @@ def get_updater_status(work_dir: Path | None = None) -> dict[str, Any]:
     try:
         with open(path, encoding="utf-8") as f:
             data = json.load(f)
-        return {
-            "state": data.get("state", "idle"),
-            "message": data.get("message", ""),
-            "percent": data.get("percent", 0),
-        }
+        return _normalize_disk_status(data)
     except (OSError, json.JSONDecodeError):
         return {"state": "idle"}
 

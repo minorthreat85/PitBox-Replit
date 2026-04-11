@@ -340,6 +340,25 @@ def _reset_orchestrator():
     })
 
 
+@router.post("/reset-state")
+async def reset_update_state(_: None = Depends(_get_require_operator())):
+    """Advanced recovery: clear all in-memory and persisted update state."""
+    from controller.updater import is_updater_process_running, _is_install_thread_active
+    if is_updater_process_running() or _is_install_thread_active():
+        raise HTTPException(status_code=409, detail="Cannot reset while an update is actively running")
+    _reset_orchestrator()
+    from controller.updater import normalize_updater_state_on_startup, DEFAULT_WORK_DIR
+    normalize_updater_state_on_startup()
+    status_file = DEFAULT_WORK_DIR / "status.json"
+    try:
+        status_file.unlink(missing_ok=True)
+    except OSError:
+        pass
+    from controller.fleet_state import reset_all_agent_states
+    reset_all_agent_states()
+    return {"ok": True, "message": "Update state cleared"}
+
+
 @router.post("/run")
 async def unified_run(_: None = Depends(_get_require_operator())):
     import time as _time
@@ -494,11 +513,14 @@ async def unified_summary(_: None = Depends(_get_require_operator_if_pw())):
 
     filtered_agents = [a for a in agents if a["agent_id"] in enrolled_ids]
 
-    from controller.updater import get_updater_status
+    from controller.updater import get_updater_status, _is_install_thread_active, is_updater_process_running
     updater = get_updater_status()
     updater_state = updater.get("state", "idle") if updater else "idle"
 
-    controller_updating = updater_state not in ("idle", "done", "error")
+    controller_updating = updater_state not in ("idle", "done", "error") and (
+        _is_install_thread_active() or is_updater_process_running() or
+        _orchestrator_state["phase"] not in ("idle", "done", "error")
+    )
 
     approved = release_status.get("latest_version")
     total_sims = len(filtered_agents)
@@ -570,6 +592,7 @@ async def unified_summary(_: None = Depends(_get_require_operator_if_pw())):
         "update_available": release_status.get("update_available", False) or outdated_count > 0 or pending_idle > 0,
         "overall": overall,
         "message": message,
+        "is_update_active": overall == "updating",
         "orchestrator_phase": _orchestrator_state["phase"],
         "controller": {
             "status": ctrl_status,
