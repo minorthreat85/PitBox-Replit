@@ -1,8 +1,6 @@
 # -*- mode: python ; coding: utf-8 -*-
-"""
-PyInstaller spec for PitBoxUpdater (installer-based updater with UI).
-Output: dist/PitBoxUpdater.exe. Deploy to C:\PitBox\updater\ with the installer.
-"""
+# PyInstaller spec for PitBoxUpdater (installer-based updater with UI).
+# Output: dist/PitBoxUpdater.exe. Deploy to C:\PitBox\updater\ with the installer.
 a = Analysis(
     ['updater/pitbox_updater_installer.py'],
     pathex=[],
