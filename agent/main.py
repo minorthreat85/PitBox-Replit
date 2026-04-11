@@ -211,12 +211,16 @@ def main():
         except Exception as e:
             logger.debug("Event emit at startup: %s", e)
 
-        # Check for updates in background; if newer version exists, show a prompt (e.g. MessageBox on Windows)
-        try:
-            from agent.update_check import run_update_check_at_startup
-            run_update_check_at_startup(delay_seconds=5.0, show_prompt=True)
-        except Exception as e:
-            logger.debug("Update check not started: %s", e)
+        # Agent update checks are now controller-driven (v1.6.0+).
+        # The agent no longer independently checks GitHub for updates at startup.
+        # Updates are pushed by the controller via POST /api/update.
+        # To re-enable autonomous checks (fallback/recovery), uncomment below:
+        # try:
+        #     from agent.update_check import run_update_check_at_startup
+        #     run_update_check_at_startup(delay_seconds=5.0, show_prompt=True)
+        # except Exception as e:
+        #     logger.debug("Update check not started: %s", e)
+        logger.info("Agent update checks are controller-driven; autonomous startup check disabled.")
         
         # Auto-launch sim display browser (if configured)
         try:

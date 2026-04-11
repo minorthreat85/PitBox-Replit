@@ -1630,7 +1630,6 @@
           bindSessionsPanel();
           bindServerConfigPreset();
           bindServerConfigSettings();
-          bindUpdatesApply();
           bindCarsPicker();
           bindTrackPicker();
           var sid = serverConfigData.server_id;
@@ -1692,7 +1691,6 @@
     bindSessionsPanel();
     bindServerConfigPreset();
         bindServerConfigSettings();
-        bindUpdatesApply();
         bindCarsPicker();
     bindTrackPicker();
     refreshAcServerStatus();
@@ -3508,15 +3506,13 @@
       detRef.addEventListener('click', function () { loadServerConfigDetailsRaw(); });
     }
   }
-  var updateCheckLastTime = null;
-  var updateCheckLastError = null;
-  var updateCheckLastSuccessAt = null;
-  var updateCheckLastKnownLatest = null;
   var updateStatusData = null;
+  var _fleetPollTimer = null;
 
   function formatUnixSeconds(epochSeconds) {
-    if (epochSeconds == null || typeof epochSeconds !== 'number') return '—';
+    if (epochSeconds == null || typeof epochSeconds !== 'number') return '\u2014';
     var d = new Date(epochSeconds * 1000);
+    if (isNaN(d.getTime())) return '\u2014';
     var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
     var h = d.getHours();
     var m = String(d.getMinutes()).padStart(2, '0');
@@ -3525,29 +3521,18 @@
     return months[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear() + ' ' + h + ':' + m + ' ' + ampm;
   }
   function formatIso(isoString) {
-    if (!isoString || typeof isoString !== 'string') return '—';
+    if (!isoString || typeof isoString !== 'string') return '\u2014';
     var d = new Date(isoString);
-    if (isNaN(d.getTime())) return '—';
-    var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    var h = d.getHours();
-    var m = String(d.getMinutes()).padStart(2, '0');
-    var ampm = h >= 12 ? 'PM' : 'AM';
-    h = h % 12; h = h ? h : 12;
-    return months[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear() + ' ' + h + ':' + m + ' ' + ampm;
+    if (isNaN(d.getTime())) return '\u2014';
+    return formatUnixSeconds(d.getTime() / 1000);
   }
+  function versionString(v) { return (v == null || v === '') ? '\u2014' : String(v); }
 
   function checkForUpdates() {
-    var now = new Date();
-    pitboxFetch(API_BASE + '/update/status')
+    pitboxFetch(API_BASE + '/update/controller/status')
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (data) {
-        updateCheckLastError = null;
-        updateCheckLastTime = now;
         if (!data) return;
-        if (!data.error) {
-          updateCheckLastSuccessAt = data.last_successful_check_at != null ? new Date(data.last_successful_check_at * 1000) : now;
-          updateCheckLastKnownLatest = data.latest_version || null;
-        }
         updateStatusData = data;
         var badge = document.getElementById('update-available-badge');
         var pill = document.getElementById('cc-pill-update');
@@ -3555,234 +3540,96 @@
         if (badge) badge.classList.toggle('hidden', !show);
         if (pill) pill.classList.toggle('hidden', !show);
       })
-      .catch(function (err) {
-        updateCheckLastError = err && err.message ? err.message : 'network error';
-        updateCheckLastTime = now;
-        updateStatusData = null;
-      });
+      .catch(function () { updateStatusData = null; });
   }
-  function versionString(v) {
-    if (v == null || v === '') return '—';
-    return String(v);
-  }
-  function renderUpdatesPanel(data) {
+
+  function renderControllerCard(data) {
+    var s = data || {};
     var pillEl = document.getElementById('updates-pill');
     var versionsLineEl = document.getElementById('updates-versions-line');
-    var btnEl = document.getElementById('updates-btn-apply');
+    var btnApply = document.getElementById('updates-btn-apply');
     var noUpdateHint = document.getElementById('updates-no-update-hint');
     var lastCheckedEl = document.getElementById('updates-last-checked');
-    var lastSuccessRow = document.getElementById('updates-last-success-row');
-    var lastSuccessEl = document.getElementById('updates-last-success');
     var errorBox = document.getElementById('updates-error-box');
     var errorBody = document.getElementById('updates-error-body');
-    var errorFooterTime = document.getElementById('updates-error-footer-time');
     var releaseWrap = document.getElementById('updates-release-wrap');
     var releaseLink = document.getElementById('updates-release-link');
     var publishedEl = document.getElementById('updates-published');
     var notesWrap = document.getElementById('updates-notes-wrap');
     var notesEl = document.getElementById('updates-notes');
 
-    var s = data || {};
     var current = versionString(s.current_version);
-    var latest = versionString(s.latest_version || s.last_known_latest_version);
+    var latest = versionString(s.latest_version);
     var updateAvailable = s.update_available === true;
-    var hasInstaller = !!(s.controller_installer && (s.controller_installer.api_url || s.controller_installer.url));
     var hasZip = !!(s.controller_zip && (s.controller_zip.api_url || s.controller_zip.url));
     var hasUnified = !!(s.unified_installer && (s.unified_installer.api_url || s.unified_installer.url));
-    var hasReleaseUrl = !!(s.html_url);
     var updaterState = s.state || 'idle';
     var isUpdating = updaterState !== 'idle' && updaterState !== 'done' && updaterState !== 'error';
-    var canUpdate = (updateAvailable === true) && (hasZip || hasUnified || hasReleaseUrl) && !isUpdating;
-
+    var canUpdate = updateAvailable && (hasZip || hasUnified) && !isUpdating;
     var hasError = !!(s.error);
-    var lastOk = (s.last_successful_check_at != null) ? s.last_successful_check_at : (updateCheckLastSuccessAt ? updateCheckLastSuccessAt.getTime() / 1000 : null);
-    var lastChecked = updateCheckLastTime ? (updateCheckLastTime.getTime() / 1000) : null;
 
-    if (hasError) {
-      if (pillEl) {
-        pillEl.textContent = 'Up to date';
-        pillEl.className = 'pill-up-to-date';
-      }
-      if (versionsLineEl) versionsLineEl.textContent = current !== '—' ? 'Installed: ' + current : '—';
-    } else if (updateAvailable) {
-      if (pillEl) {
-        pillEl.textContent = 'Update available';
-        pillEl.className = 'pill-update-available';
-      }
-      if (versionsLineEl) versionsLineEl.textContent = 'Installed: ' + current + ' · Latest: ' + latest;
-    } else {
-      if (pillEl) {
-        pillEl.textContent = 'Up to date';
-        pillEl.className = 'pill-up-to-date';
-      }
-      if (versionsLineEl) versionsLineEl.textContent = current !== '—' ? 'Installed: ' + current : '—';
+    if (pillEl) {
+      if (hasError) { pillEl.textContent = 'Error'; pillEl.className = 'pill-update-error'; }
+      else if (isUpdating) { pillEl.textContent = 'Updating'; pillEl.className = 'pill-update-busy'; }
+      else if (updateAvailable) { pillEl.textContent = 'Update available'; pillEl.className = 'pill-update-available'; }
+      else { pillEl.textContent = 'Up to date'; pillEl.className = 'pill-up-to-date'; }
     }
-
-    if (btnEl) {
-      btnEl.disabled = !canUpdate;
-      btnEl.textContent = 'Download update & restart';
-      btnEl.classList.toggle('hidden', false);
+    if (versionsLineEl) {
+      versionsLineEl.textContent = updateAvailable
+        ? 'Installed: ' + current + '  \u2192  Latest: ' + latest
+        : (current !== '\u2014' ? 'Installed: ' + current : '\u2014');
+    }
+    if (btnApply) {
+      btnApply.disabled = !canUpdate;
+      btnApply.textContent = isUpdating ? 'Updating\u2026' : 'Update Controller';
     }
     if (noUpdateHint) {
-      if (!canUpdate) {
-        noUpdateHint.classList.remove('hidden');
-        if (updateAvailable && !hasZip && !hasUnified) {
-          noUpdateHint.textContent = 'This release has no installer asset (ZIP or PitBoxInstaller_*.exe).';
-        } else if (updateAvailable && (hasZip || hasUnified) && isUpdating) {
-          noUpdateHint.textContent = 'Update in progress…';
-        } else if (!updateAvailable) {
-          noUpdateHint.textContent = 'No updates available.';
-        } else if (isUpdating) {
-          noUpdateHint.textContent = 'Update in progress…';
-        } else {
-          noUpdateHint.textContent = 'No updates available.';
-        }
-      } else {
-        noUpdateHint.classList.add('hidden');
-      }
+      if (isUpdating) { noUpdateHint.textContent = s.message || 'Update in progress\u2026'; noUpdateHint.classList.remove('hidden'); }
+      else if (updateAvailable && !hasZip && !hasUnified) { noUpdateHint.textContent = 'No installer asset in this release.'; noUpdateHint.classList.remove('hidden'); }
+      else if (!updateAvailable && !hasError) { noUpdateHint.textContent = ''; noUpdateHint.classList.add('hidden'); }
+      else { noUpdateHint.classList.add('hidden'); }
     }
-
-    if (lastCheckedEl) lastCheckedEl.textContent = updateCheckLastTime ? formatUnixSeconds(lastChecked) : (lastOk != null ? formatUnixSeconds(lastOk) : 'Never');
-    if (lastSuccessRow && lastSuccessEl) {
-      if (lastOk != null) {
-        lastSuccessEl.textContent = formatUnixSeconds(lastOk);
-        lastSuccessRow.classList.remove('hidden');
-      } else {
-        lastSuccessRow.classList.add('hidden');
-      }
+    if (lastCheckedEl) {
+      var ts = s.last_successful_check_at || s.checked_at;
+      lastCheckedEl.textContent = ts ? formatUnixSeconds(ts) : 'Never';
     }
-
-    if (errorBox && errorBody && errorFooterTime) {
-      if (hasError) {
-        errorBody.textContent = s.error || 'Unable to check for updates.';
-        errorFooterTime.textContent = updateCheckLastTime ? formatUnixSeconds(lastChecked) : '—';
-        errorBox.classList.remove('hidden');
-      } else {
-        errorBox.classList.add('hidden');
-      }
+    if (errorBox && errorBody) {
+      if (hasError) { errorBody.textContent = s.error; errorBox.classList.remove('hidden'); }
+      else { errorBox.classList.add('hidden'); }
     }
-
-    var showRelease = updateAvailable || (s.release_name);
+    var showRelease = !!(s.release_name);
     if (releaseWrap) releaseWrap.classList.toggle('hidden', !showRelease);
-    if (showRelease && s.release_name) {
-      if (releaseLink) {
-        releaseLink.textContent = s.release_name || 'Release';
-        if (releaseLink.removeAttribute) releaseLink.removeAttribute('href');
-      }
+    if (showRelease) {
+      if (releaseLink) releaseLink.textContent = s.release_name || '';
       if (publishedEl) publishedEl.textContent = formatIso(s.published_at);
       if (notesWrap && notesEl) {
-        if (s.notes_markdown && s.notes_markdown.trim()) {
-          notesEl.textContent = s.notes_markdown;
-          notesWrap.classList.remove('hidden');
-        } else {
-          notesWrap.classList.add('hidden');
-        }
+        if (s.notes_markdown && s.notes_markdown.trim()) { notesEl.textContent = s.notes_markdown; notesWrap.classList.remove('hidden'); }
+        else { notesWrap.classList.add('hidden'); }
       }
     }
   }
-  function loadUpdatesPage() {
-    var lastCheckedEl = document.getElementById('updates-last-checked');
-    if (lastCheckedEl && updateCheckLastTime) lastCheckedEl.textContent = formatUnixSeconds(updateCheckLastTime.getTime() / 1000);
-    else if (lastCheckedEl) lastCheckedEl.textContent = updateCheckLastSuccessAt ? formatUnixSeconds(updateCheckLastSuccessAt.getTime() / 1000) : 'Never';
 
-    pitboxFetch(API_BASE + '/update/status?refresh=true')
-      .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('Status ' + r.status)); })
-      .then(function (data) {
-        updateCheckLastTime = new Date();
-        if (data.last_successful_check_at != null) {
-          updateCheckLastSuccessAt = new Date(data.last_successful_check_at * 1000);
-        }
-        if (data.last_known_latest_version != null) updateCheckLastKnownLatest = data.last_known_latest_version;
-        updateStatusData = data;
-        renderUpdatesPanel(data);
-      })
-      .catch(function (err) {
-        updateCheckLastTime = new Date();
-        renderUpdatesPanel({
-          current_version: updateStatusData ? updateStatusData.current_version : null,
-          latest_version: null,
-          update_available: false,
-          error: 'Unable to check for updates: ' + (err.message || 'network error'),
-          last_successful_check_at: updateCheckLastSuccessAt ? updateCheckLastSuccessAt.getTime() / 1000 : null,
-          release_name: null,
-          published_at: null,
-          html_url: null,
-          notes_markdown: null
-        });
-      });
-    if (updateStatusData) renderUpdatesPanel(updateStatusData);
-    bindUpdatesApply();
-    bindDevPullButton();
-    bindPushAgentsButton();
-    bindSimStatusButton();
-    bindPushSelfUpdateButton();
-    bindPushLaunchDisplayButton();
-    bindPushCloseDisplayButton();
-    bindSimDebugButton();
-    /* Load saved dev_repo_path into the inline input on the Updates tab */
-    pitboxFetch(API_BASE + '/config')
-      .then(function (r) { return r.ok ? r.json() : null; })
-      .then(function (data) {
-        var inp = document.getElementById('updates-dev-repo-path');
-        if (inp && data && data.config && data.config.dev_repo_path) {
-          inp.value = data.config.dev_repo_path;
-        }
-      })
-      .catch(function () {});
+  function renderFleetSummary(summary) {
+    var ids = { 'fleet-total': 'total', 'fleet-online': 'online', 'fleet-uptodate': 'up_to_date',
+                'fleet-outdated': 'outdated', 'fleet-pending': 'pending', 'fleet-failed': 'failed' };
+    for (var elId in ids) {
+      var el = document.getElementById(elId);
+      if (el) el.textContent = (summary && summary[ids[elId]] != null) ? summary[ids[elId]] : '\u2014';
+    }
   }
-  function bindDevPullButton() {
-    var btn = document.getElementById('updates-btn-dev-pull');
-    if (!btn || btn.dataset.devPullBound === '1') return;
-    btn.dataset.devPullBound = '1';
-    btn.addEventListener('click', function () {
-      if (btn.disabled) return;
-      var pathInp = document.getElementById('updates-dev-repo-path');
-      var repoPath = pathInp ? pathInp.value.trim() : '';
-      if (!repoPath) {
-        if (pathInp) { pathInp.focus(); pathInp.classList.add('input-error'); }
-        showToast('Enter the repo path first (e.g. C:\\PitBox-Replit)', 'error');
-        return;
-      }
-      if (pathInp) pathInp.classList.remove('input-error');
-      btn.disabled = true;
-      btn.textContent = 'Pulling & rebuilding…';
-      /* Send repo path directly in dev-pull body (saved server-side) */
-      pitboxFetch(API_BASE + '/update/dev-pull', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ dev_repo_path: repoPath })
-      })
-        .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
-        .then(function (res) {
-          if (res.ok) {
-            showToast('Update started — PitBox will restart automatically.', 'success');
-            btn.textContent = 'Restarting…';
-          } else {
-            showToast('Dev pull failed: ' + (res.data.detail || 'unknown error'), 'error');
-            btn.disabled = false;
-            btn.textContent = 'Pull & rebuild';
-          }
-        })
-        .catch(function (err) {
-          showToast('Dev pull error: ' + (err.message || 'network error'), 'error');
-          btn.disabled = false;
-          btn.textContent = 'Pull & rebuild';
-        });
-    });
-  }
-  /* ── Agent update status labels and badge classes ─────────── */
+
   var UPDATE_STATUS_LABELS = {
     'idle': 'Up to date', 'pending': 'Pending', 'downloading': 'Downloading',
     'installing': 'Installing', 'restarting': 'Restarting', 'failed': 'Failed',
-    'unknown': 'Offline', 'error': 'Error', 'querying': 'Querying\u2026'
+    'offline': 'Offline', 'unknown': 'Offline', 'error': 'Error', 'querying': 'Querying\u2026'
   };
   var UPDATE_STATUS_CLASSES = {
     'idle': 'sim-upd-idle', 'pending': 'sim-upd-pending',
     'downloading': 'sim-upd-busy', 'installing': 'sim-upd-busy',
     'restarting': 'sim-upd-busy', 'failed': 'sim-upd-failed',
-    'unknown': 'sim-upd-offline', 'error': 'sim-upd-failed', 'querying': 'sim-upd-busy'
+    'offline': 'sim-upd-offline', 'unknown': 'sim-upd-offline',
+    'error': 'sim-upd-failed', 'querying': 'sim-upd-busy'
   };
-  /* Track current sim statuses for action button logic */
   var _simStatuses = [];
 
   function _getCheckedSimIds() {
@@ -3798,17 +3645,16 @@
     if (btnSel) btnSel.disabled = checked.length === 0;
   }
 
-  function renderSimUpdateStatusTable(results) {
+  function renderSimUpdateStatusTable(agents) {
     var tableEl = document.getElementById('updates-sim-status-table');
     if (!tableEl) return;
-    _simStatuses = results || [];
-    if (!results || results.length === 0) {
+    _simStatuses = agents || [];
+    if (!agents || agents.length === 0) {
       tableEl.innerHTML = '<p class="push-agents-none">No agent sims enrolled.</p>';
       tableEl.classList.remove('hidden');
       _updateActionButtons();
       return;
     }
-    var allChecked = false;
     var header = '<div class="sim-upd-header sim-upd-row">'
       + '<span class="sim-upd-col sim-upd-col-chk"><input type="checkbox" id="sim-upd-check-all" title="Select all" /></span>'
       + '<span class="sim-upd-col sim-upd-col-rig">Sim</span>'
@@ -3816,8 +3662,8 @@
       + '<span class="sim-upd-col sim-upd-col-status">Status</span>'
       + '<span class="sim-upd-col sim-upd-col-info">Info</span>'
       + '</div>';
-    var rows = results.map(function (r) {
-      var status = r.update_status || 'unknown';
+    var rows = agents.map(function (r) {
+      var status = r.update_status || (r.online ? 'idle' : 'offline');
       var statusLabel = UPDATE_STATUS_LABELS[status] || status;
       var statusCls = UPDATE_STATUS_CLASSES[status] || 'sim-upd-idle';
       var ver = r.current_version ? escapeHtml(r.current_version) : '\u2014';
@@ -3825,9 +3671,7 @@
         ver += ' <span class="sim-upd-target">&#x2192; ' + escapeHtml(r.target_version) + '</span>';
       }
       var info = '';
-      if (r.last_update_error) {
-        info = '<span class="sim-upd-err-text">' + escapeHtml(r.last_update_error) + '</span>';
-      }
+      if (r.last_update_error) info = '<span class="sim-upd-err-text">' + escapeHtml(r.last_update_error) + '</span>';
       var onlineDot = r.online
         ? '<span class="sim-upd-dot sim-upd-dot-online" title="Online"></span>'
         : '<span class="sim-upd-dot sim-upd-dot-offline" title="Offline"></span>';
@@ -3844,40 +3688,31 @@
     }).join('');
     tableEl.innerHTML = header + rows;
     tableEl.classList.remove('hidden');
-    /* Bind select-all */
     var checkAll = document.getElementById('sim-upd-check-all');
     if (checkAll) {
       checkAll.addEventListener('change', function () {
-        tableEl.querySelectorAll('.sim-upd-chk:not(:disabled)').forEach(function (cb) {
-          cb.checked = checkAll.checked;
-        });
+        tableEl.querySelectorAll('.sim-upd-chk:not(:disabled)').forEach(function (cb) { cb.checked = checkAll.checked; });
         _updateActionButtons();
       });
     }
-    tableEl.querySelectorAll('.sim-upd-chk').forEach(function (cb) {
-      cb.addEventListener('change', _updateActionButtons);
-    });
+    tableEl.querySelectorAll('.sim-upd-chk').forEach(function (cb) { cb.addEventListener('change', _updateActionButtons); });
     _updateActionButtons();
   }
 
-  function fetchSimUpdateStatuses(onDone) {
+  function fetchFleetStatus(onDone) {
     var btn = document.getElementById('updates-btn-refresh-sim-status');
-    var tableEl = document.getElementById('updates-sim-status-table');
     if (btn) { btn.disabled = true; btn.textContent = '\u21BB Refreshing\u2026'; }
-    pitboxFetch(API_BASE + '/agents/update-status')
+    pitboxFetch(API_BASE + '/update/fleet/status')
       .then(function (r) { return r.json(); })
       .then(function (data) {
         if (btn) { btn.disabled = false; btn.textContent = '\u21BB Refresh'; }
-        renderSimUpdateStatusTable((data && data.results) || []);
+        renderFleetSummary(data.summary || {});
+        renderSimUpdateStatusTable(data.agents || []);
         if (typeof onDone === 'function') onDone();
       })
       .catch(function (err) {
         if (btn) { btn.disabled = false; btn.textContent = '\u21BB Refresh'; }
-        showToast('Failed to fetch sim update status: ' + (err.message || 'error'), 'error');
-        if (tableEl) {
-          tableEl.innerHTML = '<p class="push-agents-err">Error: ' + escapeHtml(err.message || 'network error') + '</p>';
-          tableEl.classList.remove('hidden');
-        }
+        showToast('Fleet status failed: ' + (err.message || 'error'), 'error');
       });
   }
 
@@ -3888,41 +3723,34 @@
     if (!sel) return;
     if (btn) { btn.disabled = true; btn.textContent = 'Loading\u2026'; }
     if (hint) hint.textContent = '';
-    pitboxFetch(API_BASE + '/agents/releases')
+    pitboxFetch(API_BASE + '/update/releases')
       .then(function (r) { return r.json(); })
       .then(function (data) {
-        if (btn) { btn.disabled = false; btn.textContent = 'Refresh list'; }
+        if (btn) { btn.disabled = false; btn.textContent = 'Check Releases'; }
         var releases = (data && data.releases) || [];
         var prev = sel.value;
-        /* Rebuild options */
         while (sel.options.length > 0) sel.remove(0);
         var latestOpt = document.createElement('option');
         latestOpt.value = 'latest';
-        latestOpt.textContent = 'Latest (auto)';
+        latestOpt.textContent = 'Use Approved Release';
         sel.appendChild(latestOpt);
         releases.forEach(function (r) {
           var opt = document.createElement('option');
           opt.value = r.version;
           var label = 'v' + r.version;
-          if (r.published_at) {
-            var d = new Date(r.published_at);
-            label += '  (' + d.toLocaleDateString() + ')';
-          }
+          if (r.published_at) { label += '  (' + new Date(r.published_at).toLocaleDateString() + ')'; }
           if (!r.has_installer) label += '  \u26a0 no installer';
           opt.textContent = label;
           if (!r.has_installer) opt.style.color = 'var(--color-yellow, #fbbf24)';
           sel.appendChild(opt);
         });
-        /* Restore selection if still present */
         if (prev) {
-          for (var i = 0; i < sel.options.length; i++) {
-            if (sel.options[i].value === prev) { sel.selectedIndex = i; break; }
-          }
+          for (var i = 0; i < sel.options.length; i++) { if (sel.options[i].value === prev) { sel.selectedIndex = i; break; } }
         }
-        if (hint) hint.textContent = releases.length ? releases.length + ' releases loaded' : 'No releases found';
+        if (hint) hint.textContent = releases.length ? releases.length + ' releases' : 'No releases';
       })
-      .catch(function (err) {
-        if (btn) { btn.disabled = false; btn.textContent = 'Refresh list'; }
+      .catch(function () {
+        if (btn) { btn.disabled = false; btn.textContent = 'Check Releases'; }
         if (hint) hint.textContent = 'Could not load releases';
       });
   }
@@ -3938,43 +3766,130 @@
       var icon = r.success ? '\u2713' : '\u2717';
       var cls = r.success ? 'push-agents-ok' : 'push-agents-err';
       var rawMsg = r.message || (r.success ? 'OK' : 'Failed');
-      var extra = '';
-      if (r.update_status === 'pending') extra = ' (pending \u2014 AC is running)';
-      else if (r.update_status === 'installing') extra = ' (installer launched)';
-      else if (r.update_available && r.latest_version) extra = ' (' + escapeHtml(r.current_version || '?') + ' \u2192 ' + escapeHtml(r.latest_version) + ')';
       return '<div class="push-agents-row ' + cls + '"><span class="push-agents-icon">' + icon + '</span>'
         + '<span class="push-agents-id">' + escapeHtml(r.agent_id) + '</span>'
-        + '<span class="push-agents-msg">' + escapeHtml(rawMsg) + escapeHtml(extra) + '</span></div>';
+        + '<span class="push-agents-msg">' + escapeHtml(rawMsg) + '</span></div>';
     }).join('');
     resultEl.innerHTML = rows;
     resultEl.classList.remove('hidden');
   }
 
-  function bindAgentUpdatesSection() {
-    var refreshBtn  = document.getElementById('updates-btn-refresh-sim-status');
-    var loadRelBtn  = document.getElementById('updates-btn-load-releases');
-    var selBtn      = document.getElementById('updates-btn-update-selected');
-    var idleBtn     = document.getElementById('updates-btn-update-idle');
-    var cancelBtn   = document.getElementById('updates-btn-cancel-pending');
-    var versionSel  = document.getElementById('updates-agent-version-select');
-    var resultEl    = document.getElementById('updates-agent-result');
+  function loadUpdatesPage() {
+    pitboxFetch(API_BASE + '/update/controller/status?refresh=true')
+      .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('Status ' + r.status)); })
+      .then(function (data) {
+        updateStatusData = data;
+        renderControllerCard(data);
+      })
+      .catch(function (err) {
+        renderControllerCard({ error: 'Unable to check: ' + (err.message || 'network error'), current_version: updateStatusData ? updateStatusData.current_version : null });
+      });
+    if (updateStatusData) renderControllerCard(updateStatusData);
 
-    if (refreshBtn && !refreshBtn.dataset.agentUpdatesBound) {
-      refreshBtn.dataset.agentUpdatesBound = '1';
+    fetchFleetStatus();
+    loadAgentReleases();
+    bindControllerApply();
+    bindControllerCheck();
+    bindFleetActions();
+    bindDevPullButton();
+    bindPushLaunchDisplayButton();
+    bindPushCloseDisplayButton();
+    bindSimDebugButton();
+
+    pitboxFetch(API_BASE + '/config')
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (data) {
+        var inp = document.getElementById('updates-dev-repo-path');
+        if (inp && data && data.config && data.config.dev_repo_path) inp.value = data.config.dev_repo_path;
+      })
+      .catch(function () {});
+
+    if (_fleetPollTimer) clearInterval(_fleetPollTimer);
+    _fleetPollTimer = setInterval(function () { fetchFleetStatus(); }, 15000);
+  }
+
+  function bindControllerCheck() {
+    var btn = document.getElementById('updates-btn-check');
+    if (!btn || btn.dataset.bound === '1') return;
+    btn.dataset.bound = '1';
+    btn.addEventListener('click', function () {
+      if (btn.disabled) return;
+      btn.disabled = true; btn.textContent = 'Checking\u2026';
+      pitboxFetch(API_BASE + '/update/controller/check', { method: 'POST' })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          btn.disabled = false; btn.textContent = 'Check for Updates';
+          updateStatusData = data;
+          renderControllerCard(data);
+          var show = data && data.update_available === true;
+          var badge = document.getElementById('update-available-badge');
+          var pill = document.getElementById('cc-pill-update');
+          if (badge) badge.classList.toggle('hidden', !show);
+          if (pill) pill.classList.toggle('hidden', !show);
+          showToast(show ? 'Update available!' : 'Up to date.', show ? 'info' : 'success');
+        })
+        .catch(function (err) {
+          btn.disabled = false; btn.textContent = 'Check for Updates';
+          showToast('Check failed: ' + (err.message || 'error'), 'error');
+        });
+    });
+  }
+
+  function bindControllerApply() {
+    var btn = document.getElementById('updates-btn-apply');
+    var progressWrap = document.getElementById('updates-progress');
+    var progressMsg = document.getElementById('updates-progress-message');
+    var progressPct = document.getElementById('updates-progress-percent');
+    if (!btn || btn.dataset.bound === '1') return;
+    btn.dataset.bound = '1';
+    btn.addEventListener('click', function () {
+      if (btn.disabled) return;
+      btn.disabled = true;
+      if (progressWrap) progressWrap.classList.remove('hidden');
+      if (progressMsg) progressMsg.textContent = 'Starting update\u2026';
+      if (progressPct) progressPct.textContent = '';
+      pitboxFetch(API_BASE + '/update/controller/apply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}'
+      })
+        .then(function (r) { return r.json().then(function (d) { if (!r.ok) throw new Error(d.detail || d.message || r.statusText); return d; }); })
+        .then(function () {
+          showToast('Downloading update\u2026', 'success');
+          btn.textContent = 'Updating\u2026';
+          startUpdateProgressPolling(progressWrap, progressMsg, progressPct, btn);
+        })
+        .catch(function (err) {
+          showToast('Update failed: ' + (err.message || err), 'error');
+          btn.disabled = false;
+          btn.textContent = 'Update Controller';
+          if (progressWrap) progressWrap.classList.add('hidden');
+        });
+    });
+  }
+
+  function bindFleetActions() {
+    var refreshBtn = document.getElementById('updates-btn-refresh-sim-status');
+    var loadRelBtn = document.getElementById('updates-btn-load-releases');
+    var selBtn     = document.getElementById('updates-btn-update-selected');
+    var idleBtn    = document.getElementById('updates-btn-update-idle');
+    var cancelBtn  = document.getElementById('updates-btn-cancel-pending');
+    var retryBtn   = document.getElementById('updates-btn-retry-failed');
+    var versionSel = document.getElementById('updates-agent-version-select');
+    var resultEl   = document.getElementById('updates-agent-result');
+
+    if (refreshBtn && !refreshBtn.dataset.bound) {
+      refreshBtn.dataset.bound = '1';
       refreshBtn.addEventListener('click', function () {
-        if (refreshBtn.disabled) return;
-        ensureOperatorOrRedirect().then(function (ok) { if (ok) fetchSimUpdateStatuses(); });
+        ensureOperatorOrRedirect().then(function (ok) { if (ok) fetchFleetStatus(); });
       });
     }
-    if (loadRelBtn && !loadRelBtn.dataset.agentUpdatesBound) {
-      loadRelBtn.dataset.agentUpdatesBound = '1';
-      loadRelBtn.addEventListener('click', function () {
-        if (loadRelBtn.disabled) return;
-        loadAgentReleases();
-      });
+    if (loadRelBtn && !loadRelBtn.dataset.bound) {
+      loadRelBtn.dataset.bound = '1';
+      loadRelBtn.addEventListener('click', function () { loadAgentReleases(); });
     }
 
-    function _doUpdate(agentIds) {
+    function _doFleetUpdate(agentIds) {
       var ver = versionSel ? versionSel.value : 'latest';
       var payload = {};
       if (ver && ver !== 'latest') payload.target_version = ver;
@@ -3982,7 +3897,7 @@
       if (resultEl) { resultEl.classList.add('hidden'); resultEl.innerHTML = ''; }
       ensureOperatorOrRedirect().then(function (ok) {
         if (!ok) return;
-        pitboxFetch(API_BASE + '/agents/push-update', {
+        pitboxFetch(API_BASE + '/update/fleet/start', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
@@ -3990,37 +3905,34 @@
         .then(function (r) { return r.json(); })
         .then(function (data) {
           _showAgentActionResult((data && data.results) || [], resultEl);
-          setTimeout(function () { fetchSimUpdateStatuses(); }, 2000);
+          setTimeout(function () { fetchFleetStatus(); }, 2000);
         })
         .catch(function (err) {
-          showToast('Update failed: ' + (err.message || 'network error'), 'error');
+          showToast('Fleet update failed: ' + (err.message || 'network error'), 'error');
         });
       });
     }
 
-    if (selBtn && !selBtn.dataset.agentUpdatesBound) {
-      selBtn.dataset.agentUpdatesBound = '1';
+    if (selBtn && !selBtn.dataset.bound) {
+      selBtn.dataset.bound = '1';
       selBtn.addEventListener('click', function () {
-        if (selBtn.disabled) return;
         var ids = _getCheckedSimIds();
         if (ids.length === 0) { showToast('Select at least one sim first', 'warn'); return; }
-        _doUpdate(ids);
+        _doFleetUpdate(ids);
       });
     }
-    if (idleBtn && !idleBtn.dataset.agentUpdatesBound) {
-      idleBtn.dataset.agentUpdatesBound = '1';
+    if (idleBtn && !idleBtn.dataset.bound) {
+      idleBtn.dataset.bound = '1';
       idleBtn.addEventListener('click', function () {
-        if (idleBtn.disabled) return;
         var ver = (versionSel && versionSel.value !== 'latest') ? versionSel.value : null;
         var label = ver ? 'v' + ver : 'the latest version';
         if (!confirm('Send update (' + label + ') to all online idle sims?')) return;
-        _doUpdate(null);
+        _doFleetUpdate(null);
       });
     }
-    if (cancelBtn && !cancelBtn.dataset.agentUpdatesBound) {
-      cancelBtn.dataset.agentUpdatesBound = '1';
+    if (cancelBtn && !cancelBtn.dataset.bound) {
+      cancelBtn.dataset.bound = '1';
       cancelBtn.addEventListener('click', function () {
-        if (cancelBtn.disabled) return;
         var ids = _getCheckedSimIds();
         var body = ids.length > 0 ? { agent_ids: ids } : {};
         var label = ids.length > 0 ? ids.join(', ') : 'all sims';
@@ -4028,27 +3940,68 @@
         if (resultEl) { resultEl.classList.add('hidden'); resultEl.innerHTML = ''; }
         ensureOperatorOrRedirect().then(function (ok) {
           if (!ok) return;
-          pitboxFetch(API_BASE + '/agents/cancel-updates', {
+          pitboxFetch(API_BASE + '/update/fleet/cancel', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body)
           })
           .then(function (r) { return r.json(); })
           .then(function (data) {
-            _showAgentActionResult((data && data.results) || [], resultEl);
-            showToast('Cancel sent to ' + (data && data.results ? data.results.length : 0) + ' sim(s)', 'success');
-            setTimeout(function () { fetchSimUpdateStatuses(); }, 1500);
+            showToast('Cancel sent', 'success');
+            setTimeout(function () { fetchFleetStatus(); }, 1500);
           })
-          .catch(function (err) {
-            showToast('Cancel failed: ' + (err.message || 'network error'), 'error');
-          });
+          .catch(function (err) { showToast('Cancel failed: ' + (err.message || 'error'), 'error'); });
         });
       });
     }
+    if (retryBtn && !retryBtn.dataset.bound) {
+      retryBtn.dataset.bound = '1';
+      retryBtn.addEventListener('click', function () {
+        ensureOperatorOrRedirect().then(function (ok) {
+          if (!ok) return;
+          pitboxFetch(API_BASE + '/update/fleet/retry', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+              showToast('Retrying ' + ((data && data.retried) || 0) + ' agent(s)', 'info');
+              setTimeout(function () { fetchFleetStatus(); }, 2000);
+            })
+            .catch(function (err) { showToast('Retry failed: ' + (err.message || 'error'), 'error'); });
+        });
+      });
+    }
+  }
 
-    /* Auto-load releases and status on first bind */
-    loadAgentReleases();
-    fetchSimUpdateStatuses();
+  function bindDevPullButton() {
+    var btn = document.getElementById('updates-btn-dev-pull');
+    if (!btn || btn.dataset.bound === '1') return;
+    btn.dataset.bound = '1';
+    btn.addEventListener('click', function () {
+      if (btn.disabled) return;
+      var pathInp = document.getElementById('updates-dev-repo-path');
+      var repoPath = pathInp ? pathInp.value.trim() : '';
+      if (!repoPath) {
+        if (pathInp) { pathInp.focus(); pathInp.classList.add('input-error'); }
+        showToast('Enter the repo path first', 'error');
+        return;
+      }
+      if (pathInp) pathInp.classList.remove('input-error');
+      btn.disabled = true;
+      btn.textContent = 'Pulling & rebuilding\u2026';
+      pitboxFetch(API_BASE + '/update/dev-pull', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dev_repo_path: repoPath })
+      })
+        .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+        .then(function (res) {
+          if (res.ok) { showToast('Update started -- PitBox will restart.', 'success'); btn.textContent = 'Restarting\u2026'; }
+          else { showToast('Dev pull failed: ' + (res.data.detail || 'unknown'), 'error'); btn.disabled = false; btn.textContent = 'Pull & rebuild'; }
+        })
+        .catch(function (err) {
+          showToast('Dev pull error: ' + (err.message || 'error'), 'error');
+          btn.disabled = false; btn.textContent = 'Pull & rebuild';
+        });
+    });
   }
 
   function bindPushLaunchDisplayButton() {
@@ -4199,101 +4152,40 @@
       });
     });
   }
-  function bindUpdatesApply() {
-    var btn = document.getElementById('updates-btn-apply');
-    var progressWrap = document.getElementById('updates-progress');
-    var progressMsg = document.getElementById('updates-progress-message');
-    var progressPct = document.getElementById('updates-progress-percent');
-    if (!btn || btn.dataset.updatesApplyBound === '1') return;
-    btn.dataset.updatesApplyBound = '1';
-    btn.addEventListener('click', function () {
-      if (btn.disabled) return;
-      var data = updateStatusData;
-      var hasZip = !!(data && data.controller_zip && (data.controller_zip.api_url || data.controller_zip.url));
-      var hasUnified = !!(data && data.unified_installer && (data.unified_installer.api_url || data.unified_installer.url));
-      if (!data || data.update_available !== true) return;
-      
-      var url;
-      var body;
-      var releaseUrl = data.html_url || '';
-
-      if (hasUnified) {
-        url = API_BASE + '/update/run-installer';
-        body = '{}';
-      } else if (hasZip) {
-        url = API_BASE + '/update/apply';
-        body = JSON.stringify({ target: 'controller' });
-      } else {
-        if (releaseUrl && typeof window.open === 'function') window.open(releaseUrl, '_blank', 'noopener,noreferrer');
-        if (typeof showToast === 'function') showToast('No installer asset in this release. Opening release page.', 'info');
-        return;
-      }
-
-      btn.disabled = true;
-      if (progressWrap) progressWrap.classList.remove('hidden');
-      if (progressMsg) progressMsg.textContent = 'Starting download…';
-      if (progressPct) progressPct.textContent = '';
-
-      pitboxFetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: body
-      })
-        .then(function (r) { return r.json().then(function (res) { if (!r.ok) throw new Error(res.detail || res.message || r.statusText); return res; }); })
-        .then(function () {
-          if (typeof showToast === 'function') showToast('Downloading update…', 'success');
-          btn.disabled = true;
-          btn.textContent = 'Updating…';
-          startUpdateProgressPolling(progressWrap, progressMsg, progressPct, btn);
-        })
-        .catch(function (err) {
-          if (typeof showToast === 'function') showToast('Update failed: ' + (err.message || err), 'error');
-          btn.disabled = false;
-          btn.textContent = 'Download update & restart';
-          if (progressWrap) progressWrap.classList.add('hidden');
-        });
-    });
-  }
   function startUpdateProgressPolling(progressWrap, progressMsg, progressPct, btn) {
     var pollMs = 1500;
     var maxMs = 600000;
     var start = Date.now();
     var wasDown = false;
-    var downSince = 0;
     function poll() {
       if (Date.now() - start > maxMs) {
         if (progressMsg) progressMsg.textContent = 'Update timed out after 10 minutes.';
-        if (btn) { btn.disabled = false; btn.textContent = 'Download update & restart'; }
+        if (btn) { btn.disabled = false; btn.textContent = 'Update Controller'; }
         if (progressWrap) progressWrap.classList.add('hidden');
         return;
       }
-      pitboxFetch(API_BASE + '/update/status')
+      pitboxFetch(API_BASE + '/update/controller/status')
         .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('Status ' + r.status)); })
         .then(function (data) {
           var state = data.state || 'idle';
           var message = data.message || '';
           var percent = data.percent != null ? data.percent : 0;
-
           if (wasDown) {
             wasDown = false;
-            downSince = 0;
-            if (progressMsg) progressMsg.textContent = 'PitBox restarted — reloading…';
-            if (progressPct) progressPct.textContent = '';
+            if (progressMsg) progressMsg.textContent = 'PitBox restarted -- reloading...';
             setTimeout(function () { window.location.reload(); }, 1200);
             return;
           }
-
           if (progressMsg) progressMsg.textContent = message || state;
           if (progressPct) progressPct.textContent = percent > 0 ? percent + '%' : '';
-
           if (state === 'done') {
-            if (progressMsg) progressMsg.textContent = 'Install complete — reloading…';
+            if (progressMsg) progressMsg.textContent = 'Install complete -- reloading...';
             setTimeout(function () { window.location.reload(); }, 1500);
             return;
           }
           if (state === 'error') {
-            if (typeof showToast === 'function') showToast('Update error: ' + (message || 'Unknown'), 'error');
-            if (btn) { btn.disabled = false; btn.textContent = 'Download update & restart'; }
+            showToast('Update error: ' + (message || 'Unknown'), 'error');
+            if (btn) { btn.disabled = false; btn.textContent = 'Update Controller'; }
             if (progressWrap) progressWrap.classList.add('hidden');
             return;
           }
@@ -4302,8 +4194,7 @@
         .catch(function () {
           if (!wasDown) {
             wasDown = true;
-            downSince = Date.now();
-            if (progressMsg) progressMsg.textContent = 'Installing… PitBox will restart shortly.';
+            if (progressMsg) progressMsg.textContent = 'Installing... PitBox will restart shortly.';
             if (progressPct) progressPct.textContent = '';
           }
           setTimeout(poll, pollMs);

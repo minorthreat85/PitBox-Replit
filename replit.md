@@ -1,4 +1,4 @@
-# PitBox Controller v1.5.1
+# PitBox Controller v1.5.9
 
 Professional LAN-based management system for Assetto Corsa racing lounges with up to 8 simulator PCs.
 
@@ -34,18 +34,42 @@ Config file at: `/home/runner/workspace/.config/PitBox/Controller/controller_con
 
 ## Project Structure
 
-- `controller/` — FastAPI backend (main.py, api_routes.py, config.py, etc.)
-- `controller/static/` — Pre-built web UI (index.html, app.js, etc.)
-- `agent/` — PitBox Agent (runs on each sim PC)
-- `pitbox_common/` — Shared utilities (ports, runtime_paths, version.py)
-- `installer/` — Inno Setup scripts (agent.iss, controller.iss, pitbox.iss)
-- `scripts/` — Build, deploy, publish scripts
-- `ui/` — UI source assets (branding)
-- `tools/` — Utilities and installer scripts
+- `controller/` -- FastAPI backend (main.py, api_routes.py, config.py, etc.)
+- `controller/release_service.py` -- Release discovery/caching (single authority for GitHub release data)
+- `controller/fleet_state.py` -- Persistent per-agent rollout state (JSON)
+- `controller/api_update_routes.py` -- Clean update routes (`/api/update/controller/*`, `/api/update/fleet/*`)
+- `controller/static/` -- Pre-built web UI (index.html, app.js, etc.)
+- `agent/` -- PitBox Agent (runs on each sim PC)
+- `pitbox_common/` -- Shared utilities (ports, runtime_paths, version.py)
+- `installer/` -- Inno Setup scripts (agent.iss, controller.iss, pitbox.iss)
+- `scripts/` -- Build, deploy, publish scripts
+- `ui/` -- UI source assets (branding)
+- `tools/` -- Utilities and installer scripts
+
+## Update System (v1.6.0+ refactor)
+
+### API Routes (new, clean)
+- `GET  /api/update/controller/status` -- Controller release + updater state
+- `POST /api/update/controller/check`  -- Force refresh from GitHub
+- `POST /api/update/controller/apply`  -- Start controller update
+- `GET  /api/update/fleet/status`      -- All sims update status + summary
+- `POST /api/update/fleet/start`       -- Begin update on selected/all sims
+- `POST /api/update/fleet/cancel`      -- Cancel pending updates
+- `POST /api/update/fleet/retry`       -- Retry failed updates
+- `GET  /api/update/releases`          -- List available releases
+
+### Legacy routes (kept for backward compat)
+- `/update/status`, `/update/apply`, `/update/run-installer` -- redirect to old updater.py code
+- `/agents/push-update`, `/agents/update-status`, `/agents/releases`, `/agents/cancel-updates`
+
+### Key modules
+- `controller/release_service.py` -- Single authority for release discovery; caches for 5 min
+- `controller/fleet_state.py` -- Persists per-agent rollout state to `C:\PitBox\data\fleet_rollout_state.json`
+- Agent autonomous update check disabled at startup (controller-driven updates only)
 
 ## Versioning
 
-- `version.txt` is the single source of truth (currently 1.5.1)
+- `version.txt` is the single source of truth (currently 1.5.9)
 - `pitbox_common/version.py` reads `version.txt` dynamically at import
 - `version.ini` is synced from `version.txt` for Inno Setup
 - `scripts/sync_version.py` syncs version.ini and VERSION from version.txt

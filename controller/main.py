@@ -40,6 +40,7 @@ try:
     from controller.operator_auth import EMPLOYEE_COOKIE
     from controller.api_booking_routes import router as booking_router
     from controller.booking_proxy import router as proxy_router
+    from controller.api_update_routes import router as update_router
     from controller.service.event_store import ensure_events_dir, append_event as event_store_append
     from controller.common.event_log import make_event, LogCategory, LogLevel
 except Exception as _e:
@@ -393,6 +394,7 @@ async def add_pitbox_build_header(request, call_next):
 app.include_router(api_router)
 app.include_router(booking_router)
 app.include_router(proxy_router)
+app.include_router(update_router, prefix="/api")
 if mumble_router is not None:
     app.include_router(mumble_router)
 

@@ -594,76 +594,97 @@
                 </div>
             </div>
             <div id="settings-panel-updates" class="settings-panel hidden" data-tab="updates">
-                <h3 class="sc-section-title">Updates</h3>
-                <div id="updates-status-area" class="settings-updates-main">
-                    <div class="updates-status-row">
-                        <span id="updates-pill" class="pill-up-to-date" aria-live="polite">—</span>
-                        <span id="updates-versions-line" class="updates-versions">—</span>
-                    </div>
-                    <div class="updates-actions">
-                        <button type="button" id="updates-btn-apply" class="btn-primary updates-apply-btn" disabled>Download update &amp; restart</button>
-                        <p id="updates-no-update-hint" class="settings-updates-hint hidden" aria-live="polite"></p>
-                        <div id="updates-progress" class="updates-progress hidden" role="status">
+                <div class="settings-updates-main">
+
+                    <div class="config-section" id="upd-controller-card">
+                        <h4 class="config-section-heading">Controller Update</h4>
+                        <div class="updates-status-row" style="display:flex;align-items:center;gap:12px;margin-bottom:8px;">
+                            <span id="updates-pill" class="pill-up-to-date" aria-live="polite">Checking&hellip;</span>
+                            <span id="updates-versions-line" class="updates-versions" style="font-size:.85rem;color:var(--text-muted,#888);">—</span>
+                        </div>
+                        <div id="updates-error-box" class="updates-error-box hidden" role="alert" style="margin-bottom:10px;">
+                            <p class="updates-error-box-title">Unable to check for updates</p>
+                            <p id="updates-error-body" class="updates-error-box-body"></p>
+                        </div>
+                        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                            <button type="button" id="updates-btn-apply" class="btn-primary" disabled>Update Controller</button>
+                            <button type="button" id="updates-btn-check" class="btn-secondary" style="padding:6px 14px;">Check for Updates</button>
+                        </div>
+                        <p id="updates-no-update-hint" class="settings-updates-hint hidden" aria-live="polite" style="margin-top:6px;"></p>
+                        <div id="updates-progress" class="updates-progress hidden" role="status" style="margin-top:8px;">
                             <p id="updates-progress-message"></p>
                             <p id="updates-progress-percent" class="settings-updates-muted"></p>
                         </div>
-                    </div>
-                    <div id="updates-dev-pull-area" class="updates-dev-pull-area">
-                        <div class="updates-dev-divider"><span>Developer</span></div>
-                        <div class="config-form-row updates-dev-repo-row">
-                            <label for="updates-dev-repo-path" class="config-label">Repo path</label>
-                            <input type="text" id="updates-dev-repo-path" class="config-input" placeholder="C:\Path\to\PitBox-Replit" aria-label="Path to PitBox source repo">
+                        <div id="updates-release-wrap" class="updates-release-wrap hidden" style="margin-top:10px;border-top:1px solid var(--border-color,#2a2b2f);padding-top:10px;">
+                            <p class="updates-release-meta" style="font-size:.8rem;"><span id="updates-release-link" class="updates-release-name"></span> &middot; <span id="updates-published">—</span></p>
+                            <div id="updates-notes-wrap" class="updates-notes-wrap hidden">
+                                <details style="margin-top:4px;">
+                                    <summary style="font-size:.75rem;cursor:pointer;color:var(--text-muted,#888);">Release notes</summary>
+                                    <pre id="updates-notes" class="updates-notes" style="font-size:.75rem;max-height:200px;overflow:auto;margin-top:4px;"></pre>
+                                </details>
+                            </div>
                         </div>
-                        <button type="button" id="updates-btn-dev-pull" class="btn-secondary updates-dev-pull-btn">Pull &amp; rebuild</button>
-                        <p class="settings-updates-hint">Pulls latest code from GitHub, builds, and restarts PitBox &mdash; same as running <code>update.ps1</code>.</p>
+                        <p class="settings-updates-meta" style="margin-top:8px;font-size:.75rem;color:var(--text-muted,#666);"><span class="settings-updates-label">Last checked:</span> <span id="updates-last-checked">—</span></p>
                     </div>
-                    <div class="updates-push-agents-area updates-agent-updates-area">
-                        <div class="updates-dev-divider"><span>Agent Updates</span></div>
-                        <div class="updates-version-selector-row">
-                            <label for="updates-agent-version-select" class="updates-version-label">Target version:</label>
-                            <select id="updates-agent-version-select" class="updates-version-select">
-                                <option value="latest">Latest (auto)</option>
-                            </select>
-                            <button type="button" id="updates-btn-load-releases" class="btn-xs btn-secondary-xs" title="Refresh release list from GitHub">Refresh list</button>
-                            <span id="updates-releases-hint" class="updates-releases-hint"></span>
+
+                    <div class="config-section" id="upd-fleet-card">
+                        <h4 class="config-section-heading">Fleet Update</h4>
+                        <div id="fleet-summary-strip" style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:10px;font-size:.8rem;">
+                            <span>Total: <strong id="fleet-total">—</strong></span>
+                            <span>Online: <strong id="fleet-online">—</strong></span>
+                            <span style="color:var(--color-green,#22c55e);">Up to date: <strong id="fleet-uptodate">—</strong></span>
+                            <span style="color:var(--color-yellow,#fbbf24);">Outdated: <strong id="fleet-outdated">—</strong></span>
+                            <span style="color:var(--color-blue,#60a5fa);">Pending: <strong id="fleet-pending">—</strong></span>
+                            <span style="color:var(--color-red,#ef4444);">Failed: <strong id="fleet-failed">—</strong></span>
                         </div>
                         <div id="updates-sim-status-table" class="updates-sim-status-table hidden"></div>
-                        <div class="updates-agent-action-row">
+                        <div class="updates-agent-action-row" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
                             <button type="button" id="updates-btn-update-selected" class="btn-primary" disabled>Update Selected</button>
                             <button type="button" id="updates-btn-update-idle" class="btn-secondary">Update All Idle</button>
                             <button type="button" id="updates-btn-cancel-pending" class="btn-warn-outline">Cancel Pending</button>
-                            <button type="button" id="updates-btn-refresh-sim-status" class="btn-secondary-xs" title="Refresh sim status">&#8635; Refresh</button>
+                            <button type="button" id="updates-btn-retry-failed" class="btn-secondary">Retry Failed</button>
+                            <button type="button" id="updates-btn-refresh-sim-status" class="btn-secondary-xs" title="Refresh fleet status">&#8635; Refresh</button>
                         </div>
-                        <div id="updates-agent-result" class="updates-push-agents-result hidden"></div>
-                    </div>
-                    <div class="updates-push-agents-area">
-                        <div class="updates-dev-divider"><span>Sim Displays</span></div>
-                        <p class="settings-updates-hint">Open the PitBox sim display in fullscreen kiosk mode on all online sim PCs (Chrome or Edge required on each sim).</p>
-                        <button type="button" id="updates-btn-push-launch-display" class="btn-secondary">Launch displays on all sims</button>
-                        <button type="button" id="updates-btn-push-close-display" class="btn-secondary" style="margin-top:6px;">Close displays on all sims</button>
-                        <div id="updates-push-launch-display-result" class="updates-push-agents-result hidden"></div>
-                        <div id="updates-push-close-display-result" class="updates-push-agents-result hidden"></div>
-                        <div class="updates-dev-divider" style="margin-top:16px;"><span>Sim Diagnostics</span></div>
-                        <p class="settings-updates-hint">Query each sim for updater, browser, pairing, and config status.</p>
-                        <button type="button" id="updates-btn-sim-debug" class="btn-secondary">Run Sim Diagnostics</button>
-                        <div id="updates-sim-debug-result" class="updates-push-agents-result hidden"></div>
-                    </div>
-                    <div class="updates-check-info">
-                        <p class="settings-updates-meta"><span class="settings-updates-label">Last checked:</span> <span id="updates-last-checked">—</span></p>
-                        <p id="updates-last-success-row" class="settings-updates-meta hidden"><span class="settings-updates-label">Last successful check:</span> <span id="updates-last-success">—</span></p>
-                    </div>
-                    <div id="updates-error-box" class="updates-error-box hidden" role="alert">
-                        <p class="updates-error-box-title">Unable to check for updates</p>
-                        <p id="updates-error-body" class="updates-error-box-body"></p>
-                        <p class="updates-error-box-footer">Last checked: <span id="updates-error-footer-time">—</span></p>
-                    </div>
-                    <div id="updates-release-wrap" class="updates-release-wrap hidden">
-                        <p class="updates-release-meta"><span id="updates-release-link" class="updates-release-name"></span> · <span id="updates-published">—</span></p>
-                        <div id="updates-notes-wrap" class="updates-notes-wrap hidden">
-                            <h4 class="updates-notes-title">Release notes</h4>
-                            <pre id="updates-notes" class="updates-notes"></pre>
+                        <div id="updates-agent-result" class="updates-push-agents-result hidden" style="margin-top:8px;"></div>
+                        <div class="updates-version-selector-row" style="margin-top:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                            <label for="updates-agent-version-select" class="updates-version-label" style="font-size:.8rem;">Target version:</label>
+                            <select id="updates-agent-version-select" class="updates-version-select" style="font-size:.8rem;">
+                                <option value="latest">Use Approved Release</option>
+                            </select>
+                            <button type="button" id="updates-btn-load-releases" class="btn-xs btn-secondary-xs" title="Refresh release list from GitHub">Check Releases</button>
+                            <span id="updates-releases-hint" class="updates-releases-hint" style="font-size:.75rem;color:var(--text-muted,#888);"></span>
                         </div>
                     </div>
+
+                    <details class="config-section" id="upd-advanced-card" style="border:1px solid var(--border-color,#2a2b2f);border-radius:6px;">
+                        <summary style="font-size:.85rem;font-weight:600;color:var(--text-muted,#888);cursor:pointer;padding:10px 14px;list-style:none;user-select:none;">Advanced</summary>
+                        <div style="padding:12px 14px 14px;display:flex;flex-direction:column;gap:14px;">
+                            <div>
+                                <h5 style="font-size:.8rem;font-weight:600;margin:0 0 6px;">Developer</h5>
+                                <div class="config-form-row updates-dev-repo-row">
+                                    <label for="updates-dev-repo-path" class="config-label">Repo path</label>
+                                    <input type="text" id="updates-dev-repo-path" class="config-input" placeholder="C:\Path\to\PitBox-Replit" aria-label="Path to PitBox source repo">
+                                </div>
+                                <button type="button" id="updates-btn-dev-pull" class="btn-secondary updates-dev-pull-btn" style="margin-top:6px;">Pull &amp; rebuild</button>
+                                <p class="settings-updates-hint" style="margin-top:4px;">Same as running <code>update.ps1</code> from the command line.</p>
+                            </div>
+                            <div>
+                                <h5 style="font-size:.8rem;font-weight:600;margin:0 0 6px;">Sim Displays</h5>
+                                <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                                    <button type="button" id="updates-btn-push-launch-display" class="btn-secondary">Launch displays on all sims</button>
+                                    <button type="button" id="updates-btn-push-close-display" class="btn-secondary">Close displays on all sims</button>
+                                </div>
+                                <div id="updates-push-launch-display-result" class="updates-push-agents-result hidden" style="margin-top:6px;"></div>
+                                <div id="updates-push-close-display-result" class="updates-push-agents-result hidden" style="margin-top:6px;"></div>
+                            </div>
+                            <div>
+                                <h5 style="font-size:.8rem;font-weight:600;margin:0 0 6px;">Sim Diagnostics</h5>
+                                <button type="button" id="updates-btn-sim-debug" class="btn-secondary">Run Sim Diagnostics</button>
+                                <div id="updates-sim-debug-result" class="updates-push-agents-result hidden" style="margin-top:6px;"></div>
+                            </div>
+                        </div>
+                    </details>
+
                 </div>
             </div>
         </div>

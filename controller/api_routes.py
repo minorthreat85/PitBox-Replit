@@ -2193,12 +2193,7 @@ async def get_version():
 
 @router.get("/update/status")
 async def get_update_status_route(refresh: bool = False, _: None = Depends(require_operator_if_password_configured)):
-    """
-    Read C:\\PitBox\\updates\\status.json from external updater.
-    If missing or state is idle: return idle + release info (current_version, update_available, etc.).
-    If updater is running: return state, message, percent. Never cached.
-    Use ?refresh=true to bypass cache and fetch latest release from GitHub.
-    """
+    """LEGACY: prefer /api/update/controller/status. Kept for backward compatibility."""
     if refresh:
         clear_update_cache()
     updater = get_updater_status()
@@ -2219,10 +2214,7 @@ class UpdateApplyBody(BaseModel):
 
 @router.post("/update/apply")
 async def post_update_apply(request: Request, _: None = Depends(require_operator)):
-    """
-    Spawn external updater (pitbox_updater.exe) with latest release ZIP URL. Return immediately.
-    Accepts no body, empty JSON {}, or {"target": "controller"}. Default: apply controller update.
-    """
+    """LEGACY: prefer /api/update/controller/apply. Kept for backward compatibility."""
     target = "controller"
     try:
         body_bytes = await request.body()
@@ -2242,10 +2234,7 @@ async def post_update_apply(request: Request, _: None = Depends(require_operator
 
 @router.post("/update/run-installer")
 async def post_update_run_installer(_: None = Depends(require_operator)):
-    """
-    Run the unified installer update (update_pitbox.ps1 -Force). This is the preferred
-    update method when PitBoxInstaller_*.exe is present in the release.
-    """
+    """LEGACY: prefer /api/update/controller/apply. Kept for backward compatibility."""
     ok, msg = run_unified_installer_update()
     if not ok:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg)

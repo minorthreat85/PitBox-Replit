@@ -1,5 +1,8 @@
 """
-PitBox Controller updater: GitHub Releases API, semver comparison, external updater spawn.
+PitBox Controller updater: installer execution and install state management.
+
+Release discovery/caching is now in controller/release_service.py.
+This module handles: download+install threads, external updater spawn, dev-pull.
 Controller never updates itself; POST /api/update/apply spawns pitbox_updater.exe (detached).
 """
 import hashlib
