@@ -596,69 +596,83 @@
             <div id="settings-panel-updates" class="settings-panel hidden" data-tab="updates">
                 <div class="settings-updates-main">
 
-                    <div class="config-section" id="upd-controller-card">
-                        <h4 class="config-section-heading">Controller Update</h4>
-                        <div class="updates-status-row" style="display:flex;align-items:center;gap:12px;margin-bottom:8px;">
+                    <div class="config-section" id="upd-main-card">
+                        <div class="updates-status-row" style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
                             <span id="updates-pill" class="pill-up-to-date" aria-live="polite">Checking&hellip;</span>
-                            <span id="updates-versions-line" class="updates-versions" style="font-size:.85rem;color:var(--text-muted,#888);">—</span>
+                            <span id="updates-overall-status" style="font-size:.85rem;color:var(--text-muted,#888);">--</span>
                         </div>
                         <div id="updates-error-box" class="updates-error-box hidden" role="alert" style="margin-bottom:10px;">
                             <p class="updates-error-box-title">Unable to check for updates</p>
                             <p id="updates-error-body" class="updates-error-box-body"></p>
                         </div>
-                        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-                            <button type="button" id="updates-btn-apply" class="btn-primary" disabled>Update Controller</button>
-                            <button type="button" id="updates-btn-check" class="btn-secondary" style="padding:6px 14px;">Check for Updates</button>
+                        <div id="updates-version-info" style="display:flex;gap:24px;flex-wrap:wrap;margin-bottom:14px;font-size:.85rem;">
+                            <span>Installed: <strong id="upd-installed-ver">--</strong></span>
+                            <span>Latest: <strong id="upd-latest-ver">--</strong></span>
                         </div>
-                        <p id="updates-no-update-hint" class="settings-updates-hint hidden" aria-live="polite" style="margin-top:6px;"></p>
-                        <div id="updates-progress" class="updates-progress hidden" role="status" style="margin-top:8px;">
+                        <button type="button" id="updates-btn-run" class="btn-primary" style="padding:10px 28px;font-size:.95rem;">Update PitBox</button>
+                        <div id="updates-progress" class="updates-progress hidden" role="status" style="margin-top:10px;">
                             <p id="updates-progress-message"></p>
                             <p id="updates-progress-percent" class="settings-updates-muted"></p>
                         </div>
-                        <div id="updates-release-wrap" class="updates-release-wrap hidden" style="margin-top:10px;border-top:1px solid var(--border-color,#2a2b2f);padding-top:10px;">
-                            <p class="updates-release-meta" style="font-size:.8rem;"><span id="updates-release-link" class="updates-release-name"></span> &middot; <span id="updates-published">—</span></p>
-                            <div id="updates-notes-wrap" class="updates-notes-wrap hidden">
-                                <details style="margin-top:4px;">
-                                    <summary style="font-size:.75rem;cursor:pointer;color:var(--text-muted,#888);">Release notes</summary>
-                                    <pre id="updates-notes" class="updates-notes" style="font-size:.75rem;max-height:200px;overflow:auto;margin-top:4px;"></pre>
-                                </details>
-                            </div>
+
+                        <div id="upd-rollout-summary" style="margin-top:14px;font-size:.8rem;color:var(--text-muted,#aaa);">
+                            <div id="upd-rollout-controller" style="margin-bottom:2px;"></div>
+                            <div id="upd-rollout-sims"></div>
+                            <div id="upd-rollout-pending" style="color:var(--color-yellow,#fbbf24);"></div>
+                            <div id="upd-rollout-failed" style="color:var(--color-red,#ef4444);"></div>
                         </div>
-                        <p class="settings-updates-meta" style="margin-top:8px;font-size:.75rem;color:var(--text-muted,#666);"><span class="settings-updates-label">Last checked:</span> <span id="updates-last-checked">—</span></p>
+
+                        <div id="upd-rollout-actions" class="hidden" style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">
+                            <button type="button" id="updates-btn-retry-failed" class="btn-secondary" style="font-size:.8rem;padding:4px 12px;">Retry Failed</button>
+                        </div>
+
+                        <div id="updates-release-wrap" class="updates-release-wrap hidden" style="margin-top:14px;border-top:1px solid var(--border-color,#2a2b2f);padding-top:10px;">
+                            <details style="margin-top:0;">
+                                <summary style="font-size:.8rem;cursor:pointer;color:var(--text-muted,#888);">Release notes</summary>
+                                <p class="updates-release-meta" style="font-size:.78rem;margin:4px 0 2px;"><span id="updates-release-link" class="updates-release-name"></span> &middot; <span id="updates-published">--</span></p>
+                                <pre id="updates-notes" class="updates-notes" style="font-size:.75rem;max-height:200px;overflow:auto;margin-top:4px;"></pre>
+                            </details>
+                        </div>
+
+                        <p class="settings-updates-meta" style="margin-top:10px;font-size:.75rem;color:var(--text-muted,#666);"><span class="settings-updates-label">Last checked:</span> <span id="updates-last-checked">--</span></p>
                     </div>
 
-                    <div class="config-section" id="upd-fleet-card">
-                        <h4 class="config-section-heading">Fleet Update</h4>
-                        <div id="fleet-summary-strip" style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:10px;font-size:.8rem;">
-                            <span>Total: <strong id="fleet-total">—</strong></span>
-                            <span>Online: <strong id="fleet-online">—</strong></span>
-                            <span style="color:var(--color-green,#22c55e);">Up to date: <strong id="fleet-uptodate">—</strong></span>
-                            <span style="color:var(--color-yellow,#fbbf24);">Outdated: <strong id="fleet-outdated">—</strong></span>
-                            <span style="color:var(--color-blue,#60a5fa);">Pending: <strong id="fleet-pending">—</strong></span>
-                            <span style="color:var(--color-red,#ef4444);">Failed: <strong id="fleet-failed">—</strong></span>
+                    <details class="config-section" id="upd-details-card" style="border:1px solid var(--border-color,#2a2b2f);border-radius:6px;">
+                        <summary style="font-size:.85rem;font-weight:600;color:var(--text-muted,#888);cursor:pointer;padding:10px 14px;list-style:none;user-select:none;">View Details</summary>
+                        <div style="padding:12px 14px 14px;">
+                            <div id="updates-sim-status-table" class="updates-sim-status-table"></div>
                         </div>
-                        <div id="updates-sim-status-table" class="updates-sim-status-table hidden"></div>
-                        <div class="updates-agent-action-row" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
-                            <button type="button" id="updates-btn-update-selected" class="btn-primary" disabled>Update Selected</button>
-                            <button type="button" id="updates-btn-update-idle" class="btn-secondary">Update All Idle</button>
-                            <button type="button" id="updates-btn-cancel-pending" class="btn-warn-outline">Cancel Pending</button>
-                            <button type="button" id="updates-btn-retry-failed" class="btn-secondary">Retry Failed</button>
-                            <button type="button" id="updates-btn-refresh-sim-status" class="btn-secondary-xs" title="Refresh fleet status">&#8635; Refresh</button>
-                        </div>
-                        <div id="updates-agent-result" class="updates-push-agents-result hidden" style="margin-top:8px;"></div>
-                        <div class="updates-version-selector-row" style="margin-top:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-                            <label for="updates-agent-version-select" class="updates-version-label" style="font-size:.8rem;">Target version:</label>
-                            <select id="updates-agent-version-select" class="updates-version-select" style="font-size:.8rem;">
-                                <option value="latest">Use Approved Release</option>
-                            </select>
-                            <button type="button" id="updates-btn-load-releases" class="btn-xs btn-secondary-xs" title="Refresh release list from GitHub">Check Releases</button>
-                            <span id="updates-releases-hint" class="updates-releases-hint" style="font-size:.75rem;color:var(--text-muted,#888);"></span>
-                        </div>
-                    </div>
+                    </details>
 
                     <details class="config-section" id="upd-advanced-card" style="border:1px solid var(--border-color,#2a2b2f);border-radius:6px;">
                         <summary style="font-size:.85rem;font-weight:600;color:var(--text-muted,#888);cursor:pointer;padding:10px 14px;list-style:none;user-select:none;">Advanced</summary>
                         <div style="padding:12px 14px 14px;display:flex;flex-direction:column;gap:14px;">
+                            <div>
+                                <h5 style="font-size:.8rem;font-weight:600;margin:0 0 6px;">Manual Fleet Control</h5>
+                                <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px;">
+                                    <button type="button" id="updates-btn-update-selected" class="btn-primary" disabled>Update Selected</button>
+                                    <button type="button" id="updates-btn-update-idle" class="btn-secondary">Update All Idle</button>
+                                    <button type="button" id="updates-btn-cancel-pending" class="btn-warn-outline">Cancel Pending</button>
+                                    <button type="button" id="updates-btn-adv-retry-failed" class="btn-secondary">Retry Failed</button>
+                                    <button type="button" id="updates-btn-refresh-sim-status" class="btn-secondary-xs" title="Refresh fleet status">&#8635; Refresh</button>
+                                </div>
+                                <div id="updates-agent-result" class="updates-push-agents-result hidden" style="margin-top:6px;"></div>
+                                <div class="updates-version-selector-row" style="margin-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                                    <label for="updates-agent-version-select" class="updates-version-label" style="font-size:.8rem;">Target version:</label>
+                                    <select id="updates-agent-version-select" class="updates-version-select" style="font-size:.8rem;">
+                                        <option value="latest">Use Approved Release</option>
+                                    </select>
+                                    <button type="button" id="updates-btn-load-releases" class="btn-xs btn-secondary-xs" title="Refresh release list from GitHub">Check Releases</button>
+                                    <span id="updates-releases-hint" class="updates-releases-hint" style="font-size:.75rem;color:var(--text-muted,#888);"></span>
+                                </div>
+                            </div>
+                            <div>
+                                <h5 style="font-size:.8rem;font-weight:600;margin:0 0 6px;">Controller</h5>
+                                <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                                    <button type="button" id="updates-btn-check" class="btn-secondary" style="padding:6px 14px;">Check for Updates</button>
+                                    <button type="button" id="updates-btn-apply" class="btn-secondary" disabled>Update Controller Only</button>
+                                </div>
+                            </div>
                             <div>
                                 <h5 style="font-size:.8rem;font-weight:600;margin:0 0 6px;">Developer</h5>
                                 <div class="config-form-row updates-dev-repo-row">

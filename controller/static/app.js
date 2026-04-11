@@ -3543,88 +3543,128 @@
       .catch(function () { updateStatusData = null; });
   }
 
-  function renderControllerCard(data) {
+  function renderUnifiedSummary(data) {
     var s = data || {};
     var pillEl = document.getElementById('updates-pill');
-    var versionsLineEl = document.getElementById('updates-versions-line');
-    var btnApply = document.getElementById('updates-btn-apply');
-    var noUpdateHint = document.getElementById('updates-no-update-hint');
+    var overallEl = document.getElementById('updates-overall-status');
+    var installedEl = document.getElementById('upd-installed-ver');
+    var latestEl = document.getElementById('upd-latest-ver');
     var lastCheckedEl = document.getElementById('updates-last-checked');
     var errorBox = document.getElementById('updates-error-box');
     var errorBody = document.getElementById('updates-error-body');
+    var btnRun = document.getElementById('updates-btn-run');
+    var btnApply = document.getElementById('updates-btn-apply');
     var releaseWrap = document.getElementById('updates-release-wrap');
     var releaseLink = document.getElementById('updates-release-link');
     var publishedEl = document.getElementById('updates-published');
-    var notesWrap = document.getElementById('updates-notes-wrap');
     var notesEl = document.getElementById('updates-notes');
+    var rolloutCtrl = document.getElementById('upd-rollout-controller');
+    var rolloutSims = document.getElementById('upd-rollout-sims');
+    var rolloutPending = document.getElementById('upd-rollout-pending');
+    var rolloutFailed = document.getElementById('upd-rollout-failed');
+    var rolloutActions = document.getElementById('upd-rollout-actions');
 
-    var current = versionString(s.current_version);
-    var latest = versionString(s.latest_version);
-    var updateAvailable = s.update_available === true;
-    var hasZip = !!(s.controller_zip && (s.controller_zip.api_url || s.controller_zip.url));
-    var hasUnified = !!(s.unified_installer && (s.unified_installer.api_url || s.unified_installer.url));
-    var updaterState = s.state || 'idle';
-    var isUpdating = updaterState !== 'idle' && updaterState !== 'done' && updaterState !== 'error';
-    var canUpdate = updateAvailable && (hasZip || hasUnified) && !isUpdating;
+    var ctrl = s.controller || {};
+    var fleet = s.fleet || {};
+    var rel = s.release || {};
+    var overall = s.overall || 'up_to_date';
     var hasError = !!(s.error);
+
+    var current = versionString(ctrl.current_version);
+    var latest = versionString(ctrl.latest_version);
+
+    if (installedEl) installedEl.textContent = current;
+    if (latestEl) latestEl.textContent = latest;
 
     if (pillEl) {
       if (hasError) { pillEl.textContent = 'Error'; pillEl.className = 'pill-update-error'; }
-      else if (isUpdating) { pillEl.textContent = 'Updating'; pillEl.className = 'pill-update-busy'; }
-      else if (updateAvailable) { pillEl.textContent = 'Update available'; pillEl.className = 'pill-update-available'; }
+      else if (overall === 'updating') { pillEl.textContent = 'Updating'; pillEl.className = 'pill-update-busy'; }
+      else if (overall === 'available') { pillEl.textContent = 'Update available'; pillEl.className = 'pill-update-available'; }
+      else if (overall === 'has_failures') { pillEl.textContent = 'Failures'; pillEl.className = 'pill-update-error'; }
+      else if (overall === 'pending') { pillEl.textContent = 'Pending'; pillEl.className = 'pill-update-available'; }
       else { pillEl.textContent = 'Up to date'; pillEl.className = 'pill-up-to-date'; }
     }
-    if (versionsLineEl) {
-      versionsLineEl.textContent = updateAvailable
-        ? 'Installed: ' + current + '  \u2192  Latest: ' + latest
-        : (current !== '\u2014' ? 'Installed: ' + current : '\u2014');
+
+    var statusText = '';
+    if (overall === 'updating') statusText = 'Update in progress...';
+    else if (overall === 'available') statusText = 'A new version is available';
+    else if (overall === 'has_failures') statusText = 'Some sims failed to update';
+    else if (overall === 'pending') statusText = 'Sims queued to update when idle';
+    else if (hasError) statusText = '';
+    else statusText = 'Everything is up to date';
+    if (overallEl) overallEl.textContent = statusText;
+
+    var isUpdating = overall === 'updating';
+    if (btnRun) {
+      btnRun.disabled = isUpdating;
+      btnRun.textContent = isUpdating ? 'Updating...' : 'Update PitBox';
     }
+
     if (btnApply) {
-      btnApply.disabled = !canUpdate;
-      btnApply.textContent = isUpdating ? 'Updating\u2026' : 'Update Controller';
+      btnApply.disabled = !ctrl.update_available || isUpdating;
     }
-    if (noUpdateHint) {
-      if (isUpdating) { noUpdateHint.textContent = s.message || 'Update in progress\u2026'; noUpdateHint.classList.remove('hidden'); }
-      else if (updateAvailable && !hasZip && !hasUnified) { noUpdateHint.textContent = 'No installer asset in this release.'; noUpdateHint.classList.remove('hidden'); }
-      else if (!updateAvailable && !hasError) { noUpdateHint.textContent = ''; noUpdateHint.classList.add('hidden'); }
-      else { noUpdateHint.classList.add('hidden'); }
-    }
+
     if (lastCheckedEl) {
-      var ts = s.last_successful_check_at || s.checked_at;
-      lastCheckedEl.textContent = ts ? formatUnixSeconds(ts) : 'Never';
+      lastCheckedEl.textContent = s.last_checked_at ? formatUnixSeconds(s.last_checked_at) : 'Never';
     }
+
     if (errorBox && errorBody) {
       if (hasError) { errorBody.textContent = s.error; errorBox.classList.remove('hidden'); }
       else { errorBox.classList.add('hidden'); }
     }
-    var showRelease = !!(s.release_name);
+
+    if (rolloutCtrl) {
+      if (ctrl.update_available) rolloutCtrl.textContent = 'Controller: Update available (' + current + ' \u2192 ' + latest + ')';
+      else rolloutCtrl.textContent = 'Controller: ' + current;
+    }
+    if (rolloutSims) {
+      var parts = [];
+      if (fleet.total > 0) {
+        parts.push(fleet.updated + '/' + fleet.total + ' updated');
+        if (fleet.in_progress > 0) parts.push(fleet.in_progress + ' in progress');
+      }
+      rolloutSims.textContent = fleet.total > 0 ? ('Sims: ' + parts.join(', ')) : 'Sims: None enrolled';
+    }
+    if (rolloutPending) {
+      rolloutPending.textContent = fleet.pending_idle > 0 ? (fleet.pending_idle + ' sim(s) will update when idle') : '';
+    }
+    if (rolloutFailed) {
+      rolloutFailed.textContent = fleet.failed > 0 ? (fleet.failed + ' sim(s) failed') : '';
+    }
+    if (rolloutActions) {
+      rolloutActions.classList.toggle('hidden', fleet.failed === 0);
+    }
+
+    var showRelease = !!(rel.name);
     if (releaseWrap) releaseWrap.classList.toggle('hidden', !showRelease);
     if (showRelease) {
-      if (releaseLink) releaseLink.textContent = s.release_name || '';
-      if (publishedEl) publishedEl.textContent = formatIso(s.published_at);
-      if (notesWrap && notesEl) {
-        if (s.notes_markdown && s.notes_markdown.trim()) { notesEl.textContent = s.notes_markdown; notesWrap.classList.remove('hidden'); }
-        else { notesWrap.classList.add('hidden'); }
+      if (releaseLink) releaseLink.textContent = rel.name || '';
+      if (publishedEl) publishedEl.textContent = formatIso(rel.published_at);
+      if (notesEl) {
+        notesEl.textContent = (rel.notes_markdown && rel.notes_markdown.trim()) ? rel.notes_markdown : '';
       }
     }
-  }
 
-  function renderFleetSummary(summary) {
-    var ids = { 'fleet-total': 'total', 'fleet-online': 'online', 'fleet-uptodate': 'up_to_date',
-                'fleet-outdated': 'outdated', 'fleet-pending': 'pending', 'fleet-failed': 'failed' };
-    for (var elId in ids) {
-      var el = document.getElementById(elId);
-      if (el) el.textContent = (summary && summary[ids[elId]] != null) ? summary[ids[elId]] : '\u2014';
-    }
+    renderSimUpdateStatusTable(s.agents || []);
+
+    var badge = document.getElementById('update-available-badge');
+    var ccPill = document.getElementById('cc-pill-update');
+    var showBadge = overall === 'available';
+    if (badge) badge.classList.toggle('hidden', !showBadge);
+    if (ccPill) ccPill.classList.toggle('hidden', !showBadge);
   }
 
   var UPDATE_STATUS_LABELS = {
-    'idle': 'Up to date', 'pending': 'Pending', 'downloading': 'Downloading',
-    'installing': 'Installing', 'restarting': 'Restarting', 'failed': 'Failed',
-    'offline': 'Offline', 'unknown': 'Offline', 'error': 'Error', 'querying': 'Querying\u2026'
+    'idle': 'Up to date', 'updated': 'Updated', 'pending': 'Pending',
+    'pending_idle': 'Pending (busy)', 'staged': 'Staged', 'available': 'Available',
+    'downloading': 'Downloading', 'installing': 'Installing', 'restarting': 'Restarting',
+    'failed': 'Failed', 'offline': 'Offline', 'unknown': 'Offline', 'error': 'Error',
+    'querying': 'Querying\u2026'
   };
   var UPDATE_STATUS_CLASSES = {
-    'idle': 'sim-upd-idle', 'pending': 'sim-upd-pending',
+    'idle': 'sim-upd-idle', 'updated': 'sim-upd-idle',
+    'pending': 'sim-upd-pending', 'pending_idle': 'sim-upd-pending',
+    'staged': 'sim-upd-pending', 'available': 'sim-upd-pending',
     'downloading': 'sim-upd-busy', 'installing': 'sim-upd-busy',
     'restarting': 'sim-upd-busy', 'failed': 'sim-upd-failed',
     'offline': 'sim-upd-offline', 'unknown': 'sim-upd-offline',
@@ -3666,8 +3706,8 @@
       var status = r.update_status || (r.online ? 'idle' : 'offline');
       var statusLabel = UPDATE_STATUS_LABELS[status] || status;
       var statusCls = UPDATE_STATUS_CLASSES[status] || 'sim-upd-idle';
-      var ver = r.current_version ? escapeHtml(r.current_version) : '\u2014';
-      if (r.target_version && r.target_version !== r.current_version) {
+      var ver = (r.current_version || r.installed_version) ? escapeHtml(r.current_version || r.installed_version) : '\u2014';
+      if (r.target_version && r.target_version !== (r.current_version || r.installed_version)) {
         ver += ' <span class="sim-upd-target">&#x2192; ' + escapeHtml(r.target_version) + '</span>';
       }
       var info = '';
@@ -3699,21 +3739,24 @@
     _updateActionButtons();
   }
 
-  function fetchFleetStatus(onDone) {
-    var btn = document.getElementById('updates-btn-refresh-sim-status');
-    if (btn) { btn.disabled = true; btn.textContent = '\u21BB Refreshing\u2026'; }
-    pitboxFetch(API_BASE + '/update/fleet/status')
-      .then(function (r) { return r.json(); })
+  function fetchUnifiedSummary(onDone) {
+    pitboxFetch(API_BASE + '/update/summary')
+      .then(function (r) {
+        if (!r.ok) throw new Error('Status ' + r.status);
+        return r.json();
+      })
       .then(function (data) {
-        if (btn) { btn.disabled = false; btn.textContent = '\u21BB Refresh'; }
-        renderFleetSummary(data.summary || {});
-        renderSimUpdateStatusTable(data.agents || []);
+        updateStatusData = data;
+        renderUnifiedSummary(data);
         if (typeof onDone === 'function') onDone();
       })
       .catch(function (err) {
-        if (btn) { btn.disabled = false; btn.textContent = '\u21BB Refresh'; }
-        showToast('Fleet status failed: ' + (err.message || 'error'), 'error');
+        showToast('Status check failed: ' + (err.message || 'error'), 'error');
       });
+  }
+
+  function fetchFleetStatus(onDone) {
+    fetchUnifiedSummary(onDone);
   }
 
   function loadAgentReleases() {
@@ -3775,19 +3818,9 @@
   }
 
   function loadUpdatesPage() {
-    pitboxFetch(API_BASE + '/update/controller/status?refresh=true')
-      .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('Status ' + r.status)); })
-      .then(function (data) {
-        updateStatusData = data;
-        renderControllerCard(data);
-      })
-      .catch(function (err) {
-        renderControllerCard({ error: 'Unable to check: ' + (err.message || 'network error'), current_version: updateStatusData ? updateStatusData.current_version : null });
-      });
-    if (updateStatusData) renderControllerCard(updateStatusData);
+    fetchUnifiedSummary();
 
-    fetchFleetStatus();
-    loadAgentReleases();
+    bindUnifiedRunButton();
     bindControllerApply();
     bindControllerCheck();
     bindFleetActions();
@@ -3805,7 +3838,59 @@
       .catch(function () {});
 
     if (_fleetPollTimer) clearInterval(_fleetPollTimer);
-    _fleetPollTimer = setInterval(function () { fetchFleetStatus(); }, 15000);
+    _fleetPollTimer = setInterval(function () { fetchUnifiedSummary(); }, 15000);
+  }
+
+  function bindUnifiedRunButton() {
+    var btn = document.getElementById('updates-btn-run');
+    var progressWrap = document.getElementById('updates-progress');
+    var progressMsg = document.getElementById('updates-progress-message');
+    var progressPct = document.getElementById('updates-progress-percent');
+    if (!btn || btn.dataset.bound === '1') return;
+    btn.dataset.bound = '1';
+    btn.addEventListener('click', function () {
+      if (btn.disabled) return;
+      ensureOperatorOrRedirect().then(function (ok) {
+        if (!ok) return;
+        btn.disabled = true;
+        btn.textContent = 'Updating...';
+        if (progressWrap) progressWrap.classList.remove('hidden');
+        if (progressMsg) progressMsg.textContent = 'Checking for updates...';
+        if (progressPct) progressPct.textContent = '';
+        pitboxFetch(API_BASE + '/update/run', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: '{}'
+        })
+          .then(function (r) { return r.json().then(function (d) { if (!r.ok && !d.phase) throw new Error(d.detail || d.message || r.statusText); return d; }); })
+          .then(function (data) {
+            if (data.phase === 'error') {
+              showToast('Update failed: ' + (data.message || 'Unknown error'), 'error');
+              btn.disabled = false;
+              btn.textContent = 'Update PitBox';
+              if (progressWrap) progressWrap.classList.add('hidden');
+              fetchUnifiedSummary();
+              return;
+            }
+            if (data.controller_updated) {
+              if (progressMsg) progressMsg.textContent = 'Controller updated. PitBox will restart...';
+              startUpdateProgressPolling(progressWrap, progressMsg, progressPct, btn);
+            } else {
+              showToast('Update complete', 'success');
+              btn.disabled = false;
+              btn.textContent = 'Update PitBox';
+              if (progressWrap) progressWrap.classList.add('hidden');
+              fetchUnifiedSummary();
+            }
+          })
+          .catch(function (err) {
+            showToast('Update failed: ' + (err.message || err), 'error');
+            btn.disabled = false;
+            btn.textContent = 'Update PitBox';
+            if (progressWrap) progressWrap.classList.add('hidden');
+          });
+      });
+    });
   }
 
   function bindControllerCheck() {
@@ -3816,17 +3901,14 @@
       if (btn.disabled) return;
       btn.disabled = true; btn.textContent = 'Checking\u2026';
       pitboxFetch(API_BASE + '/update/controller/check', { method: 'POST' })
-        .then(function (r) { return r.json(); })
-        .then(function (data) {
+        .then(function (r) {
+          if (!r.ok) return r.json().then(function (d) { throw new Error(d.detail || d.message || 'HTTP ' + r.status); });
+          return r.json();
+        })
+        .then(function () {
           btn.disabled = false; btn.textContent = 'Check for Updates';
-          updateStatusData = data;
-          renderControllerCard(data);
-          var show = data && data.update_available === true;
-          var badge = document.getElementById('update-available-badge');
-          var pill = document.getElementById('cc-pill-update');
-          if (badge) badge.classList.toggle('hidden', !show);
-          if (pill) pill.classList.toggle('hidden', !show);
-          showToast(show ? 'Update available!' : 'Up to date.', show ? 'info' : 'success');
+          fetchUnifiedSummary();
+          showToast('Release check complete', 'success');
         })
         .catch(function (err) {
           btn.disabled = false; btn.textContent = 'Check for Updates';
@@ -3862,7 +3944,7 @@
         .catch(function (err) {
           showToast('Update failed: ' + (err.message || err), 'error');
           btn.disabled = false;
-          btn.textContent = 'Update Controller';
+          btn.textContent = 'Update Controller Only';
           if (progressWrap) progressWrap.classList.add('hidden');
         });
     });
@@ -3875,13 +3957,14 @@
     var idleBtn    = document.getElementById('updates-btn-update-idle');
     var cancelBtn  = document.getElementById('updates-btn-cancel-pending');
     var retryBtn   = document.getElementById('updates-btn-retry-failed');
+    var advRetryBtn = document.getElementById('updates-btn-adv-retry-failed');
     var versionSel = document.getElementById('updates-agent-version-select');
     var resultEl   = document.getElementById('updates-agent-result');
 
     if (refreshBtn && !refreshBtn.dataset.bound) {
       refreshBtn.dataset.bound = '1';
       refreshBtn.addEventListener('click', function () {
-        ensureOperatorOrRedirect().then(function (ok) { if (ok) fetchFleetStatus(); });
+        ensureOperatorOrRedirect().then(function (ok) { if (ok) fetchUnifiedSummary(); });
       });
     }
     if (loadRelBtn && !loadRelBtn.dataset.bound) {
@@ -3902,10 +3985,13 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         })
-        .then(function (r) { return r.json(); })
+        .then(function (r) {
+          if (!r.ok) return r.json().then(function (d) { throw new Error(d.detail || d.message || 'HTTP ' + r.status); });
+          return r.json();
+        })
         .then(function (data) {
           _showAgentActionResult((data && data.results) || [], resultEl);
-          setTimeout(function () { fetchFleetStatus(); }, 2000);
+          setTimeout(function () { fetchUnifiedSummary(); }, 2000);
         })
         .catch(function (err) {
           showToast('Fleet update failed: ' + (err.message || 'network error'), 'error');
@@ -3945,29 +4031,42 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body)
           })
-          .then(function (r) { return r.json(); })
-          .then(function (data) {
+          .then(function (r) {
+            if (!r.ok) return r.json().then(function (d) { throw new Error(d.detail || d.message || 'HTTP ' + r.status); });
+            return r.json();
+          })
+          .then(function () {
             showToast('Cancel sent', 'success');
-            setTimeout(function () { fetchFleetStatus(); }, 1500);
+            setTimeout(function () { fetchUnifiedSummary(); }, 1500);
           })
           .catch(function (err) { showToast('Cancel failed: ' + (err.message || 'error'), 'error'); });
         });
       });
     }
+
+    function _doRetry() {
+      ensureOperatorOrRedirect().then(function (ok) {
+        if (!ok) return;
+        pitboxFetch(API_BASE + '/update/fleet/retry', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+          .then(function (r) {
+            if (!r.ok) return r.json().then(function (d) { throw new Error(d.detail || d.message || 'HTTP ' + r.status); });
+            return r.json();
+          })
+          .then(function (data) {
+            showToast('Retrying ' + ((data && data.retried) || 0) + ' agent(s)', 'info');
+            setTimeout(function () { fetchUnifiedSummary(); }, 2000);
+          })
+          .catch(function (err) { showToast('Retry failed: ' + (err.message || 'error'), 'error'); });
+      });
+    }
+
     if (retryBtn && !retryBtn.dataset.bound) {
       retryBtn.dataset.bound = '1';
-      retryBtn.addEventListener('click', function () {
-        ensureOperatorOrRedirect().then(function (ok) {
-          if (!ok) return;
-          pitboxFetch(API_BASE + '/update/fleet/retry', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
-            .then(function (r) { return r.json(); })
-            .then(function (data) {
-              showToast('Retrying ' + ((data && data.retried) || 0) + ' agent(s)', 'info');
-              setTimeout(function () { fetchFleetStatus(); }, 2000);
-            })
-            .catch(function (err) { showToast('Retry failed: ' + (err.message || 'error'), 'error'); });
-        });
-      });
+      retryBtn.addEventListener('click', _doRetry);
+    }
+    if (advRetryBtn && !advRetryBtn.dataset.bound) {
+      advRetryBtn.dataset.bound = '1';
+      advRetryBtn.addEventListener('click', _doRetry);
     }
   }
 
@@ -4160,7 +4259,7 @@
     function poll() {
       if (Date.now() - start > maxMs) {
         if (progressMsg) progressMsg.textContent = 'Update timed out after 10 minutes.';
-        if (btn) { btn.disabled = false; btn.textContent = 'Update Controller'; }
+        if (btn) { btn.disabled = false; btn.textContent = 'Update PitBox'; }
         if (progressWrap) progressWrap.classList.add('hidden');
         return;
       }
@@ -4185,7 +4284,7 @@
           }
           if (state === 'error') {
             showToast('Update error: ' + (message || 'Unknown'), 'error');
-            if (btn) { btn.disabled = false; btn.textContent = 'Update Controller'; }
+            if (btn) { btn.disabled = false; btn.textContent = 'Update PitBox'; }
             if (progressWrap) progressWrap.classList.add('hidden');
             return;
           }

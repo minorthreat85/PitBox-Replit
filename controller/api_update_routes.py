@@ -1,7 +1,11 @@
 """
-PitBox Update API Routes — clean controller + fleet update management.
+PitBox Update API Routes — unified update orchestration + granular management.
 
-New route structure:
+Primary (unified):
+  POST /api/update/run                 - one-click: check, update controller, roll out fleet
+  GET  /api/update/summary             - unified system-wide update status
+
+Granular (still available):
   GET  /api/update/controller/status   - controller release + install state
   POST /api/update/controller/check    - force refresh from GitHub
   POST /api/update/controller/apply    - start controller update
@@ -308,3 +312,250 @@ async def get_releases(_: None = Depends(_get_require_operator_if_pw())):
     loop = asyncio.get_event_loop()
     releases = await loop.run_in_executor(None, list_releases)
     return {"ok": True, "releases": releases}
+
+
+_orchestrator_state = {
+    "phase": "idle",
+    "message": "",
+    "started_at": None,
+    "finished_at": None,
+    "error": None,
+    "controller_needed": False,
+    "controller_done": False,
+    "fleet_dispatched": False,
+    "fleet_results": [],
+}
+
+def _reset_orchestrator():
+    _orchestrator_state.update({
+        "phase": "idle",
+        "message": "",
+        "started_at": None,
+        "finished_at": None,
+        "error": None,
+        "controller_needed": False,
+        "controller_done": False,
+        "fleet_dispatched": False,
+        "fleet_results": [],
+    })
+
+
+@router.post("/run")
+async def unified_run(_: None = Depends(_get_require_operator())):
+    import time as _time
+
+    if _orchestrator_state["phase"] not in ("idle", "done", "error"):
+        raise HTTPException(status_code=409, detail="Update already in progress")
+
+    _reset_orchestrator()
+    _orchestrator_state["phase"] = "checking"
+    _orchestrator_state["message"] = "Checking for updates..."
+    _orchestrator_state["started_at"] = _time.time()
+
+    clear_cache()
+    loop = asyncio.get_event_loop()
+    release_status = await loop.run_in_executor(None, lambda: get_controller_update_status(force_refresh=True))
+
+    if release_status.get("error"):
+        _orchestrator_state["phase"] = "error"
+        _orchestrator_state["error"] = release_status["error"]
+        _orchestrator_state["message"] = release_status["error"]
+        _orchestrator_state["finished_at"] = _time.time()
+        return {"ok": False, "phase": "error", "message": release_status["error"]}
+
+    latest = release_status.get("latest_version")
+    controller_needs_update = release_status.get("update_available", False)
+    _orchestrator_state["controller_needed"] = controller_needs_update
+
+    if controller_needs_update:
+        _orchestrator_state["phase"] = "updating_controller"
+        _orchestrator_state["message"] = "Updating controller..."
+        from controller.updater import run_unified_installer_update, apply_controller_update
+        has_unified = bool(
+            release_status.get("unified_installer")
+            and (release_status["unified_installer"].get("url") or release_status["unified_installer"].get("api_url"))
+        )
+        has_zip = bool(
+            release_status.get("controller_zip")
+            and (release_status["controller_zip"].get("url") or release_status["controller_zip"].get("api_url"))
+        )
+        if has_unified:
+            ok, msg = run_unified_installer_update()
+        elif has_zip:
+            ok, msg = apply_controller_update()
+        else:
+            _orchestrator_state["phase"] = "error"
+            _orchestrator_state["error"] = "No installer asset in this release"
+            _orchestrator_state["message"] = "No installer asset in this release"
+            _orchestrator_state["finished_at"] = _time.time()
+            return {"ok": False, "phase": "error", "message": "No installer asset in this release"}
+
+        if not ok:
+            _orchestrator_state["phase"] = "error"
+            _orchestrator_state["error"] = msg
+            _orchestrator_state["message"] = msg
+            _orchestrator_state["finished_at"] = _time.time()
+            return {"ok": False, "phase": "error", "message": msg}
+
+        _orchestrator_state["controller_done"] = True
+        _orchestrator_state["message"] = "Controller update started, rolling out to fleet..."
+    else:
+        _orchestrator_state["controller_done"] = True
+
+    _orchestrator_state["phase"] = "updating_fleet"
+    _orchestrator_state["message"] = "Rolling out to sims..."
+
+    if latest:
+        set_approved_version(latest)
+
+    cache = _get_status_cache()
+    enrolled = _get_enrolled()
+    chosen_ids = []
+    tasks = []
+    fleet_results = []
+
+    for rig in enrolled:
+        agent_id = (rig.get("agent_id") or "").strip()
+        if not agent_id:
+            continue
+        backend = (rig.get("backend") or "agent").strip().lower()
+        if backend != "agent":
+            continue
+        st = cache.get(agent_id)
+        online = bool(st and getattr(st, "online", False))
+        ac_running = bool(st and getattr(st, "ac_running", False))
+
+        if not online:
+            set_agent_offline(agent_id)
+            fleet_results.append({"agent_id": agent_id, "result": "offline", "message": "Offline"})
+            continue
+
+        if ac_running:
+            update_agent_state(agent_id, update_status="pending_idle",
+                               target_version=latest, online=True, ac_running=True)
+            fleet_results.append({"agent_id": agent_id, "result": "pending_idle",
+                                  "message": "Busy - will update when idle"})
+            continue
+
+        chosen_ids.append(agent_id)
+        payload = {}
+        if latest:
+            payload["target_version"] = latest
+        tasks.append(_send_agent_command(agent_id, "update", payload, timeout=45.0))
+        update_agent_state(agent_id, update_status="downloading", target_version=latest)
+
+    if tasks:
+        raw_results = await asyncio.gather(*tasks, return_exceptions=True)
+        for aid, raw in zip(chosen_ids, raw_results):
+            if isinstance(raw, Exception):
+                update_agent_state(aid, update_status="failed", last_update_error=str(raw))
+                fleet_results.append({"agent_id": aid, "result": "failed", "message": str(raw)})
+            elif isinstance(raw, dict):
+                new_status = raw.get("update_status", "installing")
+                if raw.get("update_available") is False:
+                    new_status = "idle"
+                update_agent_state(aid, update_status=new_status,
+                                   target_version=raw.get("latest_version") or latest,
+                                   last_update_error=raw.get("message") if not raw.get("success") else None)
+                fleet_results.append({"agent_id": aid, "result": new_status,
+                                      "message": raw.get("message", "OK")})
+
+    _orchestrator_state["fleet_dispatched"] = True
+    _orchestrator_state["fleet_results"] = fleet_results
+    _orchestrator_state["phase"] = "done"
+    _orchestrator_state["finished_at"] = _time.time()
+    _orchestrator_state["message"] = "Update complete"
+
+    return {
+        "ok": True,
+        "phase": "done",
+        "controller_updated": controller_needs_update,
+        "fleet_results": fleet_results,
+        "message": _orchestrator_state["message"],
+    }
+
+
+@router.get("/summary")
+async def unified_summary(_: None = Depends(_get_require_operator_if_pw())):
+    import time as _time
+    release_status = get_controller_update_status()
+    agents = get_all_agent_states()
+
+    enrolled = _get_enrolled()
+    enrolled_ids = set()
+    for rig in enrolled:
+        agent_id = (rig.get("agent_id") or "").strip()
+        if not agent_id:
+            continue
+        backend = (rig.get("backend") or "agent").strip().lower()
+        if backend != "agent":
+            continue
+        enrolled_ids.add(agent_id)
+
+    filtered_agents = [a for a in agents if a["agent_id"] in enrolled_ids]
+
+    from controller.updater import get_updater_status
+    updater = get_updater_status()
+    updater_state = updater.get("state", "idle") if updater else "idle"
+
+    controller_updating = updater_state not in ("idle", "done", "error")
+
+    approved = release_status.get("latest_version")
+    total_sims = len(filtered_agents)
+    online_sims = sum(1 for a in filtered_agents if a.get("online"))
+    pending_idle = sum(1 for a in filtered_agents if a.get("update_status") == "pending_idle")
+    in_progress = sum(1 for a in filtered_agents if a.get("update_status") in ("downloading", "installing", "restarting"))
+    failed_count = sum(1 for a in filtered_agents if a.get("update_status") == "failed")
+    updated_count = 0
+    for a in filtered_agents:
+        st = a.get("update_status", "unknown")
+        if st in ("idle", "updated"):
+            if approved and a.get("installed_version") == approved:
+                updated_count += 1
+            elif not approved:
+                updated_count += 1
+
+    overall = "up_to_date"
+    if _orchestrator_state["phase"] not in ("idle", "done", "error"):
+        overall = "updating"
+    elif controller_updating:
+        overall = "updating"
+    elif in_progress > 0:
+        overall = "updating"
+    elif failed_count > 0:
+        overall = "has_failures"
+    elif pending_idle > 0:
+        overall = "pending"
+    elif release_status.get("update_available"):
+        overall = "available"
+
+    return {
+        "ok": True,
+        "overall": overall,
+        "orchestrator_phase": _orchestrator_state["phase"],
+        "controller": {
+            "current_version": release_status.get("current_version"),
+            "latest_version": release_status.get("latest_version"),
+            "update_available": release_status.get("update_available", False),
+            "state": updater_state,
+            "message": updater.get("message", "") if updater else "",
+            "percent": updater.get("percent", 0) if updater else 0,
+        },
+        "fleet": {
+            "total": total_sims,
+            "online": online_sims,
+            "updated": updated_count,
+            "pending_idle": pending_idle,
+            "in_progress": in_progress,
+            "failed": failed_count,
+        },
+        "agents": filtered_agents,
+        "release": {
+            "name": release_status.get("release_name"),
+            "published_at": release_status.get("published_at"),
+            "html_url": release_status.get("html_url"),
+            "notes_markdown": release_status.get("notes_markdown"),
+        },
+        "last_checked_at": release_status.get("last_checked_at"),
+        "error": release_status.get("error"),
+    }

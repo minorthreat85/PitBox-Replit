@@ -48,10 +48,14 @@ Config file at: `/home/runner/workspace/.config/PitBox/Controller/controller_con
 
 ## Update System (v1.6.0+ refactor)
 
-### API Routes (new, clean)
+### Unified (primary)
+- `POST /api/update/run`               -- One-click: check, update controller, roll out fleet
+- `GET  /api/update/summary`           -- Unified system-wide status (controller + fleet + agents)
+
+### Granular (Advanced section)
 - `GET  /api/update/controller/status` -- Controller release + updater state
 - `POST /api/update/controller/check`  -- Force refresh from GitHub
-- `POST /api/update/controller/apply`  -- Start controller update
+- `POST /api/update/controller/apply`  -- Start controller update only
 - `GET  /api/update/fleet/status`      -- All sims update status + summary
 - `POST /api/update/fleet/start`       -- Begin update on selected/all sims
 - `POST /api/update/fleet/cancel`      -- Cancel pending updates
