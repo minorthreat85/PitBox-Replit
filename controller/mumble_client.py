@@ -133,6 +133,7 @@ class MumbleClient:
                         "self_mute": u.self_mute if u.HasField("self_mute") else False,
                         "self_deaf": u.self_deaf if u.HasField("self_deaf") else False,
                         "comment": u.comment if u.HasField("comment") else "",
+                        "idlesecs": u.idle_secs if u.HasField("idle_secs") else -1,
                     })
                 return result
             except grpc.RpcError as e:

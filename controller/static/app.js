@@ -6669,7 +6669,7 @@
     bindMumbleButtons();
     fetchMumbleStatus();
     if (!window._mumblePollTimer) {
-      window._mumblePollTimer = setInterval(fetchMumbleStatus, 5000);
+      window._mumblePollTimer = setInterval(fetchMumbleStatus, 2000);
     }
     fetchMumbleConfig();
   }
@@ -6822,8 +6822,10 @@
         var muteTitle = isSelfMute ? 'Self-muted' : (isMuted ? 'Server-muted' : 'Unmuted');
         var muteLbl = isMuted ? 'Unmute' : 'Mute';
         var muteCls = isMuted ? 'mbl-btn-mute-active' : '';
-        html += '<div class="mbl-user" draggable="true" data-session="' + u.session + '" data-channel-id="' + u.channel_id + '"' +
-          ' title="' + muteTitle + ' — double-click to toggle mute"' +
+        var isTalking = u.idlesecs === 0 && !showMuted;
+        var talkingCls = isTalking ? ' mbl-talking' : '';
+        html += '<div class="mbl-user' + talkingCls + '" draggable="true" data-session="' + u.session + '" data-channel-id="' + u.channel_id + '"' +
+          ' title="' + muteTitle + (isTalking ? ' — TALKING' : '') + ' — double-click to toggle mute"' +
           ' style="padding-left:' + userIndent + 'px;"' +
           ' ondragstart="window._mumbleDragStart(event,' + u.session + ')"' +
           ' ondragend="window._mumbleDragEnd(event)"' +

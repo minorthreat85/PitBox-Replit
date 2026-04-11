@@ -196,6 +196,7 @@ class MumbleClientICE:
                     "self_mute": u.selfMute,
                     "self_deaf": u.selfDeaf,
                     "comment": u.comment or "",
+                    "idlesecs": getattr(u, "idlesecs", -1),
                 })
             return result
         except MumbleClientError:

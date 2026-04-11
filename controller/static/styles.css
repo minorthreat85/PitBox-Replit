@@ -4694,12 +4694,24 @@ button:disabled {
     flex-shrink: 0;
     opacity: .55;
 }
+.mbl-user.mbl-talking .mbl-user-icon {
+    opacity: 1;
+}
+.mbl-user.mbl-talking .mbl-mic-icon {
+    stroke: #ef4444;
+    filter: drop-shadow(0 0 3px rgba(239,68,68,.5));
+}
 .mbl-user-name {
     flex: 1;
     font-weight: 500;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    transition: color .15s;
+}
+.mbl-user.mbl-talking .mbl-user-name {
+    color: #ef4444;
+    font-weight: 600;
 }
 .mbl-user-muted {
     font-size: .6rem;
