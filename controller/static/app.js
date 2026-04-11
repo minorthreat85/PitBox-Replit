@@ -3568,17 +3568,20 @@
     var fleet = s.fleet || {};
     var rel = s.release || {};
     var overall = s.overall || 'up_to_date';
-    var hasError = !!(s.error);
+    var isUpdating = overall === 'updating';
+    var hasError = !!(s.error) && !isUpdating;
 
     var current = versionString(s.current_version || ctrl.current_version);
     var latest = versionString(s.target_version || ctrl.latest_version);
+    if (current === '0.0.0' || current === 'v0.0.0') current = isUpdating ? 'Updating...' : '--';
+    if (latest === '0.0.0' || latest === 'v0.0.0') latest = '--';
 
     if (installedEl) installedEl.textContent = current;
     if (latestEl) latestEl.textContent = latest;
 
     if (pillEl) {
       if (hasError) { pillEl.textContent = 'Error'; pillEl.className = 'pill-update-error'; }
-      else if (overall === 'updating') { pillEl.textContent = 'Updating'; pillEl.className = 'pill-update-busy'; }
+      else if (isUpdating) { pillEl.textContent = 'Updating'; pillEl.className = 'pill-update-busy'; }
       else if (overall === 'available') { pillEl.textContent = 'Update available'; pillEl.className = 'pill-update-available'; }
       else if (overall === 'has_failures') { pillEl.textContent = 'Failures'; pillEl.className = 'pill-update-error'; }
       else if (overall === 'pending') { pillEl.textContent = 'Pending'; pillEl.className = 'pill-update-available'; }
@@ -3587,10 +3590,20 @@
 
     if (overallEl) overallEl.textContent = hasError ? '' : (s.message || '');
 
-    var isUpdating = overall === 'updating';
     if (btnRun) {
-      btnRun.disabled = isUpdating;
-      btnRun.textContent = isUpdating ? 'Updating...' : 'Update PitBox';
+      if (isUpdating) {
+        btnRun.disabled = true;
+        btnRun.textContent = 'Updating...';
+      } else if (overall === 'has_failures') {
+        btnRun.disabled = false;
+        btnRun.textContent = 'Retry Update';
+      } else if (overall === 'up_to_date') {
+        btnRun.disabled = false;
+        btnRun.textContent = 'Up to Date';
+      } else {
+        btnRun.disabled = false;
+        btnRun.textContent = 'Update PitBox';
+      }
     }
 
     if (btnApply) {
@@ -3606,35 +3619,38 @@
       else { errorBox.classList.add('hidden'); }
     }
 
-    var ctrlLabel = 'Up to date';
-    if (ctrl.status === 'updating') ctrlLabel = 'Updating';
-    else if (ctrl.status === 'update_available') ctrlLabel = 'Update available';
-    else if (ctrl.state === 'error') ctrlLabel = 'Error';
     if (rolloutCtrl) {
-      rolloutCtrl.textContent = 'Controller: ' + ctrlLabel;
+      if (isUpdating && ctrl.status === 'updating') {
+        rolloutCtrl.textContent = 'Controller: Updating...';
+      } else if (ctrl.status === 'update_available') {
+        rolloutCtrl.textContent = 'Controller: Update available';
+      } else {
+        rolloutCtrl.textContent = '';
+      }
     }
     if (rolloutSims) {
-      if (fleet.total > 0) {
+      if (fleet.total > 0 && (isUpdating || overall === 'has_failures' || overall === 'pending' || fleet.updated < fleet.total)) {
         var simParts = [];
-        simParts.push(fleet.updated + ' updated');
-        if (fleet.in_progress > 0) simParts.push(fleet.in_progress + ' in progress');
-        if (fleet.outdated > 0) simParts.push(fleet.outdated + ' outdated');
-        rolloutSims.textContent = 'Sims: ' + simParts.join(', ');
+        if (fleet.in_progress > 0) simParts.push(fleet.in_progress + ' updating');
+        if (fleet.pending_idle > 0) simParts.push(fleet.pending_idle + ' pending when idle');
+        if (fleet.failed > 0) simParts.push(fleet.failed + ' failed');
+        if (fleet.updated > 0) simParts.push(fleet.updated + ' updated');
+        rolloutSims.textContent = simParts.length ? simParts.join(' \u2022 ') : '';
       } else {
         rolloutSims.textContent = '';
       }
     }
     if (rolloutPending) {
-      rolloutPending.textContent = fleet.pending_idle > 0 ? (fleet.pending_idle + ' sim(s) will update when idle') : '';
+      rolloutPending.textContent = '';
     }
     if (rolloutFailed) {
-      rolloutFailed.textContent = fleet.failed > 0 ? (fleet.failed + ' sim(s) failed') : '';
+      rolloutFailed.textContent = '';
     }
     if (rolloutActions) {
-      rolloutActions.classList.toggle('hidden', !fleet.failed || fleet.failed === 0);
+      rolloutActions.classList.toggle('hidden', !fleet.failed || fleet.failed === 0 || isUpdating);
     }
 
-    var showRelease = !!(rel.name);
+    var showRelease = !!(rel.name) && !isUpdating;
     if (releaseWrap) releaseWrap.classList.toggle('hidden', !showRelease);
     if (showRelease) {
       if (releaseLink) releaseLink.textContent = rel.name || '';
@@ -3648,7 +3664,7 @@
 
     var badge = document.getElementById('update-available-badge');
     var ccPill = document.getElementById('cc-pill-update');
-    var showBadge = overall === 'available' || overall === 'pending' || !!(s.update_available);
+    var showBadge = (overall === 'available' || overall === 'pending') && !isUpdating;
     if (badge) badge.classList.toggle('hidden', !showBadge);
     if (ccPill) ccPill.classList.toggle('hidden', !showBadge);
   }
@@ -3853,9 +3869,7 @@
         if (!ok) return;
         btn.disabled = true;
         btn.textContent = 'Updating...';
-        if (progressWrap) progressWrap.classList.remove('hidden');
-        if (progressMsg) progressMsg.textContent = 'Checking for updates...';
-        if (progressPct) progressPct.textContent = '';
+        if (progressWrap) progressWrap.classList.add('hidden');
         pitboxFetch(API_BASE + '/update/run', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -3865,28 +3879,18 @@
           .then(function (data) {
             if (data.phase === 'error') {
               showToast('Update failed: ' + (data.message || 'Unknown error'), 'error');
-              btn.disabled = false;
-              btn.textContent = 'Update PitBox';
-              if (progressWrap) progressWrap.classList.add('hidden');
               fetchUnifiedSummary();
               return;
             }
             if (data.controller_updated) {
-              if (progressMsg) progressMsg.textContent = 'Controller updated. PitBox will restart...';
               startUpdateProgressPolling(progressWrap, progressMsg, progressPct, btn);
             } else {
-              showToast('Update complete', 'success');
-              btn.disabled = false;
-              btn.textContent = 'Update PitBox';
-              if (progressWrap) progressWrap.classList.add('hidden');
               fetchUnifiedSummary();
             }
           })
           .catch(function (err) {
             showToast('Update failed: ' + (err.message || err), 'error');
-            btn.disabled = false;
-            btn.textContent = 'Update PitBox';
-            if (progressWrap) progressWrap.classList.add('hidden');
+            fetchUnifiedSummary();
           });
       });
     });
@@ -4274,10 +4278,10 @@
             setTimeout(function () { window.location.reload(); }, 1200);
             return;
           }
-          if (progressMsg) progressMsg.textContent = message || state;
+          if (progressMsg) progressMsg.textContent = message || 'Updating controller...';
           if (progressPct) progressPct.textContent = percent > 0 ? percent + '%' : '';
           if (state === 'done') {
-            if (progressMsg) progressMsg.textContent = 'Install complete -- reloading...';
+            if (progressMsg) progressMsg.textContent = 'Controller updated. Reloading...';
             setTimeout(function () { window.location.reload(); }, 1500);
             return;
           }
@@ -4292,7 +4296,7 @@
         .catch(function () {
           if (!wasDown) {
             wasDown = true;
-            if (progressMsg) progressMsg.textContent = 'Installing... PitBox will restart shortly.';
+            if (progressMsg) progressMsg.textContent = 'Updating controller... PitBox will restart shortly.';
             if (progressPct) progressPct.textContent = '';
           }
           setTimeout(poll, pollMs);

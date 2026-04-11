@@ -538,7 +538,18 @@ async def unified_summary(_: None = Depends(_get_require_operator_if_pw())):
     if overall == "up_to_date":
         message = "PitBox is up to date"
     elif overall == "updating":
-        message = "Update in progress"
+        orch_msg = _orchestrator_state.get("message", "")
+        if orch_msg:
+            message = orch_msg
+        elif controller_updating:
+            message = "Updating controller..."
+        elif in_progress > 0:
+            if pending_idle > 0:
+                message = f"Updating sims... {pending_idle} will update when idle"
+            else:
+                message = "Updating sims..."
+        else:
+            message = "Update in progress"
     elif overall == "available":
         message = "A new version is available"
     elif overall == "has_failures":
@@ -590,5 +601,5 @@ async def unified_summary(_: None = Depends(_get_require_operator_if_pw())):
             "notes_markdown": release_status.get("notes_markdown"),
         },
         "last_checked_at": release_status.get("last_checked_at"),
-        "error": release_status.get("error"),
+        "error": release_status.get("error") if overall != "updating" else None,
     }
