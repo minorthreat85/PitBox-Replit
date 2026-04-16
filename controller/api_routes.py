@@ -1077,9 +1077,38 @@ def _build_server_summary(server_id: str, *, skip_cache: bool = False) -> dict:
         "cars_with_skins": cars_with_skins,
         "slots": slots,
         "updated_at": updated_at,
+        "_http_port": server_opts.get("HTTP_PORT", "").strip(),
     }
     _server_summary_cache[server_id] = (now, payload)
     return payload
+
+
+def _fetch_lan_live_overlay(summary: dict) -> dict:
+    """
+    For LAN preset servers: query 127.0.0.1:HTTP_PORT/INFO to overlay live per-car occupancy and client counts.
+    Returns {} if no HTTP_PORT or server unreachable.
+    """
+    out: dict = {}
+    http_port_raw = (summary.get("_http_port") or "").strip()
+    if not http_port_raw.isdigit():
+        return out
+    http_port = int(http_port_raw)
+    if http_port <= 0:
+        return out
+    try:
+        live = get_live_server_info("127.0.0.1", http_port)
+    except Exception as e:
+        logger.debug("[lan-overlay] %s probe failed: %s", summary.get("server_id"), e)
+        return out
+    if not live or live.get("error"):
+        return out
+    if live.get("per_car_occupancy_known"):
+        out["car_taken"] = dict(live.get("car_taken") or {})
+    if isinstance(live.get("clients"), int):
+        out["clients"] = live.get("clients")
+    if isinstance(live.get("maxclients"), int):
+        out["maxclients"] = live.get("maxclients")
+    return out
 
 
 @router.get("/assignments/{agent_id}")
@@ -1275,7 +1304,20 @@ async def get_sim_state(agent_id: str):
                 assignment = {"server_id": assignment_server_id, "server_name": assignment_server_id}
         else:
             try:
-                summary = _build_server_summary(assignment_server_id, skip_cache=False)
+                summary = dict(_build_server_summary(assignment_server_id, skip_cache=False))
+                summary["_server_car_taken"] = None
+                summary["clients"] = 0
+                summary["maxclients"] = 0
+                try:
+                    overlay = await asyncio.to_thread(_fetch_lan_live_overlay, summary)
+                    if overlay.get("car_taken") is not None:
+                        summary["_server_car_taken"] = overlay["car_taken"]
+                    if "clients" in overlay:
+                        summary["clients"] = overlay["clients"]
+                    if "maxclients" in overlay:
+                        summary["maxclients"] = overlay["maxclients"]
+                except Exception as e:
+                    logger.debug("[lan-overlay] %s overlay failed: %s", assignment_server_id, e)
                 assignment = {
                     "server_id": assignment_server_id,
                     "server_name": (summary.get("name") or "").strip() or assignment_server_id,
@@ -2209,28 +2251,43 @@ async def get_server_roster(server_id: str, _: None = Depends(require_operator_i
     Gracefully handles servers that don't expose player names (standard Kunos /INFO).
     """
     fav = _get_favourite_by_id(server_id) if _is_favourite_server_id(server_id) else None
-    if not fav:
+    host: str = ""
+    port: int = 0
+    display_name = ""
+    is_local = False
+    if fav:
+        host = (fav.get("ip") or "").strip()
+        port = int(fav.get("port") or 0)
+        display_name = (fav.get("name") or "").strip()
+    else:
+        is_local = True
+        try:
+            preset_summary = _build_server_summary(server_id)
+            display_name = (preset_summary.get("name") or "").strip()
+            http_port_raw = (preset_summary.get("_http_port") or "").strip()
+            if http_port_raw.isdigit():
+                host = "127.0.0.1"
+                port = int(http_port_raw)
+        except Exception as e:
+            logger.debug("[roster] preset lookup %s failed: %s", server_id, e)
+    if not host or not port:
         return {
             "ok": True,
             "server_id": server_id,
-            "name": "",
+            "name": display_name,
             "player_count": 0,
             "max_clients": 0,
             "players": [],
             "roster_supported": False,
-            "is_local_preset": True,
+            "is_local_preset": is_local,
         }
-    host = (fav.get("ip") or "").strip()
-    port = int(fav.get("port") or 0)
-    if not host or not port:
-        return {"ok": False, "error": "Live server data unavailable", "server_id": server_id}
     try:
         live = await asyncio.to_thread(get_live_server_info, host, port)
     except Exception as exc:
         logger.warning("[roster] fetch failed server_id=%s err=%s", server_id, exc)
         return {"ok": False, "error": "Live server data unavailable", "server_id": server_id}
     if live.get("error") == "unreachable":
-        return {"ok": False, "error": "Server offline", "server_id": server_id}
+        return {"ok": False, "error": "Server offline", "server_id": server_id, "is_local_preset": is_local}
     players_raw = list(live.get("players") or [])
     players_out = []
     for p in players_raw:
@@ -2246,13 +2303,14 @@ async def get_server_roster(server_id: str, _: None = Depends(require_operator_i
     return {
         "ok": True,
         "server_id": server_id,
-        "name": (fav.get("name") or live.get("name") or "").strip() or server_id,
+        "name": display_name or (live.get("name") or "").strip() or server_id,
         "track_id": live.get("track_id") or "",
         "layout": live.get("layout") or "",
         "player_count": int(live.get("clients") or 0),
         "max_clients": int(live.get("maxclients") or 0),
         "players": players_out,
         "roster_supported": bool(live.get("roster_supported")),
+        "is_local_preset": is_local,
     }
 
 
@@ -2300,12 +2358,14 @@ async def get_sim_server_display(agent_id: str, _: None = Depends(require_operat
     else:
         preset_dir = _get_server_preset_dir_safe(server_id)
         summary = _build_server_summary(server_id, skip_cache=False)
+        overlay = await asyncio.to_thread(_fetch_lan_live_overlay, summary)
         track_safe = _sanitize_track_for_response(summary.get("track"))
         returned_server = summary["server_id"]
         logger.info(
-            "[server-display] agent_id=%s assigned=%s returned_server=%s track_id=%s config=%s",
+            "[server-display] agent_id=%s assigned=%s returned_server=%s track_id=%s config=%s overlay=%s",
             canonical or agent_id, server_id, returned_server,
             track_safe.get("id") or "", track_safe.get("config") or "",
+            "yes" if overlay else "no",
         )
         body = {
             "agent_id": canonical or agent_id,
@@ -2317,6 +2377,8 @@ async def get_sim_server_display(agent_id: str, _: None = Depends(require_operat
             "slots": summary.get("slots", []),
             "updated_at": summary["updated_at"],
             "preset_path": str(preset_dir),
+            "clients": overlay.get("clients", 0),
+            "maxclients": overlay.get("maxclients", 0),
         }
     return JSONResponse(
         content=body,
