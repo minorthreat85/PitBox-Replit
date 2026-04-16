@@ -1255,6 +1255,8 @@ async def get_sim_state(agent_id: str):
                     "cars_with_skins": [],
                     "slots": [],
                     "updated_at": "",
+                    "clients": live.get("clients", 0),
+                    "maxclients": live.get("maxclients", 0),
                 }
                 assignment = {"server_id": assignment_server_id, "server_name": live_name}
             except Exception:
@@ -1285,6 +1287,8 @@ async def get_sim_state(agent_id: str):
                 "slots": summary.get("slots", []),
                 "updated_at": summary.get("updated_at", ""),
                 "car_availability": car_availability,
+                "clients": summary.get("clients"),
+                "maxclients": summary.get("maxclients"),
             }
         except HTTPException:
             pass
@@ -2169,6 +2173,8 @@ async def get_server_summary(server_id: str, _: None = Depends(require_operator_
             "track": track,
             "cars": cars_list,
             "source": "favorite",
+            "clients": live.get("clients", 0),
+            "maxclients": live.get("maxclients", 0),
         }
     summary = _build_server_summary(server_id)
     summary = dict(summary)
@@ -2212,6 +2218,8 @@ async def get_sim_server_display(agent_id: str, _: None = Depends(require_operat
             "slots": [],
             "updated_at": "",
             "preset_path": "",
+            "clients": live.get("clients", 0),
+            "maxclients": live.get("maxclients", 0),
         }
     else:
         preset_dir = _get_server_preset_dir_safe(server_id)

@@ -266,6 +266,8 @@ def _parse_ac_live_info(data: dict[str, Any]) -> dict[str, Any]:
         "layout": "",
         "name": "",
         "game_port": None,
+        "clients": 0,
+        "maxclients": 0,
     }
     if not isinstance(data, dict):
         return out
@@ -307,6 +309,22 @@ def _parse_ac_live_info(data: dict[str, Any]) -> dict[str, Any]:
             out["game_port"] = int(port_val)
         except (TypeError, ValueError):
             pass
+    for key in ("clients", "playercount", "currentPlayers"):
+        val = data.get(key)
+        if val is not None:
+            try:
+                out["clients"] = int(val)
+                break
+            except (TypeError, ValueError):
+                pass
+    for key in ("maxclients", "maxClients", "max_clients", "maxPlayers"):
+        val = data.get(key)
+        if val is not None:
+            try:
+                out["maxclients"] = int(val)
+                break
+            except (TypeError, ValueError):
+                pass
     return out
 
 

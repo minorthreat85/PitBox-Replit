@@ -97,10 +97,24 @@
             font-size: 1.25rem;
             font-weight: 600;
             letter-spacing: 0.05em;
-            margin-bottom: 2rem;
+            margin-bottom: 0.5rem;
             color: #FF0000;
             text-shadow: 0 0 2px #000, 0 0 6px #FF0000, 0 0 10px rgba(255,0,0,0.45);
             box-shadow: 0 2px 8px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.08);
+        }
+        .server-slots {
+            font-size: 0.95rem;
+            font-weight: 500;
+            color: #ccc;
+            margin-bottom: 1.5rem;
+            letter-spacing: 0.04em;
+        }
+        .server-slots .slots-current {
+            color: #fff;
+            font-weight: 700;
+        }
+        .server-slots .slots-full {
+            color: #ff4444;
         }
         .section-label {
             font-size: 0.85rem;
@@ -503,6 +517,7 @@
                 <h1 id="track-title" class="track-title">—</h1>
                 <p id="track-config" class="track-config"></p>
                 <div id="server-badge" class="server-badge">—</div>
+                <div id="server-slots" class="server-slots" style="display: none;"></div>
                 <div id="cars-section" style="display: none;">
                     <div class="section-label">Car selection</div>
                     <div id="cars-grid" class="cars-grid"></div>
@@ -528,6 +543,7 @@
             var trackTitle = document.getElementById('track-title');
             var trackConfig = document.getElementById('track-config');
             var serverBadge = document.getElementById('server-badge');
+            var serverSlots = document.getElementById('server-slots');
             var carsSection = document.getElementById('cars-section');
             var carsGrid = document.getElementById('cars-grid');
             var resultsModalOverlay = document.getElementById('results-modal-overlay');
@@ -862,6 +878,16 @@
                             if (trackMapOverlay) { trackMapOverlay.style.display = 'none'; trackMapOverlay.removeAttribute('src'); }
                         }
                         serverBadge.textContent = (assignment && (assignment.server_name || assignment.server_id)) ? (assignment.server_name || assignment.server_id) : (serverDisplay.server_id || '—');
+                        var maxC = serverDisplay.maxclients;
+                        var curC = serverDisplay.clients;
+                        if (maxC != null && maxC > 0) {
+                            var slotsLeft = maxC - (curC || 0);
+                            var isFull = slotsLeft <= 0;
+                            serverSlots.innerHTML = '<span class="slots-current' + (isFull ? ' slots-full' : '') + '">' + (curC || 0) + '</span> / ' + maxC + ' drivers' + (isFull ? ' <span class="slots-full">(FULL)</span>' : ' (' + slotsLeft + ' open)');
+                            serverSlots.style.display = 'block';
+                        } else {
+                            serverSlots.style.display = 'none';
+                        }
                         var cars = serverDisplay.cars || [];
                         carsSection.style.display = 'block';
                         var lastSession = (detected && detected.last_session) ? detected.last_session : {};
@@ -905,6 +931,7 @@
                         trackPreviewWrap.style.display = 'none';
                         trackPreviewImg.removeAttribute('src');
                         serverBadge.textContent = 'No server assigned';
+                        serverSlots.style.display = 'none';
                         carsSection.style.display = 'block';
                         carsGrid.className = 'cars-grid';
                         carsGrid.innerHTML = '<div class="car-chip"><div class="car-preview-wrap"></div><div class="car-name">Assign a server in the control panel</div></div>';
