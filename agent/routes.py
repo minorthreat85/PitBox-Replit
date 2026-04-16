@@ -299,25 +299,35 @@ async def get_status():
             last_session["server_name"] = last_session["server_ip"] = last_session["server_port"] = "—"
     status["last_session"] = last_session
     # Race results from AC race_out.json (Documents\Assetto Corsa\out\race_out.json)
+    status["race_results"] = None
+    status["race_track_name"] = None
+    status["race_session_type"] = None
+    status["race_total_laps"] = None
+    status["race_out_path"] = None
+    status["race_out_state"] = "unknown"
     try:
         from agent.race_out import get_race_out_path, parse_race_out
         race_out_path = get_race_out_path(config)
-        parsed = parse_race_out(race_out_path)
-        if parsed and parsed.get("results"):
-            status["race_results"] = parsed["results"]
-            status["race_track_name"] = (parsed.get("track_name") or "").strip() or "—"
-            status["race_session_type"] = (parsed.get("session_type") or "").strip() or ""
-            status["race_total_laps"] = parsed.get("total_laps")
+        status["race_out_path"] = str(race_out_path)
+        if not race_out_path.is_file():
+            status["race_out_state"] = "missing"
+            logger.debug("race_out.json not found at %s", race_out_path)
         else:
-            status["race_results"] = None
-            status["race_track_name"] = None
-            status["race_session_type"] = None
-            status["race_total_laps"] = None
-    except Exception:
-        status["race_results"] = None
-        status["race_track_name"] = None
-        status["race_session_type"] = None
-        status["race_total_laps"] = None
+            parsed = parse_race_out(race_out_path)
+            if parsed and parsed.get("results"):
+                status["race_results"] = parsed["results"]
+                status["race_track_name"] = (parsed.get("track_name") or "").strip() or "—"
+                status["race_session_type"] = (parsed.get("session_type") or "").strip() or ""
+                status["race_total_laps"] = parsed.get("total_laps")
+                status["race_out_state"] = "ok"
+                logger.info("race_out.json parsed: %d rows track=%s session=%s",
+                            len(parsed["results"]), status["race_track_name"], status["race_session_type"])
+            else:
+                status["race_out_state"] = "empty"
+                logger.warning("race_out.json at %s parsed but contains no results", race_out_path)
+    except Exception as e:
+        status["race_out_state"] = f"error:{type(e).__name__}"
+        logger.warning("race_out.json read failed: %s", e)
     return status
 
 

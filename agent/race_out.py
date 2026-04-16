@@ -4,17 +4,30 @@ Returns normalized results for the sim results modal.
 """
 import json
 import logging
+import os
 import re
 from pathlib import Path
 from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_RACE_OUT_PATH = Path(r"C:\Users\info\Documents\Assetto Corsa\out\race_out.json")
+
+def _default_race_out_path() -> Path:
+    """Derive Documents\\Assetto Corsa\\out\\race_out.json under the current user's profile.
+    Falls back to the legacy hardcoded 'info' user path only if nothing else can be derived."""
+    up = os.environ.get("USERPROFILE") or os.path.expanduser("~")
+    try:
+        return Path(up) / "Documents" / "Assetto Corsa" / "out" / "race_out.json"
+    except Exception:
+        return Path(r"C:\Users\info\Documents\Assetto Corsa\out\race_out.json")
+
+
+# Kept for backwards compatibility with anything that imports the name.
+DEFAULT_RACE_OUT_PATH = _default_race_out_path()
 
 
 def get_race_out_path(config: Any) -> Path:
-    """Resolve race_out.json path: config ac_out_dir/race_out.json, else DEFAULT_RACE_OUT_PATH."""
+    """Resolve race_out.json path: config ac_out_dir/race_out.json, else current-user default."""
     try:
         from agent.config import get_ac_out_dir
         out_dir = get_ac_out_dir(config)
@@ -22,7 +35,7 @@ def get_race_out_path(config: Any) -> Path:
             return out_dir / "race_out.json"
     except Exception:
         pass
-    return DEFAULT_RACE_OUT_PATH
+    return _default_race_out_path()
 
 
 def _ms_to_lap_str(ms: Any) -> str:
