@@ -99,6 +99,127 @@ def _first(*values: Any) -> Any:
     return None
 
 
+_AC_SESSION_TYPE_MAP = {1: "PRACTICE", 2: "QUALIFY", 3: "RACE", 4: "HOTLAP", 5: "TIME_ATTACK", 6: "DRIFT", 7: "DRAG"}
+
+
+def _parse_ac_native(data: dict) -> Optional[dict[str, Any]]:
+    """Parse the native AC race_out.json format: top-level `players` + `sessions` with raceResult/bestLaps/lapstotal.
+    Returns the parsed result dict or None if this is not the AC native shape."""
+    players = data.get("players")
+    sessions = data.get("sessions")
+    if not isinstance(players, list) or not isinstance(sessions, list) or not sessions:
+        return None
+
+    # Track
+    track_raw = data.get("track")
+    track_name = (track_raw.strip() if isinstance(track_raw, str) else "") or "—"
+
+    # Pick the most relevant session: last one that has a non-empty raceResult; else last.
+    chosen = None
+    for sess in reversed(sessions):
+        if isinstance(sess, dict) and isinstance(sess.get("raceResult"), list) and sess.get("raceResult"):
+            chosen = sess
+            break
+    if chosen is None:
+        chosen = sessions[-1] if isinstance(sessions[-1], dict) else {}
+
+    # Session type (RACE/QUALIFY/PRACTICE)
+    session_type = ""
+    t_int = chosen.get("type")
+    if isinstance(t_int, (int, float)):
+        session_type = _AC_SESSION_TYPE_MAP.get(int(t_int), "")
+    if not session_type:
+        name_str = chosen.get("name")
+        if isinstance(name_str, str) and name_str.strip():
+            session_type = name_str.strip().upper()
+
+    # Configured laps
+    total_laps_raw = chosen.get("lapsCount")
+    try:
+        total_laps: Optional[int] = int(total_laps_raw) if total_laps_raw is not None else None
+    except (TypeError, ValueError):
+        total_laps = None
+    if total_laps == 0:
+        total_laps = None  # timed race
+
+    race_order = chosen.get("raceResult") if isinstance(chosen.get("raceResult"), list) else []
+    best_laps = chosen.get("bestLaps") if isinstance(chosen.get("bestLaps"), list) else []
+    laps_total = chosen.get("lapstotal") if isinstance(chosen.get("lapstotal"), list) else []
+
+    # If no raceResult, fall back to player index order
+    order = race_order if race_order else list(range(len(players)))
+
+    # Build per-player best lap lookup: bestLaps is typically aligned to player index.
+    def _best_lap_ms(pidx: int) -> Optional[int]:
+        if 0 <= pidx < len(best_laps):
+            v = best_laps[pidx]
+            if isinstance(v, (int, float)) and int(v) > 0:
+                return int(v)
+        return None
+
+    def _laps_done(pidx: int) -> Optional[int]:
+        if 0 <= pidx < len(laps_total):
+            v = laps_total[pidx]
+            try:
+                return int(v)
+            except (TypeError, ValueError):
+                return None
+        return None
+
+    # Leader best lap for gap calc (fallback when total time unavailable)
+    leader_best_ms: Optional[int] = None
+    if order:
+        leader_best_ms = _best_lap_ms(int(order[0]) if isinstance(order[0], (int, float)) else 0)
+
+    results: list[dict[str, Any]] = []
+    ai_counter = 0
+    for pos_idx, pidx_any in enumerate(order):
+        try:
+            pidx = int(pidx_any)
+        except (TypeError, ValueError):
+            continue
+        if not (0 <= pidx < len(players)):
+            continue
+        p = players[pidx] if isinstance(players[pidx], dict) else {}
+        name = p.get("name")
+        driver = name.strip() if isinstance(name, str) and name.strip() else ""
+        if not driver:
+            ai_counter += 1
+            driver = f"AI {ai_counter}"
+        car_raw_val = p.get("car")
+        car_raw = car_raw_val.strip() if isinstance(car_raw_val, str) else ""
+        car = _fmt_car_name(car_raw) if car_raw else "—"
+
+        best_ms = _best_lap_ms(pidx)
+        lap = _ms_to_lap_str(best_ms) if best_ms is not None else "—"
+        laps = _laps_done(pidx)
+
+        # Gap: approximate using best-lap delta (AC native format has no cumulative race time).
+        if pos_idx == 0 or best_ms is None or leader_best_ms is None:
+            gap = "—"
+        else:
+            delta = best_ms - leader_best_ms
+            gap = f"+{_ms_to_lap_str(delta)}" if delta > 0 else "—"
+
+        results.append({
+            "pos": pos_idx + 1,
+            "driver": driver,
+            "car": car,
+            "car_raw": car_raw,
+            "laps": laps,
+            "lap": lap,
+            "total_time": "—",
+            "gap": gap,
+        })
+
+    return {
+        "results": results,
+        "track_name": track_name,
+        "session_type": session_type,
+        "total_laps": total_laps,
+    }
+
+
 def parse_race_out(race_out_path: Path) -> Optional[dict[str, Any]]:
     """
     Parse AC race_out.json into:
@@ -108,7 +229,8 @@ def parse_race_out(race_out_path: Path) -> Optional[dict[str, Any]]:
         "session_type": str,   # "RACE" | "QUALIFY" | "PRACTICE" | ""
         "total_laps": int|None,
       }
-    Tolerates multiple JSON shapes. Returns None if missing/invalid.
+    Handles both the AC native shape (top-level `players`+`sessions`) and the legacy
+    `leaderboardLines`/`LeaderBoard` shape. Returns None if missing/invalid.
     """
     if not race_out_path.is_file():
         return None
@@ -123,19 +245,22 @@ def parse_race_out(race_out_path: Path) -> Optional[dict[str, Any]]:
     if not isinstance(data, dict):
         return None
 
-    # Session type: RACE / QUALIFY / PRACTICE / HOTLAP / etc.
+    # Preferred: native AC format
+    native = _parse_ac_native(data)
+    if native is not None:
+        return native
+
+    # Legacy fallback: leaderboardLines / LeaderBoard / nested SessionResult
     session_type = str(
         _first(data.get("Type"), data.get("type"), data.get("SessionType"), "") or ""
     ).strip().upper()
 
-    # Configured laps
     total_laps_raw = _first(data.get("RaceLaps"), data.get("race_laps"), data.get("Laps"))
     try:
         total_laps: Optional[int] = int(total_laps_raw) if total_laps_raw is not None else None
     except (TypeError, ValueError):
         total_laps = None
 
-    # Track name: common keys
     track_name = (
         _first(
             data.get("trackName"),
@@ -150,7 +275,6 @@ def parse_race_out(race_out_path: Path) -> Optional[dict[str, Any]]:
     else:
         track_name = "—"
 
-    # Leaderboard array: try common keys (flat and nested)
     rows = _first(
         data.get("leaderboardLines"),
         data.get("LeaderBoard"),
