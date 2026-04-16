@@ -63,12 +63,14 @@ Config file at: `/home/runner/workspace/.config/PitBox/Controller/controller_con
 - `GET  /api/update/releases`          -- List available releases
 
 ### Legacy routes (kept for backward compat)
-- `/update/status`, `/update/apply`, `/update/run-installer` -- redirect to old updater.py code
+- `/update/status`, `/update/apply`, `/update/run-installer` -- shims in api_routes.py, import from release_service
 - `/agents/push-update`, `/agents/update-status`, `/agents/releases`, `/agents/cancel-updates`
 
 ### Key modules
-- `controller/release_service.py` -- Single authority for release discovery; caches for 5 min
+- `controller/release_service.py` -- Single authority for release discovery/caching (GitHub API, semver, asset matching)
+- `controller/updater.py` -- Installer execution only (download, SHA-256 verify, silent install); imports release metadata from release_service
 - `controller/fleet_state.py` -- Persists per-agent rollout state to `C:\PitBox\data\fleet_rollout_state.json`
+- `tools/update_pitbox.ps1` -- CLI fallback for recovery/offline scenarios (no longer primary path)
 - Agent autonomous update check disabled at startup (controller-driven updates only)
 
 ## Versioning

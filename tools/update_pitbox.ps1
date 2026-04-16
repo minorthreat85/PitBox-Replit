@@ -1,5 +1,7 @@
-# PitBox Auto-Updater
-# Checks GitHub Releases and updates PitBox if newer version available
+# PitBox Auto-Updater (FALLBACK)
+# The primary update path is now the in-app Updates panel (controller UI).
+# This script is retained as a CLI fallback for recovery or offline scenarios.
+# Checks GitHub Releases and updates PitBox if newer version available.
 
 param(
     [switch]$Force,

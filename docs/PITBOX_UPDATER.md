@@ -2,6 +2,12 @@
 
 ## Overview
 
+> **Architecture note (v1.5.10+):** Release discovery and caching now live
+> exclusively in `controller/release_service.py`. The `controller/updater.py`
+> module handles only installer execution (download, SHA-256 verify, silent install)
+> and imports release metadata from the release service. The `tools/update_pitbox.ps1`
+> PowerShell script is retained as a CLI fallback for recovery scenarios.
+
 **PitBoxUpdater.exe** is a small standalone executable used for both **Controller** and **Agent** updates. It replaces PowerShell scripts as the primary update runner: the running app or service hands off to the updater, which handles download, shutdown, install, and restart in a visible window.
 
 ## Where it lives

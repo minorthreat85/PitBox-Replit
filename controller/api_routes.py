@@ -113,10 +113,12 @@ from controller.telemetry_store import ingest_telemetry, ingest_status, build_ti
 from controller.updater import (
     apply_controller_update,
     apply_dev_pull_update,
-    clear_update_cache,
-    get_update_status,
     get_updater_status,
     run_unified_installer_update,
+)
+from controller.release_service import (
+    clear_cache as clear_update_cache,
+    get_controller_update_status as get_update_status,
 )
 from controller.cm_favourites import get_favourites_debug_info, load_favourites_servers
 from controller.server_preset_helpers import (
@@ -138,6 +140,7 @@ from controller.server_preset_helpers import (
     _preset_ini_paths,
     _set_cached_preset_disk_state,
     _get_server_join_host,
+    _is_favourite_server_id,
     _valid_server_id,
 )
 
@@ -1232,14 +1235,39 @@ async def get_sim_state(agent_id: str):
     assignment = None
     summary = None
     if assignment_server_id:
-        try:
-            summary = _build_server_summary(assignment_server_id, skip_cache=False)
-            assignment = {
-                "server_id": assignment_server_id,
-                "server_name": (summary.get("name") or "").strip() or assignment_server_id,
-            }
-        except Exception:
-            assignment = {"server_id": assignment_server_id, "server_name": assignment_server_id}
+        fav = _get_favourite_by_id(assignment_server_id) if _is_favourite_server_id(assignment_server_id) else None
+        if fav:
+            try:
+                host = (fav.get("ip") or "").strip()
+                port = int(fav.get("port") or 0)
+                live = await asyncio.to_thread(get_live_server_info, host, port) if host and port else {}
+                cars_list = list(live.get("cars") or [])
+                track_obj = live.get("track") or {}
+                if not track_obj and (live.get("track_id") or live.get("layout")):
+                    track_obj = {"id": live.get("track_id") or "", "config": (live.get("layout") or "").strip(), "name": live.get("track_id") or ""}
+                live_name = (fav.get("name") or live.get("name") or "").strip() or assignment_server_id
+                summary = {
+                    "server_id": assignment_server_id,
+                    "name": live_name,
+                    "track": track_obj,
+                    "mode": "pickup",
+                    "cars": cars_list,
+                    "cars_with_skins": [],
+                    "slots": [],
+                    "updated_at": "",
+                }
+                assignment = {"server_id": assignment_server_id, "server_name": live_name}
+            except Exception:
+                assignment = {"server_id": assignment_server_id, "server_name": assignment_server_id}
+        else:
+            try:
+                summary = _build_server_summary(assignment_server_id, skip_cache=False)
+                assignment = {
+                    "server_id": assignment_server_id,
+                    "server_name": (summary.get("name") or "").strip() or assignment_server_id,
+                }
+            except Exception:
+                assignment = {"server_id": assignment_server_id, "server_name": assignment_server_id}
     server_display = None
     # When kiosk is disabled, always show race setup when assigned; when enabled, only when not paired
     kiosk_enabled = getattr(get_config(), "kiosk_mode_enabled", False)
@@ -2158,26 +2186,54 @@ async def get_sim_server_display(agent_id: str, _: None = Depends(require_operat
             status_code=404,
             detail="No server assigned",
         )
-    preset_dir = _get_server_preset_dir_safe(server_id)
-    summary = _build_server_summary(server_id, skip_cache=False)
-    track_safe = _sanitize_track_for_response(summary.get("track"))
-    returned_server = summary["server_id"]
-    logger.info(
-        "[server-display] agent_id=%s assigned=%s returned_server=%s track_id=%s config=%s",
-        canonical or agent_id, server_id, returned_server,
-        track_safe.get("id") or "", track_safe.get("config") or "",
-    )
-    body = {
-        "agent_id": canonical or agent_id,
-        "server_id": returned_server,
-        "track": track_safe,
-        "mode": summary["mode"],
-        "cars": summary["cars"],
-        "cars_with_skins": summary.get("cars_with_skins", []),
-        "slots": summary.get("slots", []),
-        "updated_at": summary["updated_at"],
-        "preset_path": str(preset_dir),
-    }
+    fav = _get_favourite_by_id(server_id) if _is_favourite_server_id(server_id) else None
+    if fav:
+        host = (fav.get("ip") or "").strip()
+        port = int(fav.get("port") or 0)
+        live = await asyncio.to_thread(get_live_server_info, host, port) if host and port else {}
+        cars_list = list(live.get("cars") or [])
+        track_obj = live.get("track") or {}
+        if not track_obj and (live.get("track_id") or live.get("layout")):
+            track_obj = {"id": live.get("track_id") or "", "config": (live.get("layout") or "").strip(), "name": live.get("track_id") or ""}
+        track_safe = _sanitize_track_for_response(track_obj)
+        live_name = (fav.get("name") or live.get("name") or "").strip() or server_id
+        logger.info(
+            "[server-display] agent_id=%s favourite=%s track_id=%s config=%s cars=%d",
+            canonical or agent_id, server_id,
+            track_safe.get("id") or "", track_safe.get("config") or "", len(cars_list),
+        )
+        body = {
+            "agent_id": canonical or agent_id,
+            "server_id": server_id,
+            "track": track_safe,
+            "mode": "pickup",
+            "cars": cars_list,
+            "cars_with_skins": [],
+            "slots": [],
+            "updated_at": "",
+            "preset_path": "",
+        }
+    else:
+        preset_dir = _get_server_preset_dir_safe(server_id)
+        summary = _build_server_summary(server_id, skip_cache=False)
+        track_safe = _sanitize_track_for_response(summary.get("track"))
+        returned_server = summary["server_id"]
+        logger.info(
+            "[server-display] agent_id=%s assigned=%s returned_server=%s track_id=%s config=%s",
+            canonical or agent_id, server_id, returned_server,
+            track_safe.get("id") or "", track_safe.get("config") or "",
+        )
+        body = {
+            "agent_id": canonical or agent_id,
+            "server_id": returned_server,
+            "track": track_safe,
+            "mode": summary["mode"],
+            "cars": summary["cars"],
+            "cars_with_skins": summary.get("cars_with_skins", []),
+            "slots": summary.get("slots", []),
+            "updated_at": summary["updated_at"],
+            "preset_path": str(preset_dir),
+        }
     return JSONResponse(
         content=body,
         headers={"Cache-Control": "no-store, no-cache, must-revalidate", "Pragma": "no-cache"},
