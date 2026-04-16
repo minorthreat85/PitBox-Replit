@@ -309,20 +309,23 @@ def _parse_ac_live_info(data: dict[str, Any]) -> dict[str, Any]:
     config_raw = (data.get("config") or data.get("configTrack") or data.get("config_track") or data.get("layout") or "").strip()
     if track_raw:
         if config_raw:
-            out["track_id"] = track_raw
+            norm_id = _normalize_track_id_from_preset(track_raw) or track_raw
+            out["track_id"] = norm_id
             out["layout"] = config_raw
-            out["track"] = {"id": track_raw, "config": config_raw, "name": track_raw}
+            out["track"] = {"id": norm_id, "config": config_raw, "name": norm_id}
         else:
             base, layout = _split_combined_track_layout(track_raw)
             if layout:
-                out["track_id"] = base
+                norm_base = _normalize_track_id_from_preset(base) or base
+                out["track_id"] = norm_base
                 out["layout"] = layout
-                out["track"] = {"id": base, "config": layout, "name": track_raw}
-                logger.debug("[live-server] split combined track: raw=%r -> track_id=%r layout=%r", track_raw, base, layout)
+                out["track"] = {"id": norm_base, "config": layout, "name": norm_base}
+                logger.debug("[live-server] split combined track: raw=%r -> track_id=%r layout=%r", track_raw, norm_base, layout)
             else:
-                out["track_id"] = track_raw
+                norm_id = _normalize_track_id_from_preset(track_raw) or track_raw
+                out["track_id"] = norm_id
                 out["layout"] = ""
-                out["track"] = {"id": track_raw, "config": "", "name": track_raw}
+                out["track"] = {"id": norm_id, "config": "", "name": norm_id}
     cars: list[str] = []
     car_list = data.get("cars") or data.get("carList") or data.get("car_list") or data.get("entries")
     if isinstance(car_list, list):
