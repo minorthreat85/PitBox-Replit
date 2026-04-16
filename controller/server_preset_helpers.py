@@ -261,10 +261,17 @@ def _split_combined_track_layout(combined: str) -> tuple[str, str]:
 def _parse_ac_player_list(data: dict[str, Any]) -> list[dict[str, Any]]:
     """
     Try to extract a per-slot player list from various possible fields in AC server responses.
-    Standard Kunos /INFO does NOT include this; some modded servers (ACSM, emperor, custom) do.
-    Returns a list of {name, car, slot} dicts. Empty list if not available.
+    Standard Kunos /INFO often nests under players.Cars; some modded servers expose it directly.
+    Returns a list of {name, car, slot, connected} dicts. Empty list if not available.
     """
-    candidates = data.get("players") or data.get("drivers") or data.get("entry_list") or data.get("entries_list") or data.get("Cars")
+    candidates = None
+    players_field = data.get("players")
+    if isinstance(players_field, dict):
+        candidates = players_field.get("Cars") or players_field.get("cars") or players_field.get("Drivers") or players_field.get("drivers")
+    if candidates is None:
+        candidates = players_field if isinstance(players_field, list) else None
+    if candidates is None:
+        candidates = data.get("drivers") or data.get("entry_list") or data.get("entries_list") or data.get("Cars")
     out: list[dict[str, Any]] = []
     if not isinstance(candidates, list):
         return out
@@ -365,7 +372,17 @@ def _parse_ac_live_info(data: dict[str, Any]) -> dict[str, Any]:
     players = _parse_ac_player_list(data)
     if players:
         out["players"] = players
-        out["roster_supported"] = True
+        connected_count = sum(1 for p in players if p.get("connected"))
+        if any(p.get("name") for p in players if p.get("connected")):
+            out["roster_supported"] = True
+        car_taken: dict[str, int] = {}
+        for p in players:
+            if p.get("connected") and p.get("car"):
+                cid = p["car"]
+                car_taken[cid] = car_taken.get(cid, 0) + 1
+        if car_taken or len(players) >= max(1, out.get("clients", 0)):
+            out["car_taken"] = car_taken
+            out["per_car_occupancy_known"] = True
     return out
 
 

@@ -191,10 +191,16 @@ def _save_sim_assignments() -> None:
         logger.warning("Could not save sim assignments to %s: %s", path, e)
 
 
-def _car_availability_for_server(server_id: str, summary: dict, cache: dict) -> dict[str, dict[str, int]]:
+def _car_availability_for_server(
+    server_id: str,
+    summary: dict,
+    cache: dict,
+    server_taken_override: dict[str, int] | None = None,
+) -> dict[str, dict[str, int]]:
     """
-    Per-car availability for a server: total slots, taken (by sims on this server), left.
-    Used so sim display can show "N left" and gray out cars with 0 left.
+    Per-car availability for a server: total slots, taken, left.
+    For online servers that report per-slot occupancy (server_taken_override), use those counts.
+    Otherwise fall back to counting PitBox sim assignments.
     """
     slots = summary.get("slots") or []
     cars_list = summary.get("cars") or []
@@ -207,22 +213,25 @@ def _car_availability_for_server(server_id: str, summary: dict, cache: dict) -> 
         c = (c or "").strip()
         if c and c not in total_by_car:
             total_by_car[c] = 0
-    taken_by_car: dict[str, int] = {}
-    sid = (server_id or "").strip()
-    for aid, srv_id in _assignments.items():
-        if (srv_id or "").strip() != sid:
-            continue
-        car_id = None
-        status = cache.get(aid) if cache else None
-        if status and getattr(status, "last_session", None):
-            ls = status.last_session
-            car_id = (ls.get("car_id") or ls.get("car") or "").strip()
-        if not car_id:
-            st = get_controller_state(aid)
-            sel = st.assigned_selection or {}
-            car_id = (sel.get("car_id") or ((sel.get("car") or {}).get("car_id")) or "").strip()
-        if car_id:
-            taken_by_car[car_id] = taken_by_car.get(car_id, 0) + 1
+    if server_taken_override is not None:
+        taken_by_car: dict[str, int] = {k: int(v) for k, v in server_taken_override.items() if v}
+    else:
+        taken_by_car = {}
+        sid = (server_id or "").strip()
+        for aid, srv_id in _assignments.items():
+            if (srv_id or "").strip() != sid:
+                continue
+            car_id = None
+            status = cache.get(aid) if cache else None
+            if status and getattr(status, "last_session", None):
+                ls = status.last_session
+                car_id = (ls.get("car_id") or ls.get("car") or "").strip()
+            if not car_id:
+                st = get_controller_state(aid)
+                sel = st.assigned_selection or {}
+                car_id = (sel.get("car_id") or ((sel.get("car") or {}).get("car_id")) or "").strip()
+            if car_id:
+                taken_by_car[car_id] = taken_by_car.get(car_id, 0) + 1
     out: dict[str, dict[str, int]] = {}
     for car in total_by_car:
         total = total_by_car[car]
@@ -1259,6 +1268,7 @@ async def get_sim_state(agent_id: str):
                     "updated_at": "",
                     "clients": live.get("clients", 0),
                     "maxclients": live.get("maxclients", 0),
+                    "_server_car_taken": dict(live.get("car_taken") or {}) if live.get("per_car_occupancy_known") else None,
                 }
                 assignment = {"server_id": assignment_server_id, "server_name": live_name}
             except Exception:
@@ -1278,7 +1288,10 @@ async def get_sim_state(agent_id: str):
     if assignment and summary and (not paired or not kiosk_enabled):
         try:
             track_safe = _sanitize_track_for_response(summary.get("track"))
-            car_availability = _car_availability_for_server(assignment_server_id, summary, cache)
+            car_availability = _car_availability_for_server(
+                assignment_server_id, summary, cache,
+                server_taken_override=summary.get("_server_car_taken"),
+            )
             server_display = {
                 "agent_id": canonical,
                 "server_id": summary["server_id"],
