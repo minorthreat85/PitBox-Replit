@@ -1207,7 +1207,7 @@
                     rosterPanel.style.display = 'block';
                     return;
                 }
-                if (payload.is_local_preset) {
+                if (payload.is_local_preset && !payload.roster_supported) {
                     hideRoster();
                     return;
                 }
@@ -1246,7 +1246,7 @@
                     });
             }
             function updateRosterForServer(serverId, isFavourite) {
-                if (!serverId || !isFavourite) {
+                if (!serverId) {
                     if (rosterTimer) { clearInterval(rosterTimer); rosterTimer = null; }
                     hideRoster();
                     return;
