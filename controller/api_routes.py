@@ -1078,6 +1078,7 @@ def _build_server_summary(server_id: str, *, skip_cache: bool = False) -> dict:
         "slots": slots,
         "updated_at": updated_at,
         "_http_port": server_opts.get("HTTP_PORT", "").strip(),
+        "_admin_password": server_opts.get("ADMIN_PASSWORD", "").strip(),
     }
     _server_summary_cache[server_id] = (now, payload)
     return payload
@@ -1095,8 +1096,9 @@ def _fetch_lan_live_overlay(summary: dict) -> dict:
     http_port = int(http_port_raw)
     if http_port <= 0:
         return out
+    admin_pwd = (summary.get("_admin_password") or "").strip()
     try:
-        live = get_live_server_info("127.0.0.1", http_port)
+        live = get_live_server_info("127.0.0.1", http_port, admin_password=admin_pwd)
     except Exception as e:
         logger.debug("[lan-overlay] %s probe failed: %s", summary.get("server_id"), e)
         return out
@@ -2240,6 +2242,7 @@ async def get_server_summary(server_id: str, _: None = Depends(require_operator_
     summary = _build_server_summary(server_id)
     summary = dict(summary)
     summary["track"] = _sanitize_track_for_response(summary.get("track"))
+    summary.pop("_admin_password", None)
     return summary
 
 
@@ -2253,6 +2256,7 @@ async def get_server_roster(server_id: str, _: None = Depends(require_operator_i
     fav = _get_favourite_by_id(server_id) if _is_favourite_server_id(server_id) else None
     host: str = ""
     port: int = 0
+    admin_pwd: str = ""
     display_name = ""
     is_local = False
     if fav:
@@ -2268,6 +2272,7 @@ async def get_server_roster(server_id: str, _: None = Depends(require_operator_i
             if http_port_raw.isdigit():
                 host = "127.0.0.1"
                 port = int(http_port_raw)
+                admin_pwd = (preset_summary.get("_admin_password") or "").strip()
         except Exception as e:
             logger.debug("[roster] preset lookup %s failed: %s", server_id, e)
     if not host or not port:
@@ -2282,7 +2287,7 @@ async def get_server_roster(server_id: str, _: None = Depends(require_operator_i
             "is_local_preset": is_local,
         }
     try:
-        live = await asyncio.to_thread(get_live_server_info, host, port)
+        live = await asyncio.to_thread(get_live_server_info, host, port, admin_pwd)
     except Exception as exc:
         logger.warning("[roster] fetch failed server_id=%s err=%s", server_id, exc)
         return {"ok": False, "error": "Live server data unavailable", "server_id": server_id}

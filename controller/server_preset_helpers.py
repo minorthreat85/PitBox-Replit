@@ -11,6 +11,7 @@ import logging
 import re
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 from typing import Any, Optional
@@ -386,19 +387,21 @@ def _parse_ac_live_info(data: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
-def get_live_server_info(ip: str, port: int) -> dict[str, Any]:
+def get_live_server_info(ip: str, port: int, admin_password: str = "") -> dict[str, Any]:
     """
     Query a remote AC server directly for live metadata (track, cars, layout, ports).
     Uses HTTP /INFO; tries seed port, port+1, and 8080.
+    admin_password: when provided, enables /JSON|<pwd> probe on stock acServer for full entry list.
     """
     global _live_server_cache
     ip = (ip or "").strip()
+    admin_password = (admin_password or "").strip()
     if not ip or port < 1 or port > 65535:
         return {
             "cars": [], "track": {}, "track_id": "", "layout": "", "name": "",
             "game_port": port, "http_port": None, "error": "invalid_params",
         }
-    key = (ip, port)
+    key = (ip, port, bool(admin_password))
     now = time.time()
     if key in _live_server_cache:
         ts, success, data = _live_server_cache[key]
@@ -422,10 +425,16 @@ def get_live_server_info(ip: str, port: int) -> dict[str, Any]:
                 if parsed.get("game_port") is None:
                     parsed["game_port"] = port
                 # AssettoServer exposes per-slot driver list at /api/details, not /INFO.
-                # Probe it as a secondary source; merge players/car_taken when available.
-                if not parsed.get("per_car_occupancy_known"):
+                # Stock acServer exposes the same data at /JSON|<ADMIN_PASSWORD> (admin auth).
+                # Try both as secondary sources; merge players/car_taken when available.
+                secondary_endpoints: list[str] = ["/api/details"]
+                if admin_password:
+                    secondary_endpoints.append(f"/JSON%7C{urllib.parse.quote(admin_password, safe='')}")
+                for sec_path in secondary_endpoints:
+                    if parsed.get("per_car_occupancy_known"):
+                        break
                     try:
-                        det_url = f"http://{ip}:{http_port}/api/details"
+                        det_url = f"http://{ip}:{http_port}{sec_path}"
                         det_req = urllib.request.Request(det_url, method="GET")
                         with urllib.request.urlopen(det_req, timeout=_LIVE_SERVER_TIMEOUT_SEC) as det_resp:
                             det_raw = det_resp.read().decode("utf-8", errors="replace")
@@ -439,13 +448,14 @@ def get_live_server_info(ip: str, port: int) -> dict[str, Any]:
                                 parsed["per_car_occupancy_known"] = True
                             if det_parsed.get("roster_supported"):
                                 parsed["roster_supported"] = True
-                            logger.debug("[live-server] %s:%s /api/details merged players=%d car_taken=%s",
-                                         ip, http_port, len(det_parsed.get("players") or []),
+                            logger.debug("[live-server] %s:%s %s merged players=%d car_taken=%s",
+                                         ip, http_port, sec_path.split("%7C")[0],
+                                         len(det_parsed.get("players") or []),
                                          "yes" if det_parsed.get("per_car_occupancy_known") else "no")
                     except urllib.error.HTTPError as det_e:
-                        logger.debug("[live-server] %s:%s /api/details HTTP %s", ip, http_port, det_e.code)
+                        logger.debug("[live-server] %s:%s %s HTTP %s", ip, http_port, sec_path.split("%7C")[0], det_e.code)
                     except (urllib.error.URLError, OSError, json.JSONDecodeError, ValueError) as det_e:
-                        logger.debug("[live-server] %s:%s /api/details error=%s", ip, http_port, det_e)
+                        logger.debug("[live-server] %s:%s %s error=%s", ip, http_port, sec_path.split("%7C")[0], det_e)
                 _live_server_cache[key] = (now, True, dict(parsed))
                 logger.info(
                     "[live-server] success %s discovery_port=%s game_port=%s http_port=%s cars=%d track=%s layout=%s per_car_occupancy=%s",
