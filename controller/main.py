@@ -627,6 +627,16 @@ async def redirect_server_booking():
     return RedirectResponse(url="/bookings", status_code=302)
 
 
+@app.get("/bookings")
+async def bookings_page(request: Request):
+    """Gated SPA entry for the Bookings tab. When employee_password is set,
+    only operators with the pitbox_employee cookie may access it."""
+    from controller.operator_auth import EMPLOYEE_COOKIE, get_employee_password_optional
+    if get_employee_password_optional() is not None and request.cookies.get(EMPLOYEE_COOKIE) != "1":
+        return RedirectResponse(url="/employee/login?next=/bookings", status_code=302)
+    return await index()
+
+
 @app.get("/server/entry-list")
 async def redirect_server_entry_list():
     return RedirectResponse(url="/entry-list", status_code=302)

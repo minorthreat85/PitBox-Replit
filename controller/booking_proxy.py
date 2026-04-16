@@ -15,7 +15,23 @@ import httpx
 from fastapi import APIRouter, Request
 from fastapi.responses import Response, RedirectResponse
 
+from controller.operator_auth import (
+    EMPLOYEE_COOKIE,
+    get_employee_password_optional,
+)
+
 router = APIRouter()
+
+
+def _operator_gate(request: Request) -> Response | None:
+    """If operator auth is configured and the caller lacks a session cookie,
+    return a redirect to the login page (preserving /bookings as `next`).
+    Return None when access is permitted."""
+    if get_employee_password_optional() is None:
+        return None
+    if request.cookies.get(EMPLOYEE_COOKIE) == "1":
+        return None
+    return RedirectResponse(url="/employee/login?next=/bookings", status_code=302)
 
 TARGET_ORIGIN = "https://booking.myfastestlap.com"
 PROXY_PREFIX = "/proxy/booking"
@@ -190,6 +206,9 @@ async def _proxy_request(request: Request, path: str) -> Response:
 @router.get(PROXY_PREFIX)
 @router.post(PROXY_PREFIX)
 async def proxy_root(request: Request) -> Response:
+    gate = _operator_gate(request)
+    if gate is not None:
+        return gate
     return await _proxy_request(request, "")
 
 
@@ -198,6 +217,9 @@ async def proxy_root(request: Request) -> Response:
     methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"],
 )
 async def proxy_path(request: Request, path: str) -> Response:
+    gate = _operator_gate(request)
+    if gate is not None:
+        return gate
     try:
         return await _proxy_request(request, path)
     except Exception as exc:
