@@ -421,11 +421,37 @@ def get_live_server_info(ip: str, port: int) -> dict[str, Any]:
                 parsed["http_port"] = http_port
                 if parsed.get("game_port") is None:
                     parsed["game_port"] = port
+                # AssettoServer exposes per-slot driver list at /api/details, not /INFO.
+                # Probe it as a secondary source; merge players/car_taken when available.
+                if not parsed.get("per_car_occupancy_known"):
+                    try:
+                        det_url = f"http://{ip}:{http_port}/api/details"
+                        det_req = urllib.request.Request(det_url, method="GET")
+                        with urllib.request.urlopen(det_req, timeout=_LIVE_SERVER_TIMEOUT_SEC) as det_resp:
+                            det_raw = det_resp.read().decode("utf-8", errors="replace")
+                            det_data = json.loads(det_raw)
+                            det_parsed = _parse_ac_live_info(det_data)
+                            if det_parsed.get("players"):
+                                parsed["players"] = det_parsed["players"]
+                            if det_parsed.get("car_taken") is not None:
+                                parsed["car_taken"] = det_parsed["car_taken"]
+                            if det_parsed.get("per_car_occupancy_known"):
+                                parsed["per_car_occupancy_known"] = True
+                            if det_parsed.get("roster_supported"):
+                                parsed["roster_supported"] = True
+                            logger.debug("[live-server] %s:%s /api/details merged players=%d car_taken=%s",
+                                         ip, http_port, len(det_parsed.get("players") or []),
+                                         "yes" if det_parsed.get("per_car_occupancy_known") else "no")
+                    except urllib.error.HTTPError as det_e:
+                        logger.debug("[live-server] %s:%s /api/details HTTP %s", ip, http_port, det_e.code)
+                    except (urllib.error.URLError, OSError, json.JSONDecodeError, ValueError) as det_e:
+                        logger.debug("[live-server] %s:%s /api/details error=%s", ip, http_port, det_e)
                 _live_server_cache[key] = (now, True, dict(parsed))
                 logger.info(
-                    "[live-server] success %s discovery_port=%s game_port=%s http_port=%s cars=%d track=%s layout=%s",
+                    "[live-server] success %s discovery_port=%s game_port=%s http_port=%s cars=%d track=%s layout=%s per_car_occupancy=%s",
                     ip, port, parsed.get("game_port"), http_port, len(parsed.get("cars") or []),
                     parsed.get("track_id") or "—", parsed.get("layout") or "(none)",
+                    "yes" if parsed.get("per_car_occupancy_known") else "no",
                 )
                 return parsed
         except urllib.error.HTTPError as e:
