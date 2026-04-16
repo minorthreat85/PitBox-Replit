@@ -1036,10 +1036,10 @@
                                 var grayOut = noSlotsLeft && !isSelected;
                                 var url = carPreviewUrl(carId);
                                 var previewHtml = url ? '<div class="car-preview-wrap"><img src="' + escapeHtml(url) + '" alt="" onerror="this.parentElement.style.display=\'none\'" /></div>' : '<div class="car-preview-wrap"></div>';
-                                var overlayHtml = count > 1 ? '<span class="car-count-overlay">×' + count + '</span>' : '';
-                                var slotsLabel = hasSlots ? ('<div class="car-slots-label">' + (left <= 0 ? 'No slots left' : left + ' left') + '</div>') : '';
+                                var badgeValue = hasSlots ? left : count;
+                                var overlayHtml = '<span class="car-count-overlay">×' + badgeValue + '</span>';
                                 var chipClass = 'car-chip' + (isSelected ? ' selected' : '') + (grayOut ? ' no-slots' : '');
-                                return '<div class="' + chipClass + '" data-car-id="' + escapeHtml(carId) + '">' + overlayHtml + previewHtml + '<div class="car-name">' + escapeHtml(formatCarName(carId) || carId) + '</div>' + slotsLabel + '</div>';
+                                return '<div class="' + chipClass + '" data-car-id="' + escapeHtml(carId) + '">' + overlayHtml + previewHtml + '<div class="car-name">' + escapeHtml(formatCarName(carId) || carId) + '</div></div>';
                             }).join('');
                         }
                     } else {
