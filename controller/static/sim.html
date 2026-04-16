@@ -13,6 +13,7 @@
             --border-gray: #2a2a2a;
         }
         * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { height: 100%; width: 100%; }
         body {
             background: var(--bg-black);
             color: var(--text-white);
@@ -21,8 +22,15 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: center;
-            padding: 2rem;
+            justify-content: flex-start;
+            padding: 1rem;
+            overflow: hidden;
+        }
+        .fit-wrap {
+            width: 100%;
+            max-width: 1600px;
+            transform-origin: top center;
+            will-change: transform;
         }
         .banner {
             position: fixed;
@@ -565,6 +573,7 @@
             </div>
         </div>
     </div>
+    <div class="fit-wrap" id="fit-wrap">
     <div class="container">
         <div id="no-agent" class="no-agent" style="display: none;">
             Add <code>?agent_id=Sim5</code> or <code>?agent_id=5</code> to the URL (e.g. /sim?agent_id=5).
@@ -597,6 +606,40 @@
         </div>
         <div id="message-only" class="message-only" style="display: none;"></div>
     </div>
+    </div>
+    <script>
+        (function () {
+            var fitWrap = document.getElementById('fit-wrap');
+            if (!fitWrap) return;
+            var scheduled = false;
+            function applyFit() {
+                scheduled = false;
+                fitWrap.style.transform = 'none';
+                var naturalH = fitWrap.offsetHeight;
+                var naturalW = fitWrap.offsetWidth;
+                if (naturalH <= 0 || naturalW <= 0) return;
+                var availH = window.innerHeight - 16;
+                var availW = window.innerWidth - 16;
+                var scale = Math.min(1, availH / naturalH, availW / naturalW);
+                if (scale < 1) {
+                    fitWrap.style.transform = 'scale(' + scale + ')';
+                }
+            }
+            function requestFit() {
+                if (scheduled) return;
+                scheduled = true;
+                requestAnimationFrame(applyFit);
+            }
+            window.addEventListener('resize', requestFit);
+            if (typeof ResizeObserver !== 'undefined') {
+                new ResizeObserver(requestFit).observe(fitWrap);
+            } else {
+                setInterval(requestFit, 1000);
+            }
+            window.__pitboxFitToViewport = requestFit;
+            requestFit();
+        })();
+    </script>
     <script>
         (function () {
             var banner = document.getElementById('banner');

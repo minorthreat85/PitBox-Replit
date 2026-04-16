@@ -2291,15 +2291,20 @@ async def get_server_roster(server_id: str, _: None = Depends(require_operator_i
     players_raw = list(live.get("players") or [])
     players_out = []
     for p in players_raw:
+        if not p.get("connected", True):
+            continue
+        name = (p.get("name") or "").strip()
+        if not name:
+            continue
         car_id = (p.get("car") or "").strip()
         players_out.append({
-            "name": (p.get("name") or "").strip(),
+            "name": name,
             "car": car_id,
             "car_display": (_get_car_display_name(car_id) or car_id) if car_id else "",
             "slot": p.get("slot", 0),
-            "connected": bool(p.get("connected", True)),
+            "connected": True,
         })
-    players_out.sort(key=lambda x: (x.get("slot") or 0))
+    players_out.sort(key=lambda x: (x.get("name") or "").lower())
     return {
         "ok": True,
         "server_id": server_id,
