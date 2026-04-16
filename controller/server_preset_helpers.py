@@ -302,6 +302,7 @@ def _parse_ac_live_info(data: dict[str, Any]) -> dict[str, Any]:
                     cars.append(model)
     elif isinstance(data.get("CARS"), str):
         cars = [x.strip() for x in data["CARS"].split(";") if x.strip()]
+    out["raw_cars"] = list(cars)
     out["cars"] = list(dict.fromkeys(cars))
     port_val = data.get("port") or data.get("tcp_port") or data.get("tcpPort") or data.get("udp_port") or data.get("udpPort") or data.get("listen_port")
     if port_val is not None:

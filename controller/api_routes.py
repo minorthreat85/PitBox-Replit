@@ -1246,14 +1246,16 @@ async def get_sim_state(agent_id: str):
                 if not track_obj and (live.get("track_id") or live.get("layout")):
                     track_obj = {"id": live.get("track_id") or "", "config": (live.get("layout") or "").strip(), "name": live.get("track_id") or ""}
                 live_name = (fav.get("name") or live.get("name") or "").strip() or assignment_server_id
+                raw_cars = list(live.get("raw_cars") or live.get("cars") or [])
+                live_slots = [{"car": c} for c in raw_cars if c]
                 summary = {
                     "server_id": assignment_server_id,
                     "name": live_name,
                     "track": track_obj,
-                    "mode": "pickup",
+                    "mode": "slots" if live_slots else "pickup",
                     "cars": cars_list,
                     "cars_with_skins": [],
-                    "slots": [],
+                    "slots": live_slots,
                     "updated_at": "",
                     "clients": live.get("clients", 0),
                     "maxclients": live.get("maxclients", 0),
@@ -2164,6 +2166,8 @@ async def get_server_summary(server_id: str, _: None = Depends(require_operator_
         port = int(fav.get("port") or 0)
         live = await asyncio.to_thread(get_live_server_info, host, port)
         cars_list = list(live.get("cars") or [])
+        raw_cars = list(live.get("raw_cars") or live.get("cars") or [])
+        live_slots = [{"car": c} for c in raw_cars if c]
         track = live.get("track") or {}
         if not track and (live.get("track_id") or live.get("layout")):
             track = {"id": live.get("track_id") or "", "config": (live.get("layout") or "").strip(), "name": live.get("track_id") or ""}
@@ -2172,6 +2176,8 @@ async def get_server_summary(server_id: str, _: None = Depends(require_operator_
             "name": (fav.get("name") or live.get("name") or "").strip() or server_id,
             "track": track,
             "cars": cars_list,
+            "slots": live_slots,
+            "mode": "slots" if live_slots else "pickup",
             "source": "favorite",
             "clients": live.get("clients", 0),
             "maxclients": live.get("maxclients", 0),
@@ -2203,19 +2209,21 @@ async def get_sim_server_display(agent_id: str, _: None = Depends(require_operat
             track_obj = {"id": live.get("track_id") or "", "config": (live.get("layout") or "").strip(), "name": live.get("track_id") or ""}
         track_safe = _sanitize_track_for_response(track_obj)
         live_name = (fav.get("name") or live.get("name") or "").strip() or server_id
+        raw_cars = list(live.get("raw_cars") or live.get("cars") or [])
+        live_slots = [{"car": c} for c in raw_cars if c]
         logger.info(
-            "[server-display] agent_id=%s favourite=%s track_id=%s config=%s cars=%d",
+            "[server-display] agent_id=%s favourite=%s track_id=%s config=%s cars=%d slots=%d",
             canonical or agent_id, server_id,
-            track_safe.get("id") or "", track_safe.get("config") or "", len(cars_list),
+            track_safe.get("id") or "", track_safe.get("config") or "", len(cars_list), len(live_slots),
         )
         body = {
             "agent_id": canonical or agent_id,
             "server_id": server_id,
             "track": track_safe,
-            "mode": "pickup",
+            "mode": "slots" if live_slots else "pickup",
             "cars": cars_list,
             "cars_with_skins": [],
-            "slots": [],
+            "slots": live_slots,
             "updated_at": "",
             "preset_path": "",
             "clients": live.get("clients", 0),
