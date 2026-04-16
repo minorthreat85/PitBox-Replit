@@ -548,10 +548,22 @@ def apply_unified(envelope: dict[str, Any]) -> dict[str, Any]:
                     global_pwd = global_pwd.strip() or None
                 else:
                     global_pwd = None
-                sync_race_ini_from_server_cfg(
-                    server_cfg, server_ip, server_port, car_id or None, race_ini,
-                    preset_name=preset_name, global_password=global_pwd,
-                )
+                try:
+                    sync_race_ini_from_server_cfg(
+                        server_cfg, server_ip, server_port, car_id or None, race_ini,
+                        preset_name=preset_name, global_password=global_pwd,
+                    )
+                except ValueError as ve:
+                    logger.error("Online join aborted: %s", ve)
+                    errors.append({"code": "TRACK_UNRESOLVABLE", "message": str(ve)})
+                    return {
+                        "request_id": request_id,
+                        "ok": False,
+                        "status": "error",
+                        "applied": {"car_id": car_id, "track_id": track_id, "layout_id": layout_id, "assists_preset_id": preset_id, "mode_kind": kind, "mode_submode": submode},
+                        "warnings": warnings,
+                        "errors": errors,
+                    }
                 _verify_and_log_remote(race_ini)
                 try:
                     _update_race_ini_driver_name(race_ini, driver_name)

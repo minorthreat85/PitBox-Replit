@@ -2895,7 +2895,18 @@ async def launch_online(agent_id: str, request: LaunchOnlineRequest, _: None = D
         if server_id:
             fav = _get_favourite_by_id(server_id)
             if fav:
-                body["server_cfg_snapshot"] = _build_favourite_server_cfg_snapshot(fav, server_id, skip_live_fetch=True)
+                snapshot = _build_favourite_server_cfg_snapshot(fav, server_id, skip_live_fetch=False)
+                srv = (snapshot or {}).get("SERVER") or {}
+                resolved_track = (srv.get("TRACK") or "").strip()
+                if not resolved_track:
+                    raise _launch_online_validation_error(
+                        400,
+                        "track_unresolvable",
+                        f"Cannot join server: unable to resolve track/layout metadata from {server_ip}:{server_port_int}. "
+                        "The server may be offline or not responding to info queries.",
+                        hint="Ensure the server is online and reachable. Try again in a few seconds.",
+                    )
+                body["server_cfg_snapshot"] = snapshot
                 body["preset_name"] = server_id
             else:
                 sc_data, _ = _read_full_server_cfg(server_id)
@@ -2987,7 +2998,15 @@ async def update_race_selection(agent_id: str, request: UpdateRaceSelectionReque
             body["server_port"] = resolved_port
             fav = _get_favourite_by_id(server_id)
             if fav:
-                body["server_cfg_snapshot"] = _build_favourite_server_cfg_snapshot(fav, server_id, skip_live_fetch=True)
+                snapshot = _build_favourite_server_cfg_snapshot(fav, server_id, skip_live_fetch=False)
+                srv = (snapshot or {}).get("SERVER") or {}
+                resolved_track = (srv.get("TRACK") or "").strip()
+                if not resolved_track:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Cannot resolve track/layout metadata for server {server_id}. The server may be offline.",
+                    )
+                body["server_cfg_snapshot"] = snapshot
                 body["preset_name"] = server_id
             else:
                 sc_data, _ = _read_full_server_cfg(server_id)

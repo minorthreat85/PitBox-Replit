@@ -411,10 +411,13 @@ async def launch_online(request: LaunchOnlineRequest):
                     detail="Server preset config (server_cfg_snapshot) required for online join. Controller must send preset server_cfg.ini.",
                 )
             global_pwd = (request.global_server_password or "").strip() or None
-            sync_race_ini_from_server_cfg(
-                server_cfg, server_ip, int(server_port), car_id, race_ini,
-                preset_name=preset_name, global_password=global_pwd,
-            )
+            try:
+                sync_race_ini_from_server_cfg(
+                    server_cfg, server_ip, int(server_port), car_id, race_ini,
+                    preset_name=preset_name, global_password=global_pwd,
+                )
+            except ValueError as ve:
+                raise HTTPException(status_code=400, detail=str(ve))
             _verify_and_log_remote(race_ini)
         max_min = request.max_running_time_minutes
         if max_min is not None and max_min >= 0:

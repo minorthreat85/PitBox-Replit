@@ -374,7 +374,14 @@ def sync_race_ini_from_server_cfg(
     track_raw = server.get("TRACK") or ""
     track = _normalize_track(track_raw)
     if not track or track == "unknown":
-        logger.warning("[sync] preset=%s TRACK raw=%r -> normalized empty/unknown", preset_label, track_raw)
+        logger.error(
+            "[sync] preset=%s TRACK raw=%r -> normalized empty/unknown -- refusing to write invalid race.ini",
+            preset_label, track_raw,
+        )
+        raise ValueError(
+            f"Cannot sync race.ini: server track is '{track_raw or chr(40) + 'empty' + chr(41)}' which resolves to 'unknown'. "
+            "The server metadata could not be resolved. Ensure the server is online and reachable."
+        )
 
     if not race_ini_path.parent.exists():
         race_ini_path.parent.mkdir(parents=True, exist_ok=True)
