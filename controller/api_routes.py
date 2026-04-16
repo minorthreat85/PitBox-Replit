@@ -2188,6 +2188,61 @@ async def get_server_summary(server_id: str, _: None = Depends(require_operator_
     return summary
 
 
+@router.get("/servers/{server_id}/roster")
+async def get_server_roster(server_id: str, _: None = Depends(require_operator_if_password_configured)):
+    """
+    Return live roster (player list + counts) for a favourite/online server.
+    For local presets, returns count=0 and roster_supported=false since there's no live data before launch.
+    Gracefully handles servers that don't expose player names (standard Kunos /INFO).
+    """
+    fav = _get_favourite_by_id(server_id) if _is_favourite_server_id(server_id) else None
+    if not fav:
+        return {
+            "ok": True,
+            "server_id": server_id,
+            "name": "",
+            "player_count": 0,
+            "max_clients": 0,
+            "players": [],
+            "roster_supported": False,
+            "is_local_preset": True,
+        }
+    host = (fav.get("ip") or "").strip()
+    port = int(fav.get("port") or 0)
+    if not host or not port:
+        return {"ok": False, "error": "Live server data unavailable", "server_id": server_id}
+    try:
+        live = await asyncio.to_thread(get_live_server_info, host, port)
+    except Exception as exc:
+        logger.warning("[roster] fetch failed server_id=%s err=%s", server_id, exc)
+        return {"ok": False, "error": "Live server data unavailable", "server_id": server_id}
+    if live.get("error") == "unreachable":
+        return {"ok": False, "error": "Server offline", "server_id": server_id}
+    players_raw = list(live.get("players") or [])
+    players_out = []
+    for p in players_raw:
+        car_id = (p.get("car") or "").strip()
+        players_out.append({
+            "name": (p.get("name") or "").strip(),
+            "car": car_id,
+            "car_display": (_get_car_display_name(car_id) or car_id) if car_id else "",
+            "slot": p.get("slot", 0),
+            "connected": bool(p.get("connected", True)),
+        })
+    players_out.sort(key=lambda x: (x.get("slot") or 0))
+    return {
+        "ok": True,
+        "server_id": server_id,
+        "name": (fav.get("name") or live.get("name") or "").strip() or server_id,
+        "track_id": live.get("track_id") or "",
+        "layout": live.get("layout") or "",
+        "player_count": int(live.get("clients") or 0),
+        "max_clients": int(live.get("maxclients") or 0),
+        "players": players_out,
+        "roster_supported": bool(live.get("roster_supported")),
+    }
+
+
 @router.get("/sims/{agent_id}/server-display")
 async def get_sim_server_display(agent_id: str, _: None = Depends(require_operator_if_password_configured)):
     """One-call endpoint for sim display: assignment + server summary. 404 if no assignment."""

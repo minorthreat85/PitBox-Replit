@@ -116,6 +116,72 @@
         .server-slots .slots-full {
             color: #ff4444;
         }
+        .server-roster {
+            margin: 1.5rem auto 0;
+            max-width: 720px;
+            background: rgba(20, 20, 20, 0.6);
+            border: 1px solid var(--border-gray);
+            border-radius: 10px;
+            padding: 1rem 1.25rem;
+            text-align: left;
+        }
+        .server-roster-title {
+            font-size: 0.8rem;
+            font-weight: 700;
+            letter-spacing: 0.15em;
+            color: var(--red-accent);
+            text-transform: uppercase;
+            margin-bottom: 0.75rem;
+            text-align: center;
+        }
+        .server-roster-count {
+            font-size: 0.9rem;
+            color: var(--text-gray);
+            text-align: center;
+            margin-bottom: 0.75rem;
+        }
+        .server-roster-count strong {
+            color: #fff;
+            font-weight: 700;
+        }
+        .server-roster-list {
+            max-height: 320px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+        .roster-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.4rem 0.6rem;
+            background: rgba(255,255,255,0.03);
+            border-radius: 4px;
+            font-size: 0.9rem;
+        }
+        .roster-row .roster-name {
+            color: #fff;
+            font-weight: 600;
+            flex: 0 0 auto;
+            margin-right: 0.75rem;
+        }
+        .roster-row .roster-car {
+            color: var(--text-gray);
+            font-size: 0.85rem;
+            text-align: right;
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .server-roster-empty {
+            text-align: center;
+            color: var(--text-gray);
+            font-size: 0.85rem;
+            font-style: italic;
+            padding: 0.5rem 0;
+        }
         .section-label {
             font-size: 0.85rem;
             font-weight: 600;
@@ -522,6 +588,11 @@
                     <div class="section-label">Car selection</div>
                     <div id="cars-grid" class="cars-grid"></div>
                 </div>
+                <div id="server-roster" class="server-roster" style="display: none;">
+                    <div class="server-roster-title">Live Server Roster</div>
+                    <div id="server-roster-count" class="server-roster-count"></div>
+                    <div id="server-roster-list" class="server-roster-list"></div>
+                </div>
             </div>
         </div>
         <div id="message-only" class="message-only" style="display: none;"></div>
@@ -546,6 +617,9 @@
             var serverSlots = document.getElementById('server-slots');
             var carsSection = document.getElementById('cars-section');
             var carsGrid = document.getElementById('cars-grid');
+            var rosterPanel = document.getElementById('server-roster');
+            var rosterCountEl = document.getElementById('server-roster-count');
+            var rosterListEl = document.getElementById('server-roster-list');
             var resultsModalOverlay = document.getElementById('results-modal-overlay');
             var resultsModalTrack = document.getElementById('results-modal-track');
             var resultsModalTbody = document.getElementById('results-modal-tbody');
@@ -774,6 +848,7 @@
                 var process = data.process || {};
                 var qr = data.qr || {};
                 var serverDisplay = data.server_display || null;
+                window.__lastServerDisplay = serverDisplay;
 
                 var agentId = qr.agent_id || data.agent_id || '';
                 var nonce = qr.nonce || '';
@@ -1075,6 +1150,83 @@
                 messageOnly.textContent = 'Loading results…';
             }
 
+            var currentRosterServerId = null;
+            var rosterTimer = null;
+            function hideRoster() {
+                if (rosterPanel) rosterPanel.style.display = 'none';
+                currentRosterServerId = null;
+            }
+            function renderRoster(payload) {
+                if (!rosterPanel || !rosterCountEl || !rosterListEl) return;
+                if (!payload || payload.ok === false) {
+                    rosterCountEl.innerHTML = '';
+                    rosterListEl.innerHTML = '<div class="server-roster-empty">' + escapeHtml(payload && payload.error ? payload.error : 'Live server data unavailable') + '</div>';
+                    rosterPanel.style.display = 'block';
+                    return;
+                }
+                if (payload.is_local_preset) {
+                    hideRoster();
+                    return;
+                }
+                var cur = payload.player_count || 0;
+                var max = payload.max_clients || 0;
+                if (max > 0) {
+                    rosterCountEl.innerHTML = 'Players: <strong>' + cur + ' / ' + max + '</strong>';
+                } else {
+                    rosterCountEl.innerHTML = '';
+                }
+                var players = Array.isArray(payload.players) ? payload.players : [];
+                if (payload.roster_supported && players.length > 0) {
+                    rosterListEl.innerHTML = players.map(function (p) {
+                        var name = p.name || ('Slot ' + (p.slot != null ? p.slot : '?'));
+                        var car = p.car_display || p.car || '';
+                        return '<div class="roster-row"><span class="roster-name">' + escapeHtml(name) + '</span><span class="roster-car">' + escapeHtml(car) + '</span></div>';
+                    }).join('');
+                } else if (max > 0 && cur === 0) {
+                    rosterListEl.innerHTML = '<div class="server-roster-empty">Server is empty</div>';
+                } else {
+                    rosterListEl.innerHTML = '<div class="server-roster-empty">Live roster unavailable for this server</div>';
+                }
+                rosterPanel.style.display = 'block';
+            }
+            function fetchRoster(serverId) {
+                if (!serverId) return;
+                fetch('/api/servers/' + encodeURIComponent(serverId) + '/roster', { cache: 'no-store', credentials: 'same-origin' })
+                    .then(function (r) { return r.ok ? r.json() : { ok: false, error: 'Live server data unavailable' }; })
+                    .then(function (data) {
+                        if (currentRosterServerId === serverId) renderRoster(data);
+                    })
+                    .catch(function () {
+                        if (currentRosterServerId === serverId) {
+                            renderRoster({ ok: false, error: 'Server offline' });
+                        }
+                    });
+            }
+            function updateRosterForServer(serverId, isFavourite) {
+                if (!serverId || !isFavourite) {
+                    if (rosterTimer) { clearInterval(rosterTimer); rosterTimer = null; }
+                    hideRoster();
+                    return;
+                }
+                if (serverId === currentRosterServerId) return;
+                currentRosterServerId = serverId;
+                if (rosterTimer) { clearInterval(rosterTimer); rosterTimer = null; }
+                fetchRoster(serverId);
+                rosterTimer = setInterval(function () { fetchRoster(currentRosterServerId); }, 15000);
+            }
+            var _origPoll = poll;
+            poll = function () {
+                try {
+                    _origPoll();
+                } finally {
+                    try {
+                        var sd = window.__lastServerDisplay || null;
+                        var sid = sd && sd.server_id ? String(sd.server_id) : '';
+                        var isFav = /^[^:]+:\d+$/.test(sid);
+                        updateRosterForServer(sid, isFav);
+                    } catch (e) {}
+                }
+            };
             poll();
             setInterval(poll, 500);
         })();

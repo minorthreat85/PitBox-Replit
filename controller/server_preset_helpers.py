@@ -258,6 +258,37 @@ def _split_combined_track_layout(combined: str) -> tuple[str, str]:
     return (base, layout)
 
 
+def _parse_ac_player_list(data: dict[str, Any]) -> list[dict[str, Any]]:
+    """
+    Try to extract a per-slot player list from various possible fields in AC server responses.
+    Standard Kunos /INFO does NOT include this; some modded servers (ACSM, emperor, custom) do.
+    Returns a list of {name, car, slot} dicts. Empty list if not available.
+    """
+    candidates = data.get("players") or data.get("drivers") or data.get("entry_list") or data.get("entries_list") or data.get("Cars")
+    out: list[dict[str, Any]] = []
+    if not isinstance(candidates, list):
+        return out
+    for idx, entry in enumerate(candidates):
+        if not isinstance(entry, dict):
+            continue
+        name = (entry.get("name") or entry.get("driverName") or entry.get("driver_name") or entry.get("DriverName") or entry.get("displayName") or "").strip()
+        car = (entry.get("car") or entry.get("model") or entry.get("Model") or entry.get("car_model") or entry.get("carModel") or "").strip()
+        slot_val = entry.get("slot") if entry.get("slot") is not None else entry.get("carId", idx)
+        try:
+            slot = int(slot_val) if slot_val is not None else idx
+        except (TypeError, ValueError):
+            slot = idx
+        is_connected = entry.get("IsConnected", entry.get("connected", entry.get("is_connected", bool(name))))
+        if name or car:
+            out.append({
+                "name": name,
+                "car": car,
+                "slot": slot,
+                "connected": bool(is_connected) if isinstance(is_connected, bool) else bool(name),
+            })
+    return out
+
+
 def _parse_ac_live_info(data: dict[str, Any]) -> dict[str, Any]:
     out: dict[str, Any] = {
         "cars": [],
@@ -268,6 +299,8 @@ def _parse_ac_live_info(data: dict[str, Any]) -> dict[str, Any]:
         "game_port": None,
         "clients": 0,
         "maxclients": 0,
+        "players": [],
+        "roster_supported": False,
     }
     if not isinstance(data, dict):
         return out
@@ -326,6 +359,10 @@ def _parse_ac_live_info(data: dict[str, Any]) -> dict[str, Any]:
                 break
             except (TypeError, ValueError):
                 pass
+    players = _parse_ac_player_list(data)
+    if players:
+        out["players"] = players
+        out["roster_supported"] = True
     return out
 
 
