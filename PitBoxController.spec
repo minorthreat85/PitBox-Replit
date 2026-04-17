@@ -26,8 +26,6 @@ _uvicorn_imports = [
     'uvicorn.protocols.http.auto',
     'uvicorn.loops.auto',
     'websockets',
-    'websockets.legacy',
-    'websockets.legacy.server',
 ]
 
 # Belt-and-suspenders: explicitly list the vendored timing/server-control
