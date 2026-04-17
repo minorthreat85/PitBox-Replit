@@ -86,8 +86,6 @@
   const connectionBanner = document.getElementById('connection-banner');
   var lastFetchTime = null;
 
-  var liveTimingPollTimer = null;
-  var LIVE_TIMING_POLL_MS = 500;
 
   /** When true, background polling (timing, enrollment, revision, logs, status) is skipped to avoid competing with launch/exit. */
   var launchBusy = false;
@@ -352,28 +350,6 @@
     if (pageId === 'dashboard') loadDashboardPage();
     if (pageId === 'settings') loadSettingsPage();
     if (pageId === 'server-config') loadServerConfigPage();
-    if (pageId === 'live-timing') {
-      if (getSelectedServerId()) {
-        var main = document.getElementById('page-live-timing-main');
-        var empty = document.getElementById('page-live-timing-server-empty');
-        if (main) main.classList.remove('hidden');
-        if (empty) empty.classList.add('hidden');
-        loadLiveTimingPage();
-        if (liveTimingPollTimer) clearInterval(liveTimingPollTimer);
-        liveTimingPollTimer = setInterval(loadLiveTimingPage, LIVE_TIMING_POLL_MS);
-      } else {
-        var mainEl = document.getElementById('page-live-timing-main');
-        var emptyEl = document.getElementById('page-live-timing-server-empty');
-        if (mainEl) mainEl.classList.add('hidden');
-        if (emptyEl) emptyEl.classList.remove('hidden');
-      }
-    } else {
-      if (liveTimingPollTimer) { clearInterval(liveTimingPollTimer); liveTimingPollTimer = null; }
-      var mainEl = document.getElementById('page-live-timing-main');
-      var emptyEl = document.getElementById('page-live-timing-server-empty');
-      if (mainEl) mainEl.classList.remove('hidden');
-      if (emptyEl) emptyEl.classList.add('hidden');
-    }
     if (pageId === 'system-logs') {
       populateLogsRigDropdown();
       loadSystemLogsPage();
@@ -409,10 +385,9 @@
     '/settings': 'settings',
     '/mumble': 'mumble',
   };
-  var SERVER_SCOPED_PAGES = ['server-config', 'entry-list', 'live-timing', 'content'];
+  var SERVER_SCOPED_PAGES = ['server-config', 'entry-list', 'content'];
   var REDIRECTS = {
     '/server/entry-list': '/entry-list',
-    '/server/live-timing': '/live-timing',
     '/server/content': '/content',
   };
 
@@ -443,9 +418,6 @@
       if (emptyContent) emptyContent.classList.toggle('hidden', !!serverId);
       if (loadedContent) loadedContent.classList.toggle('hidden', !serverId);
       populateServerScopedSelect('content-server-select', serverId);
-    }
-    if (pageId === 'live-timing') {
-      populateServerScopedSelect('live-timing-server-select', serverId);
     }
   }
 
@@ -850,113 +822,6 @@
       .catch(function () {});
   }
 
-  function formatLapMs(ms) {
-    if (ms == null || ms < 0) return '—';
-    var m = Math.floor(ms / 60000);
-    var s = ((ms % 60000) / 1000).toFixed(3);
-    return m > 0 ? m + ':' + (parseFloat(s) < 10 ? '0' : '') + s : s + 's';
-  }
-
-  function formatGapMs(ms) {
-    if (ms == null || ms < 0) return '—';
-    if (ms === 0) return '—';
-    return '+' + formatLapMs(ms);
-  }
-
-  var DEMO_TIMING_CARS = [
-    { pos: 1, driver: 'Jaiden', car_model: 'tatuusfa1', best_lap_ms: 73510, last_lap_ms: 74231, lap: 3, sector: 2, sector_time_ms: 25110, gap_ms: 0, pit: false, live: { normalized_pos: 0.6342, speed_kmh: 167.2, source: 'agent:Sim5', stale_ms: 80 } },
-    { pos: 2, driver: 'Alex', car_model: 'tatuusfa1', best_lap_ms: 73820, last_lap_ms: 74100, lap: 3, sector: 2, sector_time_ms: 25400, gap_ms: 310, pit: false, live: { normalized_pos: 0.512, speed_kmh: 162.1, source: 'agent:Sim6', stale_ms: 120 } },
-    { pos: 3, driver: 'Sam', car_model: 'tatuusfa1', best_lap_ms: 74100, last_lap_ms: null, lap: 2, sector: 1, sector_time_ms: 24800, gap_ms: 590, pit: true, live: { normalized_pos: 0.02, speed_kmh: 45, source: 'agent:Sim7', stale_ms: 200 } }
-  ];
-
-  function renderLiveTiming(snapshot, isDemo) {
-    var serverName = document.getElementById('live-timing-server-name');
-    var serverAddr = document.getElementById('live-timing-server-addr');
-    var trackEl = document.getElementById('live-timing-track');
-    var layoutEl = document.getElementById('live-timing-layout');
-    var phaseEl = document.getElementById('live-timing-phase');
-    var timeLeftEl = document.getElementById('live-timing-time-left');
-    var updatedEl = document.getElementById('live-timing-updated');
-    var tbody = document.getElementById('live-timing-tbody');
-    var hint = document.getElementById('live-timing-hint');
-    if (!snapshot || !tbody) return;
-    var server = snapshot.server || {};
-    var track = snapshot.track || {};
-    var cars = snapshot.cars && snapshot.cars.length ? snapshot.cars : (isDemo ? DEMO_TIMING_CARS : []);
-    if (serverName) serverName.textContent = server.name || '—';
-    if (serverAddr) { serverAddr.textContent = server.addr ? '(' + server.addr + ')' : ''; serverAddr.className = 'live-timing-muted'; }
-    if (trackEl) trackEl.textContent = formatTrackName(track.track_id || '') || '—';
-    if (layoutEl) { layoutEl.textContent = track.layout ? ' / ' + formatLayoutName(track.layout) : ''; layoutEl.className = 'live-timing-muted'; }
-    if (phaseEl) phaseEl.textContent = server.phase || '—';
-    if (timeLeftEl) {
-      var tl = server.time_left_ms;
-      if (tl != null && tl >= 0) {
-        var mins = Math.floor(tl / 60000);
-        var secs = Math.floor((tl % 60000) / 1000);
-        timeLeftEl.textContent = mins + ':' + (secs < 10 ? '0' : '') + secs;
-      } else timeLeftEl.textContent = '—';
-    }
-    if (updatedEl) updatedEl.textContent = 'Updated: ' + (snapshot.ts_ms ? new Date(snapshot.ts_ms).toLocaleTimeString() : '—') + (isDemo ? ' (demo)' : '');
-    var rows = cars.map(function (c) {
-      var live = c.live || {};
-      var liveStr = (live.normalized_pos != null ? (Math.round(live.normalized_pos * 100) + '%') : '—') + ' · ' + (live.speed_kmh != null ? Math.round(live.speed_kmh) + ' km/h' : '—');
-      if (live.stale_ms != null && live.stale_ms > 500) liveStr += ' (stale ' + live.stale_ms + 'ms)';
-      return '<tr class="live-timing-row' + (c.pit ? ' live-timing-pit' : '') + '">' +
-        '<td class="lt-pos">' + (c.pos != null ? c.pos : '—') + '</td>' +
-        '<td class="lt-driver">' + escapeHtml(c.driver || '—') + '</td>' +
-        '<td class="lt-car">' + escapeHtml(formatCarName(c.car_model) || '—') + '</td>' +
-        '<td class="lt-best">' + formatLapMs(c.best_lap_ms) + '</td>' +
-        '<td class="lt-last">' + formatLapMs(c.last_lap_ms) + '</td>' +
-        '<td class="lt-lap">' + (c.lap != null ? c.lap : '—') + '</td>' +
-        '<td class="lt-sector">' + (c.sector != null ? c.sector : '—') + ' ' + (c.sector_time_ms != null ? '(' + formatLapMs(c.sector_time_ms) + ')' : '') + '</td>' +
-        '<td class="lt-gap">' + formatGapMs(c.gap_ms) + '</td>' +
-        '<td class="lt-pit">' + (c.pit ? 'PIT' : '—') + '</td>' +
-        '<td class="lt-live">' + escapeHtml(liveStr) + '</td>' +
-        '</tr>';
-    });
-    tbody.innerHTML = rows.join('');
-    if (hint) hint.classList.toggle('hidden', !isDemo);
-
-    var outlineImg = document.getElementById('live-timing-track-outline');
-    var carDotsG = document.getElementById('live-timing-car-dots');
-    var trackId = (track.track_id || '').trim();
-    var layoutId = (track.layout || '').trim() || 'default';
-    if (outlineImg) {
-      if (trackId) {
-        outlineImg.src = API_BASE + '/tracks/' + encodeURIComponent(trackId) + '/layouts/' + encodeURIComponent(layoutId) + '/outline';
-        outlineImg.onerror = function () { outlineImg.style.display = 'none'; outlineImg.src = ''; };
-        outlineImg.onload = function () { outlineImg.style.display = ''; };
-      } else { outlineImg.style.display = 'none'; outlineImg.src = ''; }
-    }
-    if (carDotsG) {
-      var cx = 100; var cy = 50; var rx = 86; var ry = 40;
-      carDotsG.innerHTML = cars.map(function (c, i) {
-        var pos = (c.live && c.live.normalized_pos != null) ? c.live.normalized_pos : (c.normalized_pos != null ? c.normalized_pos : 0);
-        var angle = pos * 2 * Math.PI - Math.PI / 2;
-        var x = cx + rx * Math.cos(angle);
-        var y = cy + ry * Math.sin(angle);
-        var posClass = 'lt-dot-pos' + (c.pos || (i + 1));
-        return '<circle class="live-timing-car-dot ' + posClass + '" cx="' + x + '" cy="' + y + '" r="4" data-pos="' + (c.pos || i + 1) + '" aria-label="' + escapeHtml(c.driver || 'Car ' + (i + 1)) + ' position ' + (Math.round(pos * 100) + '%') + '" />';
-      }).join('');
-    }
-  }
-
-  function loadLiveTimingPage() {
-    if (launchBusy) return;
-    pitboxFetch(API_BASE + '/timing/snapshot')
-      .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('Status ' + r.status)); })
-      .then(function (data) {
-        var isDemo = !data.cars || data.cars.length === 0;
-        if (isDemo) {
-          data = { type: 'timing_snapshot', v: 1, ts_ms: Date.now(), server: { name: 'Fastest Lap JR F1', addr: '192.168.1.218:9616', phase: 'QUALIFY', time_left_ms: 312000 }, track: { track_id: 'ks_red_bull_ring', layout: 'layout_national' }, cars: [] };
-        }
-        renderLiveTiming(data, isDemo);
-      })
-      .catch(function () {
-        renderLiveTiming({ type: 'timing_snapshot', v: 1, ts_ms: Date.now(), server: { name: 'Fastest Lap JR F1', addr: '192.168.1.218:9616', phase: 'QUALIFY', time_left_ms: 312000 }, track: { track_id: 'ks_red_bull_ring', layout: 'layout_national' }, cars: [] }, true);
-      });
-  }
-
   function loadConfigPage() {
     var pathEl = document.getElementById('config-path-label');
     var jsonEl = document.getElementById('config-json');
@@ -1083,18 +948,10 @@
         var path = getPathname();
         var pageId = ROUTES[path] || '';
         updateServerScopedEmptyStates(pageId);
-        if (id && selectId === 'live-timing-server-select') {
-          var main = document.getElementById('page-live-timing-main');
-          var empty = document.getElementById('page-live-timing-server-empty');
-          if (main) main.classList.remove('hidden');
-          if (empty) empty.classList.add('hidden');
-          loadLiveTimingPage();
-        }
       });
     }
     onSelect('entry-list-server-select');
     onSelect('content-server-select');
-    onSelect('live-timing-server-select');
   })();
 
   var serverConfigData = { server_cfg: {}, entry_list: [], server_ids: [], preset_names: {}, server_cfg_path: null, server_id: null };

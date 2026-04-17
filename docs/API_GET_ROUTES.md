@@ -18,7 +18,7 @@ Sim/kiosk GETs are **Public** but typically require a known `agent_id` (404 if i
 |-------|--------|-----|
 | `/api/agents/registry` | Operator | Agent registry / topology |
 | `/api/agents/discovered` | Operator | LAN discovery snapshot |
-| `/api/timing/snapshot` | Conditional | Session timing telemetry |
+| `/api/timing/health` | Conditional | ACLiveTiming process health (running/healthy/port) |
 | `/api/enrollment` | Conditional | Enrollment state + **secret** (gated when login enabled) |
 | `/api/employee/session` | Public | Read-only UI flags (login configured / cookie present) |
 | `/api/status` | Conditional | Dashboard summary; gated when `employee_password` set |

@@ -124,33 +124,27 @@ Assignments are set from the Control UI via **POST** `/api/assignments/{agent_id
 
 ---
 
-## Live telemetry streaming
+## Live timing (ACLiveTiming)
 
-Agents can stream Assetto Corsa shared-memory telemetry to the Controller for a fused **timing snapshot** (e.g. for a TV dashboard).
+PitBox no longer has its own timing system. Live timing is provided by **[ACLiveTiming](https://github.com/andiexer/ACLiveTiming)** (a .NET Blazor app), launched and supervised by the Controller and embedded in the **Live Timing** tab via an iframe.
 
-**Enable on each Sim PC** in `agent_config.json`:
+**Install (one-time, on the Controller PC)**:
+1. Download the win-x64 build of `Devlabs.AcTiming` and extract to `C:\PitBox\Timing\` so that `C:\PitBox\Timing\Devlabs.AcTiming.Web.exe` exists.
+   - Override path with the env var `PITBOX_TIMING_EXE` if installed elsewhere.
+2. Open Windows firewall once (elevated):
+   ```powershell
+   New-NetFirewallRule -DisplayName "PitBox Live Timing"   -Direction Inbound -Protocol TCP -LocalPort 9660 -Action Allow
+   New-NetFirewallRule -DisplayName "PitBox Live Timing UDP" -Direction Inbound -Protocol UDP -LocalPort 9996 -Action Allow
+   ```
 
-```json
-"telemetry_enabled": true,
-"telemetry_rate_hz": 10,
-"telemetry_read_hz": 20
+**AC dedicated server** — add to each `server_cfg.ini` (`[SERVER]` section):
+```ini
+UDP_PLUGIN_LOCAL_PORT=9999
+UDP_PLUGIN_ADDRESS=127.0.0.1:9996
 ```
+(Use the Controller PC's LAN IP instead of `127.0.0.1` if AC runs on a different machine.)
 
-- **telemetry_enabled**: `true` to stream; omit or `false` to disable (default).
-- **telemetry_read_hz**: How often to read AC shared memory (e.g. 20 Hz). Must be ≥ **telemetry_rate_hz**.
-- **telemetry_rate_hz**: How often to send **telemetry_tick** to the Controller (10–20 Hz).
-
-**Requirements**: Agent must be paired to the Controller (`controller_url` set and enrolled). Assetto Corsa must be running on that PC for live data; if AC is not running, telemetry degrades gracefully (no crash, `telemetry.ok` false in agent_status).
-
-**Firewall**: Uses the same Agent→Controller channel as heartbeat (existing outbound TCP to the Controller host and port, e.g. 9630). No extra ports.
-
-**Expected rates**:
-- Agent → Controller: **telemetry_tick** at 10–20 Hz; **agent_status** every 5 s.
-- Controller → UI: **GET** `/api/timing/snapshot` can be polled at 1–5 Hz for the fused timing board.
-
-**Test**: From repo root (e.g. `dev/pitbox`), run:
-`python -m tools.telemetry_simulate --controller http://127.0.0.1:9630 --agent Sim5 --token YOUR_TOKEN`
-to POST a sample telemetry_tick and verify the snapshot returns the expected cars list.
+**Runtime**: ACLiveTiming binds `http://0.0.0.0:9660` (set via `ASPNETCORE_URLS`); the Live Timing tab in the PitBox UI loads it in an iframe. Process health is exposed at `GET /api/timing/health`.
 
 ---
 

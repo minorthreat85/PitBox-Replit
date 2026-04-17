@@ -108,8 +108,6 @@ from controller.enrolled_rigs import add as enrolled_add, get as enrolled_get, g
 from controller.enrollment_broadcast import set_controller_url_provider, start as start_enrollment_broadcast
 from controller.common.event_log import LogCategory as EventLogCategory, LogLevel as EventLogLevel, make_event as make_log_event
 from controller.service.event_store import append_event as event_store_append
-from controller.telemetry_models import AgentStatusBody, TelemetryTickBody
-from controller.telemetry_store import ingest_telemetry, ingest_status, build_timing_snapshot
 from controller.updater import (
     apply_controller_update,
     apply_dev_pull_update,
@@ -312,30 +310,11 @@ async def heartbeat(agent_id: str = Depends(require_agent)):
     return {"status": "ok", "agent_id": agent_id}
 
 
-@router.post("/agents/status")
-async def agents_status(body: AgentStatusBody, agent_id: str = Depends(require_agent)):
-    """Accept agent_status from agents (boot and every 5s). Store for timing/snapshot context."""
-    canonical = (agent_id or "").strip() or (body.agent_id or "").strip()
-    if canonical:
-        ingest_status(canonical, body)
-    return {"status": "ok", "agent_id": canonical}
-
-
-@router.post("/agents/telemetry")
-async def agents_telemetry(body: TelemetryTickBody, agent_id: str = Depends(require_agent)):
-    """Accept telemetry_tick from agents. Store last per agent; ignore stale/out-of-order (seq, ts_ms)."""
-    canonical = (agent_id or "").strip() or (body.agent_id or "").strip()
-    if not canonical:
-        raise HTTPException(status_code=400, detail="agent_id required")
-    stored = ingest_telemetry(canonical, body)
-    return {"status": "ok", "agent_id": canonical, "stored": stored}
-
-
-@router.get("/timing/snapshot")
-async def timing_snapshot(_: None = Depends(require_operator_if_password_configured)):
-    """Return fused timing_snapshot from last telemetry per agent (1–5 Hz polling)."""
-    snap = build_timing_snapshot()
-    return snap.model_dump()
+@router.get("/timing/health")
+async def timing_health(_: None = Depends(require_operator_if_password_configured)):
+    """Health probe for the embedded ACLiveTiming process (port 9660)."""
+    from controller import timing_launcher
+    return timing_launcher.status()
 
 
 # ---- Enrollment mode + auto-pair ----

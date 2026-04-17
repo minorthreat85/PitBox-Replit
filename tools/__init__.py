@@ -1,1 +1,1 @@
-# Tools for PitBox (telemetry simulation, etc.)
+# Tools for PitBox (utilities, scripts).

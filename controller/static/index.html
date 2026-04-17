@@ -75,19 +75,6 @@
                     </div>
                 </div>
                 <div class="cc-main-row">
-                    <div class="cc-glass-card cc-hero-telemetry">
-                        <h2 class="cc-card-heading">TELEMETRY</h2>
-                        <div class="cc-hero-content">
-                            <div class="cc-hero-track">
-                                <span class="cc-label">Track</span>
-                                <span id="cc-hero-track" class="cc-hero-value cc-muted">—</span>
-                            </div>
-                            <div class="cc-hero-layout">
-                                <span class="cc-label">Layout</span>
-                                <span id="cc-hero-layout" class="cc-hero-value cc-muted">—</span>
-                            </div>
-                        </div>
-                    </div>
                     <div class="cc-glass-card cc-server-control">
                         <h2 class="cc-card-heading">SERVER CONTROL</h2>
                         <div id="cc-agent-offline-callout" class="cc-callout cc-callout-warning hidden" role="alert">
@@ -256,70 +243,20 @@
             </div>
         </div>
 
-        <!-- Page: Live Timing (fused from sim telemetry; demo when no data) -->
-        <div id="page-live-timing" class="content-page hidden" data-page="live-timing">
-            <div class="page-header">
-                <h1 class="page-title">LIVE TIMING</h1>
-                <p class="page-subtitle">Fused timing from sim rigs — polled from /api/timing/snapshot</p>
-            </div>
-            <div id="page-live-timing-server-empty" class="server-scoped-empty hidden" aria-live="polite">
-                <p>Select a server to view this page.</p>
-                <label class="server-scoped-select-label">Server</label>
-                <select id="live-timing-server-select" class="server-scoped-select" aria-label="Select server"><option value="">— Select server —</option></select>
-            </div>
-            <div id="page-live-timing-main">
-            <div class="live-timing-header">
-                <div class="live-timing-server">
-                    <span class="live-timing-label">Server</span>
-                    <span id="live-timing-server-name" class="live-timing-value">—</span>
-                    <span id="live-timing-server-addr" class="live-timing-muted"></span>
-                </div>
-                <div class="live-timing-meta">
-                    <span class="live-timing-label">Track</span>
-                    <span id="live-timing-track" class="live-timing-value">—</span>
-                    <span id="live-timing-layout" class="live-timing-muted"></span>
-                </div>
-                <div class="live-timing-meta">
-                    <span class="live-timing-label">Phase</span>
-                    <span id="live-timing-phase" class="live-timing-value">—</span>
-                </div>
-                <div class="live-timing-meta">
-                    <span class="live-timing-label">Time left</span>
-                    <span id="live-timing-time-left" class="live-timing-value">—</span>
-                </div>
-                <span id="live-timing-updated" class="live-timing-updated">—</span>
-            </div>
-            <div class="live-timing-track-map-wrap">
-                <p class="live-timing-track-map-label">Track map — dots show live position</p>
-                <div class="live-timing-track-map-inner">
-                    <img id="live-timing-track-outline" class="live-timing-track-outline" src="" alt="" aria-hidden="true" />
-                    <svg id="live-timing-track-svg" class="live-timing-track-svg" viewBox="0 0 200 100" preserveAspectRatio="xMidYMid meet" aria-label="Track map with car positions">
-                        <ellipse class="live-timing-track-oval" cx="100" cy="50" rx="88" ry="42" fill="none" stroke="currentColor" stroke-width="2" />
-                        <g id="live-timing-car-dots"></g>
-                    </svg>
-                </div>
-            </div>
-            <div class="live-timing-table-wrap">
-                <table class="live-timing-table" id="live-timing-table">
-                    <thead>
-                        <tr>
-                            <th class="lt-pos">Pos</th>
-                            <th class="lt-driver">Driver</th>
-                            <th class="lt-car">Car</th>
-                            <th class="lt-best">Best lap</th>
-                            <th class="lt-last">Last lap</th>
-                            <th class="lt-lap">Lap</th>
-                            <th class="lt-sector">Sector</th>
-                            <th class="lt-gap">Gap</th>
-                            <th class="lt-pit">Pit</th>
-                            <th class="lt-live">Live</th>
-                        </tr>
-                    </thead>
-                    <tbody id="live-timing-tbody"></tbody>
-                </table>
-            </div>
-            <p id="live-timing-hint" class="live-timing-hint hidden">Enable telemetry in config on each sim and run AC to see live data.</p>
-            </div>
+        <!-- Page: Live Timing — embeds external ACLiveTiming app (port 9660). -->
+        <div id="page-live-timing" class="content-page hidden" data-page="live-timing" style="display:flex;flex-direction:column;overflow:hidden;height:100%;">
+            <iframe id="lt-iframe" data-timing-port="9660" title="Live Timing" style="flex:1;width:100%;border:none;min-height:0;"></iframe>
+            <script>
+                (function () {
+                    var f = document.getElementById('lt-iframe');
+                    if (!f) return;
+                    var port = f.getAttribute('data-timing-port') || '9660';
+                    var proto = window.location.protocol;
+                    if (proto !== 'http:' && proto !== 'https:') proto = 'http:';
+                    var host = window.location.hostname || '127.0.0.1';
+                    f.src = proto + '//' + host + ':' + port + '/';
+                })();
+            </script>
         </div>
 
         <!-- Page: Entry List (server-scoped) -->

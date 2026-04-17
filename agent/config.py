@@ -93,9 +93,6 @@ class AgentConfig(BaseModel):
     port: Optional[int] = Field(default=None, description="Port to bind. If unset or 9600, derived from agent_id: Sim1->9631, ..., Sim8->9638.")
     paths: PathsConfig
     controller_url: Optional[str] = Field(default=None, description="Controller base URL for heartbeat (e.g. http://192.168.1.1:9630). If set, agent sends X-Agent-Id and X-Agent-Token to /api/heartbeat.")
-    telemetry_enabled: bool = Field(default=False, description="If true, stream AC shared memory telemetry to Controller at telemetry_rate_hz.")
-    telemetry_rate_hz: float = Field(default=10.0, description="Rate to emit telemetry_tick to Controller (10-20 Hz).")
-    telemetry_read_hz: float = Field(default=20.0, description="Rate to read AC shared memory (e.g. 20 Hz).")
     auto_launch_display: bool = Field(default=False, description="If true, auto-launch Chrome/Edge in kiosk fullscreen pointing at the controller /sim page on startup.")
     display_launch_delay: float = Field(default=5.0, description="Seconds to wait after startup before launching the sim display browser.")
     mumble_server_host: str = Field(default="192.168.1.200", description="Murmur server IP/hostname for auto-connect URL.")

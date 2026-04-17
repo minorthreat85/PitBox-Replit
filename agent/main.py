@@ -153,11 +153,6 @@ def main():
             if ctrl_url and token:
                 start_heartbeat(ctrl_url, device_id, token)
                 logger.info("Paired to controller at %s", ctrl_url)
-                if getattr(config, "telemetry_enabled", False):
-                    from agent.telemetry.telemetry_loop import start_telemetry
-                    read_hz = float(getattr(config, "telemetry_read_hz", 20) or 20)
-                    rate_hz = float(getattr(config, "telemetry_rate_hz", 10) or 10)
-                    start_telemetry(ctrl_url, config.agent_id, device_id, token, read_hz=read_hz, rate_hz=rate_hz)
         else:
             # Unpaired: listen for controller enrollment broadcast and auto-enroll
             from agent.enrollment_client import run_enrollment_loop
