@@ -173,15 +173,28 @@
                 <button type="button" class="ba-sub-tab" data-ba-sub="tiers">Tiers</button>
             </nav>
 
-            <!-- Bookings Panel: embeds full myfastestlap booking admin -->
+            <!-- Bookings Panel: embeds full myfastestlap booking admin via the
+                 root-preserving proxy on a separate origin (port 9650) so the
+                 booking SPA's client-side router works correctly. -->
             <div id="ba-panel-list" class="ba-panel ba-panel--iframe">
                 <iframe
                     id="ba-iframe"
-                    src="/proxy/booking/admin/bookings"
+                    data-booking-path="/admin/bookings"
                     title="Bookings Admin"
                     style="flex:1;width:100%;border:none;min-height:0;"
                 ></iframe>
             </div>
+            <script>
+                (function () {
+                    var f = document.getElementById('ba-iframe');
+                    if (!f) return;
+                    var path = f.getAttribute('data-booking-path') || '/admin/bookings';
+                    var proto = window.location.protocol;
+                    if (proto !== 'http:' && proto !== 'https:') proto = 'http:';
+                    var host = window.location.hostname || '127.0.0.1';
+                    f.src = proto + '//' + host + ':9650' + path;
+                })();
+            </script>
 
             <!-- Customers Panel -->
             <div id="ba-panel-customers" class="ba-panel hidden">

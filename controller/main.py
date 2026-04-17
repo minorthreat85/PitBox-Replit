@@ -39,7 +39,7 @@ try:
     from controller.api_routes import router as api_router, load_sim_assignments, BUILD_ID, discover_presets, PRESETS_DIR_DEBUG
     from controller.operator_auth import EMPLOYEE_COOKIE
     from controller.api_booking_routes import router as booking_router
-    from controller.booking_proxy import router as proxy_router
+    from controller.booking_proxy import router as proxy_router, start_root_proxy_thread, BOOKING_PROXY_PORT
     from controller.api_update_routes import router as update_router
     from controller.service.event_store import ensure_events_dir, append_event as event_store_append
     from controller.common.event_log import make_event, LogCategory, LogLevel
@@ -713,6 +713,12 @@ if __name__ == "__main__":
             print(f"PitBox Controller at {display_url}  (config: {config_path.resolve()})")
         except (OSError, AttributeError):
             pass
+        # Start the root-preserving booking proxy on its own port (separate origin
+        # so the booking SPA's client-side router sees /admin/... not /proxy/...).
+        try:
+            start_root_proxy_thread(host=host, port=BOOKING_PROXY_PORT)
+        except Exception as _e:
+            logger.exception("Failed to start booking root-proxy listener: %s", _e)
         uvicorn.run(
             app,
             host=host,
