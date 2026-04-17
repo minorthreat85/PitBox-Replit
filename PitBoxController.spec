@@ -30,6 +30,29 @@ _uvicorn_imports = [
     'websockets.legacy.server',
 ]
 
+# Belt-and-suspenders: explicitly list the vendored timing/server-control
+# modules so PyInstaller never optimises them out, even if a future
+# version of `collect_submodules` misses package nesting. These packages
+# are also picked up by `collect_submodules('controller')` above.
+_pitbox_imports = [
+    'controller.timing',
+    'controller.timing.constants',
+    'controller.timing.engine',
+    'controller.timing.vendor',
+    'controller.timing.vendor.acudpclient',
+    'controller.timing.vendor.acudpclient.client',
+    'controller.timing.vendor.acudpclient.exceptions',
+    'controller.timing.vendor.acudpclient.packet_base',
+    'controller.timing.vendor.acudpclient.packets',
+    'controller.timing.vendor.acudpclient.protocol',
+    'controller.timing.vendor.acudpclient.types',
+    'controller.server_control',
+    'controller.server_control.adapter',
+    'controller.server_control.grid',
+    'controller.api_server_control_routes',
+    'controller.api_timing_routes',
+]
+
 # Bundle slice2py.exe so Ice.loadSlice() can find it in the frozen bundle.
 # It lives in the same Scripts/ directory as the build Python.
 _slice2py = os.path.join(os.path.dirname(sys.executable), 'slice2py.exe')
@@ -70,7 +93,7 @@ a = Analysis(
     pathex=[],
     binaries=_ice_binaries,
     datas=_datas,
-    hiddenimports=_uvicorn_imports + _controller_submodules + _ice_imports,
+    hiddenimports=_uvicorn_imports + _pitbox_imports + _controller_submodules + _ice_imports,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

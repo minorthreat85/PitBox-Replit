@@ -253,10 +253,23 @@ class TimingEngine:
         self._record_event("end_session", filename=str(p.filename))
 
     def _on_ACSP_NEW_CONNECTION(self, p):
-        d = self._driver(int(p.car_id))
+        car_id = int(p.car_id)
+        new_guid = str(p.driver_guid)
+        existing = self.drivers.get(car_id)
+        d = self._driver(car_id)
+        # If this slot is being taken by a different human (different
+        # GUID), wipe the previous driver's per-session stats so they
+        # don't leak. Same GUID = reconnect, keep stats.
+        if existing is not None and existing.driver_guid and existing.driver_guid != new_guid:
+            d.last_lap_ms = 0
+            d.best_lap_ms = 0
+            d.total_laps = 0
+            d.position = 0
+            d.gap_ms = 0
+            d.cuts_last_lap = 0
         d.connected = True
         d.driver_name = str(p.driver_name)
-        d.driver_guid = str(p.driver_guid)
+        d.driver_guid = new_guid
         d.car_model = str(p.car_model)
         d.car_skin = str(p.car_skin)
         d.loaded = False
@@ -272,6 +285,11 @@ class TimingEngine:
         d = self._driver(car_id)
         d.connected = False
         d.loaded = False
+        # Drop position so the leaderboard doesn't keep showing this
+        # driver mid-pack after they leave; lap stats are preserved so
+        # the operator can still see what they did before disconnect.
+        d.position = 0
+        d.gap_ms = 0
         self._record_event(
             "connection_closed",
             car_id=car_id,
@@ -312,18 +330,29 @@ class TimingEngine:
         if lap_ms > 0 and (d.best_lap_ms == 0 or lap_ms < d.best_lap_ms):
             d.best_lap_ms = lap_ms
 
-        # Apply leaderboard ordering / gap-to-leader from the embedded array.
+        # Apply leaderboard ordering / gap-to-leader from the embedded
+        # array. AC sets ``has_completed_flag=False`` for cars that have
+        # never crossed the line in this session; their ``rtime`` is
+        # meaningless so we still record the position but leave gap=0
+        # rather than charting an absurd value. The leader baseline is
+        # the first car in the list with a real completed lap (so a
+        # mixed list where idx 1 hasn't yet completed still produces
+        # correct gaps for later completed entries).
         leader_time: Optional[int] = None
         for idx, entry in enumerate(getattr(p, "cars", []) or [], start=1):
             rcar_id = int(entry.rcar_id)
             rtime = int(entry.rtime)
+            has_completed = bool(getattr(entry, "has_completed_flag", True))
             rd = self._driver(rcar_id)
             rd.position = idx
             rd.total_laps = max(rd.total_laps, int(entry.rlaps))
-            if idx == 1:
+            if not has_completed:
+                rd.gap_ms = 0
+                continue
+            if leader_time is None:
                 leader_time = rtime
                 rd.gap_ms = 0
-            elif leader_time is not None:
+            else:
                 rd.gap_ms = max(0, rtime - leader_time)
 
         self._record_event(

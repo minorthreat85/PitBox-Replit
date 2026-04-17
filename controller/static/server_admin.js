@@ -21,6 +21,21 @@
 
     function $(id) { return document.getElementById(id); }
 
+    function withBusy(button, promise) {
+        // Disable a button (and add an in-progress class) for the lifetime
+        // of an API request, so users get visual feedback. Caller is the
+        // owner of the promise; we always re-enable.
+        if (!button) return promise;
+        button.disabled = true;
+        button.classList.add('sc-admin-busy');
+        var done = function () {
+            button.disabled = false;
+            button.classList.remove('sc-admin-busy');
+        };
+        promise.then(done, done);
+        return promise;
+    }
+
     function api(method, path, body) {
         var opts = { method: method, credentials: 'same-origin', headers: {} };
         if (body !== undefined) {
@@ -216,9 +231,10 @@
         var target = ($('sc-admin-chat-target') || {}).value || '';
         var body = { server_id: sid, message: msg };
         if (target !== '') body.car_id = parseInt(target, 10);
-        api('POST', '/api/server/chat', body)
-            .then(function () { $('sc-admin-chat-msg').value = ''; flashOK('Chat sent'); })
-            .catch(function (e) { setError('Chat: ' + e.message); });
+        withBusy($('sc-admin-chat-send'),
+            api('POST', '/api/server/chat', body)
+                .then(function () { $('sc-admin-chat-msg').value = ''; flashOK('Chat sent'); })
+                .catch(function (e) { setError('Chat: ' + e.message); }));
     }
 
     function doKick(carId, btn) {
@@ -235,25 +251,28 @@
     function nextSession() {
         var sid = state.serverId; if (!sid) return;
         if (!confirm('Advance to the next session?')) return;
-        api('POST', '/api/server/next-session', { server_id: sid })
-            .then(function () { flashOK('Next session triggered'); refreshInfo(); })
-            .catch(function (e) { setError('Next session: ' + e.message); });
+        withBusy($('sc-admin-next-session'),
+            api('POST', '/api/server/next-session', { server_id: sid })
+                .then(function () { flashOK('Next session triggered'); refreshInfo(); })
+                .catch(function (e) { setError('Next session: ' + e.message); }));
     }
 
     function restartSession() {
         var sid = state.serverId; if (!sid) return;
         if (!confirm('Restart the current session?')) return;
-        api('POST', '/api/server/restart-session', { server_id: sid })
-            .then(function () { flashOK('Session restarted'); refreshInfo(); })
-            .catch(function (e) { setError('Restart session: ' + e.message); });
+        withBusy($('sc-admin-restart-session'),
+            api('POST', '/api/server/restart-session', { server_id: sid })
+                .then(function () { flashOK('Session restarted'); refreshInfo(); })
+                .catch(function (e) { setError('Restart session: ' + e.message); }));
     }
 
     function reverseGrid() {
         var sid = state.serverId; if (!sid) return;
         if (!confirm('Reverse the grid in entry_list.ini? Takes effect on next start.')) return;
-        api('POST', '/api/server/grid/reverse', { server_id: sid })
-            .then(function (r) { flashOK('Grid reversed' + (r.warning ? ' (server running \u2014 restart needed)' : '')); refreshGrid(); })
-            .catch(function (e) { setError('Reverse: ' + e.message); });
+        withBusy($('sc-admin-grid-reverse'),
+            api('POST', '/api/server/grid/reverse', { server_id: sid })
+                .then(function (r) { flashOK('Grid reversed' + (r.warning ? ' (server running \u2014 restart needed)' : '')); refreshGrid(); })
+                .catch(function (e) { setError('Reverse: ' + e.message); }));
     }
 
     function swapGrid() {
@@ -261,9 +280,10 @@
         var a = parseInt(($('sc-admin-grid-a') || {}).value, 10);
         var b = parseInt(($('sc-admin-grid-b') || {}).value, 10);
         if (isNaN(a) || isNaN(b) || a === b) { setError('Pick two different slots to swap.'); return; }
-        api('POST', '/api/server/grid/swap', { server_id: sid, slot_a: a, slot_b: b })
-            .then(function (r) { flashOK('Swapped slots ' + a + ' \u2194 ' + b + (r.warning ? ' (restart needed)' : '')); refreshGrid(); })
-            .catch(function (e) { setError('Swap: ' + e.message); });
+        withBusy($('sc-admin-grid-swap'),
+            api('POST', '/api/server/grid/swap', { server_id: sid, slot_a: a, slot_b: b })
+                .then(function (r) { flashOK('Swapped slots ' + a + ' \u2194 ' + b + (r.warning ? ' (restart needed)' : '')); refreshGrid(); })
+                .catch(function (e) { setError('Swap: ' + e.message); }));
     }
 
     function sendAdminRaw() {
@@ -271,9 +291,10 @@
         var cmd = ($('sc-admin-raw-cmd') || {}).value || '';
         cmd = cmd.trim();
         if (!cmd) return;
-        api('POST', '/api/server/admin', { server_id: sid, command: cmd })
-            .then(function () { $('sc-admin-raw-cmd').value = ''; flashOK('Admin command sent: ' + cmd); })
-            .catch(function (e) { setError('Admin: ' + e.message); });
+        withBusy($('sc-admin-raw-send'),
+            api('POST', '/api/server/admin', { server_id: sid, command: cmd })
+                .then(function () { $('sc-admin-raw-cmd').value = ''; flashOK('Admin command sent: ' + cmd); })
+                .catch(function (e) { setError('Admin: ' + e.message); }));
     }
 
     // ------------------------------------------------------------------ //
