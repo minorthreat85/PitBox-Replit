@@ -172,7 +172,6 @@ def _parse_ac_native(data: dict) -> Optional[dict[str, Any]]:
         leader_best_ms = _best_lap_ms(int(order[0]) if isinstance(order[0], (int, float)) else 0)
 
     results: list[dict[str, Any]] = []
-    ai_counter = 0
     for pos_idx, pidx_any in enumerate(order):
         try:
             pidx = int(pidx_any)
@@ -184,8 +183,11 @@ def _parse_ac_native(data: dict) -> Optional[dict[str, Any]]:
         name = p.get("name")
         driver = name.strip() if isinstance(name, str) and name.strip() else ""
         if not driver:
-            ai_counter += 1
-            driver = f"AI {ai_counter}"
+            skin_raw = p.get("skin")
+            if isinstance(skin_raw, str) and skin_raw.strip():
+                driver = skin_raw.strip().replace("_", " ")
+            else:
+                driver = "—"
         car_raw_val = p.get("car")
         car_raw = car_raw_val.strip() if isinstance(car_raw_val, str) else ""
         car = _fmt_car_name(car_raw) if car_raw else "—"
