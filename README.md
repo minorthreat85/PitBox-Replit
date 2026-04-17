@@ -124,27 +124,21 @@ Assignments are set from the Control UI via **POST** `/api/assignments/{agent_id
 
 ---
 
-## Live timing (ACLiveTiming)
+## Live timing (native)
 
-PitBox no longer has its own timing system. Live timing is provided by **[ACLiveTiming](https://github.com/andiexer/ACLiveTiming)** (a .NET Blazor app), launched and supervised by the Controller and embedded in the **Live Timing** tab via an iframe.
+Live timing is provided **natively** by PitBox: the Controller listens on the AC dedicated-server UDP plugin protocol, normalises the stream into an in-memory session model and renders a leaderboard in the **Live Timing** tab. No external timing app, no `.NET`, no iframe.
 
-**Install (one-time, on the Controller PC)**:
-1. Download the win-x64 build of `Devlabs.AcTiming` and extract to `C:\PitBox\Timing\` so that `C:\PitBox\Timing\Devlabs.AcTiming.Web.exe` exists.
-   - Override path with the env var `PITBOX_TIMING_EXE` if installed elsewhere.
-2. Open Windows firewall once (elevated):
-   ```powershell
-   New-NetFirewallRule -DisplayName "PitBox Live Timing"   -Direction Inbound -Protocol TCP -LocalPort 9660 -Action Allow
-   New-NetFirewallRule -DisplayName "PitBox Live Timing UDP" -Direction Inbound -Protocol UDP -LocalPort 9996 -Action Allow
-   ```
-
-**AC dedicated server** — add to each `server_cfg.ini` (`[SERVER]` section):
+**AC dedicated server** — these `[SERVER]` lines are written automatically by PitBox when you save server config or load a preset, but if you maintain `server_cfg.ini` by hand, add:
 ```ini
 UDP_PLUGIN_LOCAL_PORT=9999
 UDP_PLUGIN_ADDRESS=127.0.0.1:9996
 ```
 (Use the Controller PC's LAN IP instead of `127.0.0.1` if AC runs on a different machine.)
 
-**Runtime**: ACLiveTiming binds `http://0.0.0.0:9660` (set via `ASPNETCORE_URLS`); the Live Timing tab in the PitBox UI loads it in an iframe. Process health is exposed at `GET /api/timing/health`.
+**Firewall** — open the AC plugin port if AC runs on a different PC than the Controller:
+```powershell
+New-NetFirewallRule -DisplayName "PitBox AC Plugin" -Direction Inbound -Protocol UDP -LocalPort 9996 -Action Allow
+```
 
 ---
 

@@ -310,13 +310,6 @@ async def heartbeat(agent_id: str = Depends(require_agent)):
     return {"status": "ok", "agent_id": agent_id}
 
 
-@router.get("/timing/health")
-async def timing_health(_: None = Depends(require_operator_if_password_configured)):
-    """Health probe for the embedded ACLiveTiming process (port 9660)."""
-    from controller import timing_launcher
-    return timing_launcher.status()
-
-
 # ---- Enrollment mode + auto-pair ----
 
 class EnrollmentSetBody(BaseModel):

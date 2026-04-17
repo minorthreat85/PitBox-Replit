@@ -40,8 +40,8 @@ try:
     from controller.operator_auth import EMPLOYEE_COOKIE
     from controller.api_booking_routes import router as booking_router
     from controller.booking_proxy import router as proxy_router, start_root_proxy_thread, BOOKING_PROXY_PORT
-    from controller import timing_launcher
     from controller.api_update_routes import router as update_router
+    from controller.timing import engine as timing_engine
     from controller.service.event_store import ensure_events_dir, append_event as event_store_append
     from controller.common.event_log import make_event, LogCategory, LogLevel
 except Exception as _e:
@@ -314,9 +314,9 @@ async def lifespan(app: FastAPI):
         start_poller()
         start_discovery()
         try:
-            timing_launcher.start()
+            await timing_engine.start()
         except Exception as _e:
-            logger.exception("Failed to start ACLiveTiming launcher: %s", _e)
+            logger.exception("Failed to start native timing engine: %s", _e)
         ensure_events_dir()
         try:
             event_store_append(make_event(LogLevel.INFO, LogCategory.SYSTEM, "Controller", "Controller started", details={"static_dir": str(STATIC_DIR)}))
@@ -373,9 +373,9 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning("Shutdown cleanup: %s", e)
     try:
-        timing_launcher.stop()
+        await timing_engine.stop()
     except Exception as e:
-        logger.warning("Timing launcher shutdown: %s", e)
+        logger.warning("Timing engine shutdown: %s", e)
 
 
 try:

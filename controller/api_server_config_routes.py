@@ -43,7 +43,7 @@ from controller.config import get_ac_server_presets_root
 from controller.ini_io import get_file_revision, read_ini, write_ini_atomic, _ini_value
 from controller.operator_auth import require_operator, require_operator_if_password_configured
 from controller.service.event_store import append_event as event_store_append
-from controller.timing_launcher import (
+from controller.timing.constants import (
     TIMING_UDP_PLUGIN_ADDRESS,
     TIMING_UDP_PLUGIN_LOCAL_PORT,
 )
@@ -536,8 +536,7 @@ class ServerConfigPutBody(BaseModel):
 def _ensure_timing_plugin_defaults(server_cfg: dict[str, dict[str, str]]) -> bool:
     """Auto-fill UDP_PLUGIN_LOCAL_PORT / UDP_PLUGIN_ADDRESS in [SERVER] when blank.
 
-    PitBox launches ACLiveTiming as a managed subprocess listening on the standard
-    plugin port; AC dedicated servers must forward telemetry to it. We only fill
+    PitBox's native timing engine listens on the standard AC UDP plugin port; AC dedicated servers must forward telemetry to it. We only fill
     the values when they are missing or empty so an operator override is never
     clobbered. Returns True if anything was changed.
     """
@@ -582,7 +581,7 @@ async def put_server_config(body: ServerConfigPutBody, _: None = Depends(require
     if not any(s.upper() == "SERVER" for s in server_cfg_out):
         server_cfg_out["SERVER"] = {"CARS": cars_value}
     if _ensure_timing_plugin_defaults(server_cfg_out):
-        logger.info("Auto-filled UDP_PLUGIN_* defaults for ACLiveTiming in %s", sc_path)
+        logger.info("Auto-filled UDP_PLUGIN_* defaults for PitBox timing engine in %s", sc_path)
     write_ini_atomic(sc_path, server_cfg_out)
     entry_list_ini: dict[str, dict[str, str]] = {}
     for i, car in enumerate(body.entry_list):
@@ -636,7 +635,7 @@ async def load_server_config_preset(body: LoadPresetBody, _: None = Depends(requ
     if sc_src.exists():
         data = read_ini(sc_src)
         if _ensure_timing_plugin_defaults(data):
-            logger.info("Auto-filled UDP_PLUGIN_* defaults for ACLiveTiming in preset load -> %s", sc_dst)
+            logger.info("Auto-filled UDP_PLUGIN_* defaults for PitBox timing engine in preset load -> %s", sc_dst)
         write_ini_atomic(sc_dst, data)
     if el_src.exists():
         data = read_ini(el_src)

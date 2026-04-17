@@ -243,20 +243,18 @@
             </div>
         </div>
 
-        <!-- Page: Live Timing — embeds external ACLiveTiming app (port 9660). -->
-        <div id="page-live-timing" class="content-page hidden" data-page="live-timing" style="display:flex;flex-direction:column;overflow:hidden;height:100%;">
-            <iframe id="lt-iframe" data-timing-port="9660" title="Live Timing" style="flex:1;width:100%;border:none;min-height:0;"></iframe>
-            <script>
-                (function () {
-                    var f = document.getElementById('lt-iframe');
-                    if (!f) return;
-                    var port = f.getAttribute('data-timing-port') || '9660';
-                    var proto = window.location.protocol;
-                    if (proto !== 'http:' && proto !== 'https:') proto = 'http:';
-                    var host = window.location.hostname || '127.0.0.1';
-                    f.src = proto + '//' + host + ':' + port + '/';
-                })();
-            </script>
+        <!-- Page: Live Timing — native PitBox leaderboard (Phase 4 will populate). -->
+        <div id="page-live-timing" class="content-page hidden" data-page="live-timing">
+            <div class="page-header">
+                <h1 class="page-title">LIVE TIMING</h1>
+                <p class="page-subtitle">Native leaderboard fed by PitBox's timing engine.</p>
+            </div>
+            <div id="live-timing-root" class="live-timing-root">
+                <div id="live-timing-empty" class="live-timing-empty">
+                    <p>Waiting for AC server telemetry…</p>
+                    <p class="live-timing-empty-hint">Start a server preset and join — drivers, lap times and gaps will appear here.</p>
+                </div>
+            </div>
         </div>
 
         <!-- Page: Entry List (server-scoped) -->
