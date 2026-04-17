@@ -403,6 +403,11 @@ app.include_router(proxy_router)
 app.include_router(update_router, prefix="/api")
 app.include_router(timing_router)
 app.include_router(timing_ws_router)
+try:
+    from controller.api_server_control_routes import router as server_control_router
+    app.include_router(server_control_router)
+except Exception as _exc:  # noqa: BLE001 - keep boot resilient
+    logging.getLogger(__name__).exception("Failed to mount server-control router: %s", _exc)
 if mumble_router is not None:
     app.include_router(mumble_router)
 
@@ -538,6 +543,26 @@ async def serve_live_timing_js(request: Request):
     if not path.exists():
         from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="live_timing.js not found")
+    return _asset_response(path, "application/javascript", request)
+
+
+@app.get("/server_admin.css")
+async def serve_server_admin_css(request: Request):
+    """Serve native PitBox server-admin (UDP plugin) panel stylesheet."""
+    path = STATIC_DIR / "server_admin.css"
+    if not path.exists():
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="server_admin.css not found")
+    return _asset_response(path, "text/css", request)
+
+
+@app.get("/server_admin.js")
+async def serve_server_admin_js(request: Request):
+    """Serve native PitBox server-admin (UDP plugin) panel client script."""
+    path = STATIC_DIR / "server_admin.js"
+    if not path.exists():
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="server_admin.js not found")
     return _asset_response(path, "application/javascript", request)
 
 

@@ -282,6 +282,11 @@ def _ac_server_start(server_id: str) -> dict:
         with _running_servers_lock:
             _running_servers[server_id] = instance
         logger.info("Started acServer.exe pid=%s cwd=%s (server %s)", proc.pid, preset_path, server_id)
+        try:
+            from controller.server_control.adapter import get_adapter as _get_admin_adapter
+            _get_admin_adapter().invalidate_target(server_id)
+        except Exception:
+            pass
         return {
             "success": True,
             "message": "Started",
@@ -301,6 +306,14 @@ def _ac_server_start(server_id: str) -> dict:
 def _ac_server_stop(server_id: str) -> dict:
     with _running_servers_lock:
         instance = _running_servers.pop(server_id, None)
+    # Drop any cached UDP-admin target so the next start re-resolves
+    # the port from the (possibly edited) server_cfg.ini. Best-effort:
+    # never let adapter errors block the stop sequence.
+    try:
+        from controller.server_control.adapter import get_adapter as _get_admin_adapter
+        _get_admin_adapter().invalidate_target(server_id)
+    except Exception:
+        pass
     if not instance:
         return {"success": True, "message": "Not running"}
     proc = instance.proc

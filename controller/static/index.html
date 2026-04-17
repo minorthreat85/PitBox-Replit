@@ -11,6 +11,7 @@
     <link rel="stylesheet" href="/styles.css">
     <link rel="stylesheet" href="/booking-admin.css">
     <link rel="stylesheet" href="/live_timing.css">
+    <link rel="stylesheet" href="/server_admin.css">
 </head>
 <body>
 <aside class="sidebar" id="sidebar">
@@ -568,6 +569,7 @@
                             <button type="button" class="sc-tab" data-tab="rules" role="tab">RULES</button>
                             <button type="button" class="sc-tab" data-tab="conditions" role="tab">CONDITIONS</button>
                             <button type="button" class="sc-tab" data-tab="sessions" role="tab">SESSIONS</button>
+                            <button type="button" class="sc-tab" data-tab="admin" role="tab">ADMIN</button>
                             <button type="button" class="sc-tab" data-tab="blacklist" role="tab">BLACKLIST</button>
                             <button type="button" class="sc-tab" data-tab="advanced" role="tab">ADVANCED</button>
                             <button type="button" class="sc-tab" data-tab="details" role="tab">DETAILS</button>
@@ -798,6 +800,79 @@
                             </div>
                         </div>
                     </div>
+                    <div id="sc-panel-admin" class="sc-panel hidden" data-tab="admin">
+                        <p class="sc-status-intro">Live admin commands sent to the running <code>acServer.exe</code> for the selected preset. PitBox owns the server lifecycle &mdash; use the Status tab to start/stop. Grid changes are written to <code>entry_list.ini</code> and take effect on the next server start.</p>
+                        <div class="sc-admin-status-row">
+                            <span id="sc-admin-state" class="sc-status-badge sc-status-stopped">Stopped</span>
+                            <span id="sc-admin-target" class="sc-status-detail"></span>
+                            <button type="button" id="sc-admin-refresh" class="sc-header-btn">Refresh</button>
+                        </div>
+                        <div id="sc-admin-error" class="sc-admin-error hidden" role="alert"></div>
+
+                        <fieldset class="sc-admin-card" id="sc-admin-chat-card">
+                            <legend>Chat</legend>
+                            <div class="sc-admin-row">
+                                <label class="sc-admin-label">Target</label>
+                                <select id="sc-admin-chat-target" class="sc-admin-input">
+                                    <option value="">Broadcast (everyone)</option>
+                                </select>
+                            </div>
+                            <div class="sc-admin-row">
+                                <label class="sc-admin-label" for="sc-admin-chat-msg">Message</label>
+                                <input id="sc-admin-chat-msg" type="text" maxlength="255" class="sc-admin-input" placeholder="e.g. Race starts in 2 minutes" />
+                            </div>
+                            <div class="sc-admin-actions">
+                                <button type="button" id="sc-admin-chat-send" class="sc-header-btn sc-header-btn-primary">Send chat</button>
+                            </div>
+                        </fieldset>
+
+                        <fieldset class="sc-admin-card" id="sc-admin-session-card">
+                            <legend>Session</legend>
+                            <div class="sc-admin-actions">
+                                <button type="button" id="sc-admin-next-session" class="sc-header-btn">Next session</button>
+                                <button type="button" id="sc-admin-restart-session" class="sc-header-btn">Restart session</button>
+                            </div>
+                        </fieldset>
+
+                        <fieldset class="sc-admin-card" id="sc-admin-driver-card">
+                            <legend>Drivers (live)</legend>
+                            <table class="sc-admin-driver-table">
+                                <thead>
+                                    <tr><th>Car</th><th>Driver</th><th>Model</th><th>Laps</th><th>Status</th><th></th></tr>
+                                </thead>
+                                <tbody id="sc-admin-drivers"><tr><td colspan="6" class="sc-admin-empty">No live driver data.</td></tr></tbody>
+                            </table>
+                        </fieldset>
+
+                        <fieldset class="sc-admin-card" id="sc-admin-grid-card">
+                            <legend>Grid (entry_list.ini)</legend>
+                            <p class="sc-admin-hint">Reverse / swap operations rewrite <code>entry_list.ini</code> atomically. They apply on the next server start.</p>
+                            <div class="sc-admin-actions">
+                                <button type="button" id="sc-admin-grid-refresh" class="sc-header-btn">Reload grid</button>
+                                <button type="button" id="sc-admin-grid-reverse" class="sc-header-btn">Reverse grid</button>
+                            </div>
+                            <div class="sc-admin-row">
+                                <label class="sc-admin-label">Swap slots</label>
+                                <select id="sc-admin-grid-a" class="sc-admin-input"></select>
+                                <span class="sc-admin-swap-arrow">&harr;</span>
+                                <select id="sc-admin-grid-b" class="sc-admin-input"></select>
+                                <button type="button" id="sc-admin-grid-swap" class="sc-header-btn">Swap</button>
+                            </div>
+                            <table class="sc-admin-grid-table">
+                                <thead><tr><th>Slot</th><th>Driver</th><th>Model</th><th>Skin</th></tr></thead>
+                                <tbody id="sc-admin-grid"><tr><td colspan="4" class="sc-admin-empty">No grid loaded.</td></tr></tbody>
+                            </table>
+                        </fieldset>
+
+                        <fieldset class="sc-admin-card" id="sc-admin-raw-card">
+                            <legend>Raw <code>/admin</code> command</legend>
+                            <p class="sc-admin-hint">Any text command supported by acServer (e.g. <code>/ballast 3 50</code>, <code>/restrict 1 20</code>, <code>/help</code>). Sent verbatim.</p>
+                            <div class="sc-admin-row">
+                                <input id="sc-admin-raw-cmd" type="text" maxlength="255" class="sc-admin-input" placeholder="/ballast 3 50" />
+                                <button type="button" id="sc-admin-raw-send" class="sc-header-btn">Send</button>
+                            </div>
+                        </fieldset>
+                    </div>
                     <div id="sc-panel-details" class="sc-panel hidden" data-tab="details">
                         <p class="sc-placeholder">Full <code>server_cfg.ini</code> as returned by the API (read-only). Save changes from other tabs, then refresh.</p>
                         <div class="sc-details-toolbar">
@@ -983,5 +1058,6 @@
     <script src="/booking-admin.js"></script>
     <script src="/app.js"></script>
     <script src="/live_timing.js"></script>
+    <script src="/server_admin.js"></script>
 </body>
 </html>
