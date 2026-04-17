@@ -25,6 +25,7 @@ starlette==0.45.3
 typing_extensions==4.15.0
 tzdata==2025.3
 uvicorn==0.32.0
+websockets==13.1
 anyio
 fastapi
 httpx
@@ -35,3 +36,4 @@ pydantic-settings
 pystray
 python-dotenv
 uvicorn
+websockets

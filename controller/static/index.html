@@ -10,6 +10,7 @@
     <link rel="icon" type="image/x-icon" href="/favicon.ico">
     <link rel="stylesheet" href="/styles.css">
     <link rel="stylesheet" href="/booking-admin.css">
+    <link rel="stylesheet" href="/live_timing.css">
 </head>
 <body>
 <aside class="sidebar" id="sidebar">
@@ -243,18 +244,73 @@
             </div>
         </div>
 
-        <!-- Page: Live Timing — native PitBox leaderboard (Phase 4 will populate). -->
+        <!-- Page: Live Timing — native PitBox leaderboard powered by the
+             on-board timing engine. WS push with HTTP polling fallback. -->
         <div id="page-live-timing" class="content-page hidden" data-page="live-timing">
-            <div class="page-header">
-                <h1 class="page-title">LIVE TIMING</h1>
-                <p class="page-subtitle">Native leaderboard fed by PitBox's timing engine.</p>
-            </div>
-            <div id="live-timing-root" class="live-timing-root">
-                <div id="live-timing-empty" class="live-timing-empty">
-                    <p>Waiting for AC server telemetry…</p>
-                    <p class="live-timing-empty-hint">Start a server preset and join — drivers, lap times and gaps will appear here.</p>
+            <div class="page-header lt-header-row">
+                <div>
+                    <h1 class="page-title">LIVE TIMING</h1>
+                    <p class="page-subtitle">Native leaderboard fed by PitBox's timing engine.</p>
+                </div>
+                <div id="lt-conn" class="lt-conn lt-conn--idle" title="Connection status">
+                    <span class="lt-conn-dot"></span>
+                    <span id="lt-conn-label" class="lt-conn-label">Idle</span>
                 </div>
             </div>
+
+            <div id="lt-stale-banner" class="lt-stale-banner hidden" role="status">
+                Stale data — no AC packets received for <span id="lt-stale-age">--</span>. The dedicated server may be stopped or the UDP plugin not configured.
+            </div>
+
+            <section class="lt-session-card" aria-label="Current session">
+                <div class="lt-session-grid">
+                    <div class="lt-session-cell">
+                        <div class="lt-session-key">Track / Layout</div>
+                        <div class="lt-session-val" id="lt-track">—</div>
+                    </div>
+                    <div class="lt-session-cell">
+                        <div class="lt-session-key">Session</div>
+                        <div class="lt-session-val" id="lt-session-type">—</div>
+                    </div>
+                    <div class="lt-session-cell">
+                        <div class="lt-session-key">Time Remaining</div>
+                        <div class="lt-session-val" id="lt-time-remaining">—</div>
+                    </div>
+                    <div class="lt-session-cell">
+                        <div class="lt-session-key">Air / Track</div>
+                        <div class="lt-session-val" id="lt-temps">—</div>
+                    </div>
+                    <div class="lt-session-cell">
+                        <div class="lt-session-key">Server</div>
+                        <div class="lt-session-val" id="lt-server-name">—</div>
+                    </div>
+                    <div class="lt-session-cell">
+                        <div class="lt-session-key">Weather</div>
+                        <div class="lt-session-val" id="lt-weather">—</div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="lt-board-wrap" aria-label="Leaderboard">
+                <table class="lt-board" id="lt-board">
+                    <thead>
+                        <tr>
+                            <th class="lt-col-pos">Pos</th>
+                            <th class="lt-col-driver">Driver</th>
+                            <th class="lt-col-car">Car</th>
+                            <th class="lt-col-laps">Laps</th>
+                            <th class="lt-col-best">Best Lap</th>
+                            <th class="lt-col-last">Last Lap</th>
+                            <th class="lt-col-gap">Gap</th>
+                            <th class="lt-col-int">Interval</th>
+                            <th class="lt-col-status">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="lt-rows">
+                        <tr class="lt-empty-row"><td colspan="9">Waiting for AC server telemetry…</td></tr>
+                    </tbody>
+                </table>
+            </section>
         </div>
 
         <!-- Page: Entry List (server-scoped) -->
@@ -926,5 +982,6 @@
     <div id="toast-container" class="toast-container" role="status" aria-live="polite" aria-atomic="true"></div>
     <script src="/booking-admin.js"></script>
     <script src="/app.js"></script>
+    <script src="/live_timing.js"></script>
 </body>
 </html>

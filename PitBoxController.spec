@@ -22,8 +22,12 @@ _uvicorn_imports = [
     'uvicorn.lifespan.on',
     'uvicorn.lifespan.off',
     'uvicorn.protocols.websockets.auto',
+    'uvicorn.protocols.websockets.websockets_impl',
     'uvicorn.protocols.http.auto',
     'uvicorn.loops.auto',
+    'websockets',
+    'websockets.legacy',
+    'websockets.legacy.server',
 ]
 
 # Bundle slice2py.exe so Ice.loadSlice() can find it in the frozen bundle.

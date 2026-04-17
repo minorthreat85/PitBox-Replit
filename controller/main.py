@@ -42,6 +42,7 @@ try:
     from controller.booking_proxy import router as proxy_router, start_root_proxy_thread, BOOKING_PROXY_PORT
     from controller.api_update_routes import router as update_router
     from controller.timing import engine as timing_engine
+    from controller.api_timing_routes import router as timing_router, ws_router as timing_ws_router
     from controller.service.event_store import ensure_events_dir, append_event as event_store_append
     from controller.common.event_log import make_event, LogCategory, LogLevel
 except Exception as _e:
@@ -400,6 +401,8 @@ app.include_router(api_router)
 app.include_router(booking_router)
 app.include_router(proxy_router)
 app.include_router(update_router, prefix="/api")
+app.include_router(timing_router)
+app.include_router(timing_ws_router)
 if mumble_router is not None:
     app.include_router(mumble_router)
 
@@ -515,6 +518,26 @@ async def serve_booking_admin_js(request: Request):
     if not path.exists():
         from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="booking-admin.js not found")
+    return _asset_response(path, "application/javascript", request)
+
+
+@app.get("/live_timing.css")
+async def serve_live_timing_css(request: Request):
+    """Serve native PitBox Live Timing stylesheet."""
+    path = STATIC_DIR / "live_timing.css"
+    if not path.exists():
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="live_timing.css not found")
+    return _asset_response(path, "text/css", request)
+
+
+@app.get("/live_timing.js")
+async def serve_live_timing_js(request: Request):
+    """Serve native PitBox Live Timing client script."""
+    path = STATIC_DIR / "live_timing.js"
+    if not path.exists():
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="live_timing.js not found")
     return _asset_response(path, "application/javascript", request)
 
 

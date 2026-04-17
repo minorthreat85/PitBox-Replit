@@ -1,0 +1,175 @@
+/* PitBox native live-timing leaderboard. Self-contained styles loaded only on
+   the Live Timing page. Designed to inherit the dashboard's dark theme. */
+
+#page-live-timing {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding-bottom: 24px;
+}
+
+.lt-header-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+/* Connection pill in the page header */
+.lt-conn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.03);
+    color: #cfcfcf;
+    white-space: nowrap;
+}
+
+.lt-conn-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: #6c7280;
+    box-shadow: 0 0 0 0 rgba(108, 114, 128, 0.5);
+}
+
+.lt-conn--ws    { color: #7be37b; border-color: rgba(123, 227, 123, 0.35); }
+.lt-conn--ws    .lt-conn-dot { background: #4ade80; box-shadow: 0 0 6px rgba(74, 222, 128, 0.6); }
+
+.lt-conn--poll  { color: #ffd166; border-color: rgba(255, 209, 102, 0.35); }
+.lt-conn--poll  .lt-conn-dot { background: #facc15; box-shadow: 0 0 6px rgba(250, 204, 21, 0.6); }
+
+.lt-conn--stale { color: #f97373; border-color: rgba(249, 115, 115, 0.35); }
+.lt-conn--stale .lt-conn-dot { background: #ef4444; box-shadow: 0 0 6px rgba(239, 68, 68, 0.6); }
+
+.lt-conn--idle  .lt-conn-dot { background: #6c7280; }
+
+/* Stale data banner */
+.lt-stale-banner {
+    background: rgba(239, 68, 68, 0.12);
+    border: 1px solid rgba(239, 68, 68, 0.4);
+    color: #fecaca;
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 13px;
+}
+
+/* Session header card */
+.lt-session-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    padding: 14px 18px;
+}
+
+.lt-session-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 14px 24px;
+}
+
+.lt-session-cell { min-width: 0; }
+
+.lt-session-key {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #8a8f9c;
+    margin-bottom: 4px;
+}
+
+.lt-session-val {
+    font-size: 18px;
+    font-weight: 600;
+    color: #f4f4f5;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Leaderboard */
+.lt-board-wrap {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.lt-board {
+    width: 100%;
+    border-collapse: collapse;
+    font-variant-numeric: tabular-nums;
+    font-size: 14px;
+}
+
+.lt-board thead th {
+    text-align: left;
+    padding: 10px 12px;
+    background: rgba(255, 255, 255, 0.04);
+    color: #c9c9cf;
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    position: sticky; top: 0;
+}
+
+.lt-board tbody td {
+    padding: 10px 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    color: #e4e4e7;
+}
+
+.lt-board tbody tr:hover td { background: rgba(255, 255, 255, 0.025); }
+.lt-board tbody tr:last-child td { border-bottom: none; }
+
+.lt-col-pos     { width: 56px;  text-align: center; }
+.lt-col-driver  { width: auto;  }
+.lt-col-car     { width: auto;  }
+.lt-col-laps    { width: 70px;  text-align: right; }
+.lt-col-best    { width: 110px; text-align: right; }
+.lt-col-last    { width: 110px; text-align: right; }
+.lt-col-gap     { width: 100px; text-align: right; }
+.lt-col-int     { width: 100px; text-align: right; }
+.lt-col-status  { width: 110px; }
+
+.lt-board td.lt-col-pos      { text-align: center; font-weight: 700; }
+.lt-board td.lt-col-laps,
+.lt-board td.lt-col-best,
+.lt-board td.lt-col-last,
+.lt-board td.lt-col-gap,
+.lt-board td.lt-col-int      { text-align: right; }
+
+.lt-pos-1 { color: #facc15; }    /* gold */
+.lt-pos-2 { color: #d4d4d8; }    /* silver */
+.lt-pos-3 { color: #d97706; }    /* bronze */
+
+.lt-empty-row td {
+    text-align: center;
+    color: #8a8f9c;
+    padding: 28px 12px;
+    font-style: italic;
+}
+
+.lt-best-cell { color: #a5f3a5; }
+
+/* Status pill inside the row */
+.lt-status {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border: 1px solid transparent;
+}
+.lt-status--on        { color: #7be37b; border-color: rgba(123, 227, 123, 0.35); background: rgba(123, 227, 123, 0.1); }
+.lt-status--loading   { color: #ffd166; border-color: rgba(255, 209, 102, 0.35); background: rgba(255, 209, 102, 0.1); }
+.lt-status--offline   { color: #a1a1aa; border-color: rgba(161, 161, 170, 0.35); background: rgba(161, 161, 170, 0.08); }
