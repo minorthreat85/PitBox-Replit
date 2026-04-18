@@ -47,8 +47,12 @@ _pitbox_imports = [
     'controller.server_control',
     'controller.server_control.adapter',
     'controller.server_control.grid',
-    'controller.api_server_control_routes',
-    'controller.api_timing_routes',
+    # Note: controller.api_server_control_routes and
+    # controller.api_timing_routes are intentionally NOT listed here.
+    # They are picked up by collect_submodules('controller') above; listing
+    # them again caused PyInstaller's hidden-import resolver to emit a
+    # spurious "not found" ERROR (the resolver runs before the controller
+    # path is fully indexed for some module orderings).
 ]
 
 # Bundle slice2py.exe so Ice.loadSlice() can find it in the frozen bundle.
