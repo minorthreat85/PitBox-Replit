@@ -153,6 +153,16 @@ def main():
             if ctrl_url and token:
                 start_heartbeat(ctrl_url, device_id, token)
                 logger.info("Paired to controller at %s", ctrl_url)
+                # Start telemetry sender (Phase A): pushes AC shared-memory frames over WS.
+                try:
+                    if getattr(config, "telemetry_enabled", True):
+                        from agent.telemetry.sender import start_telemetry
+                        start_telemetry(
+                            ctrl_url, device_id, token,
+                            rate_hz=float(getattr(config, "telemetry_rate_hz", 15.0) or 15.0),
+                        )
+                except Exception as te:
+                    logger.warning("Telemetry sender not started: %s", te)
         else:
             # Unpaired: listen for controller enrollment broadcast and auto-enroll
             from agent.enrollment_client import run_enrollment_loop
@@ -162,6 +172,16 @@ def main():
                 save_paired(url, token, device_id)
                 start_heartbeat(url, device_id, token)
                 logger.info("Enrolled and paired to controller at %s", url)
+                # Also start telemetry once we have controller credentials (Phase A).
+                try:
+                    if getattr(config, "telemetry_enabled", True):
+                        from agent.telemetry.sender import start_telemetry
+                        start_telemetry(
+                            url, device_id, token,
+                            rate_hz=float(getattr(config, "telemetry_rate_hz", 15.0) or 15.0),
+                        )
+                except Exception as te:
+                    logger.warning("Telemetry sender (post-enroll) not started: %s", te)
             _enrollment_thread = threading.Thread(
                 target=run_enrollment_loop,
                 args=(

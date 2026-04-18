@@ -43,6 +43,7 @@ try:
     from controller.api_update_routes import router as update_router
     from controller.timing import engine as timing_engine
     from controller.api_timing_routes import router as timing_router, ws_router as timing_ws_router
+    from controller.api_telemetry_ingest import router as telemetry_router, ws_router as telemetry_ws_router
     from controller.service.event_store import ensure_events_dir, append_event as event_store_append
     from controller.common.event_log import make_event, LogCategory, LogLevel
 except Exception as _e:
@@ -403,6 +404,8 @@ app.include_router(proxy_router)
 app.include_router(update_router, prefix="/api")
 app.include_router(timing_router)
 app.include_router(timing_ws_router)
+app.include_router(telemetry_router, prefix="/api")
+app.include_router(telemetry_ws_router)
 try:
     from controller.api_server_control_routes import router as server_control_router
     app.include_router(server_control_router)

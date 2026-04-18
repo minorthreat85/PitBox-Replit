@@ -1,11 +1,14 @@
 /* PitBox native Live Timing client.
  *
+ * Renders the Live Timing dashboard: agent connection bar, leaderboard with
+ * live (sim-side) speed/gear/RPM/pit columns, track map (positions from sim
+ * telemetry normalized_car_position), driver detail panel, and event stream.
+ *
  * Activates only when the Live Timing page is visible (detected via the
  * `.hidden` class on `#page-live-timing`). Tries WebSocket first; if the WS
- * fails or closes for any reason, transparently falls back to HTTP polling
- * against /api/timing/snapshot. Stale state (no AC packets for >10s) is
- * surfaced both in the connection pill and in a banner so operators can tell
- * at a glance whether the server is silent.
+ * fails or closes, transparently falls back to HTTP polling against
+ * /api/timing/snapshot. Stale state (no AC packets for >10s) is surfaced
+ * both in the connection pill and in a banner.
  */
 (function () {
     'use strict';
@@ -13,15 +16,21 @@
     var POLL_INTERVAL_MS = 1000;
     var STALE_THRESHOLD_S = 10;
     var WS_RETRY_MS = 5000;
+    var EVENTS_POLL_MS = 2000;
+    var EVENTS_MAX = 30;
 
     var state = {
         active: false,
         ws: null,
         wsRetryTimer: null,
         pollTimer: null,
+        eventsTimer: null,
         staleTimer: null,
-        mode: 'idle', // 'idle' | 'ws' | 'poll' | 'stale'
+        mode: 'idle',
         lastSnapshot: null,
+        selectedCarId: null,
+        eventSeq: 0,
+        events: [],
     };
 
     function $(id) { return document.getElementById(id); }
@@ -45,7 +54,6 @@
         if (s < 10) sStr = '0' + sStr;
         return m + ':' + sStr;
     }
-
     function fmtGap(ms) {
         if (ms === undefined || ms === null) return '—';
         if (ms === 0) return '—';
@@ -55,13 +63,9 @@
         var rem = s - (m * 60);
         return '+' + m + ':' + (rem < 10 ? '0' : '') + rem.toFixed(3);
     }
-
     function fmtRemaining(session) {
         if (!session) return '—';
-        if (session.session_type === 3 && session.laps > 0) {
-            // Race-by-laps: just show lap count.
-            return session.laps + ' laps';
-        }
+        if (session.session_type === 3 && session.laps > 0) return session.laps + ' laps';
         var totalS = (session.time_minutes || 0) * 60;
         if (!totalS) return '—';
         var elapsedS = (session.elapsed_ms || 0) / 1000;
@@ -70,23 +74,33 @@
         var s = Math.floor(remain - m * 60);
         return m + ':' + (s < 10 ? '0' : '') + s;
     }
-
     function fmtTemps(session) {
         if (!session) return '—';
         if (!session.ambient_temp && !session.track_temp) return '—';
         return session.ambient_temp + '°C / ' + session.track_temp + '°C';
     }
-
     function escapeHtml(s) {
         return String(s == null ? '' : s)
             .replace(/&/g, '&amp;').replace(/</g, '&lt;')
             .replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     }
+    function gearStr(g) {
+        if (g === undefined || g === null) return '—';
+        if (g === 0) return 'R';
+        if (g === 1) return 'N';
+        return String(g - 1);
+    }
+    function pct(v) {
+        if (v === undefined || v === null) return '0';
+        return Math.round(Math.max(0, Math.min(1, v)) * 100) + '';
+    }
 
-    function statusPill(driver) {
+    function statusPill(driver, hasLive) {
         if (!driver.connected) return '<span class="lt-status lt-status--offline">Offline</span>';
         if (!driver.loaded) return '<span class="lt-status lt-status--loading">Loading</span>';
-        return '<span class="lt-status lt-status--on">On Track</span>';
+        if (driver.live_telemetry && driver.live_telemetry.in_pit) return '<span class="lt-status lt-status--pit">Pit</span>';
+        if (hasLive) return '<span class="lt-status lt-status--on">Live</span>';
+        return '<span class="lt-status lt-status--on">Track</span>';
     }
 
     function renderHeader(session) {
@@ -102,6 +116,31 @@
         $('lt-temps').textContent = fmtTemps(session);
         $('lt-server-name').textContent = session.server_name || '—';
         $('lt-weather').textContent = session.weather_graph || '—';
+        var mapName = $('lt-map-track-name');
+        if (mapName) mapName.textContent = trackTxt;
+    }
+
+    function renderAgents(snapshot) {
+        var list = $('lt-agents-list');
+        if (!list) return;
+        var agents = (snapshot && snapshot.telemetry_agents) || {};
+        var ids = Object.keys(agents);
+        if (ids.length === 0) {
+            list.innerHTML = '<span class="lt-agent-pill lt-agent-pill--idle">No agents connected</span>';
+            return;
+        }
+        var html = '';
+        ids.sort();
+        for (var i = 0; i < ids.length; i++) {
+            var aid = ids[i];
+            var a = agents[aid] || {};
+            var cls = a.stale ? 'lt-agent-pill--stale' : 'lt-agent-pill--live';
+            var nick = a.player_nick ? escapeHtml(a.player_nick) : '';
+            var label = escapeHtml(aid) + (nick ? ' · ' + nick : '');
+            html += '<span class="lt-agent-pill ' + cls + '" title="age ' + (a.age_sec || 0) + 's">'
+                + label + '</span>';
+        }
+        list.innerHTML = html;
     }
 
     function renderBoard(snapshot) {
@@ -110,10 +149,9 @@
         var drivers = (snapshot && snapshot.drivers) || [];
         var connected = drivers.filter(function (d) { return d.connected; });
         if (connected.length === 0) {
-            tbody.innerHTML = '<tr class="lt-empty-row"><td colspan="9">Waiting for AC server telemetry…</td></tr>';
+            tbody.innerHTML = '<tr class="lt-empty-row"><td colspan="12">Waiting for AC server telemetry…</td></tr>';
             return;
         }
-        // Compute interval (gap to car directly ahead) using gap-to-leader.
         var sorted = connected.slice().sort(function (a, b) {
             var pa = a.position > 0 ? a.position : 999;
             var pb = b.position > 0 ? b.position : 999;
@@ -130,7 +168,13 @@
             var intervalMs = i === 0 ? 0 : (d.gap_ms - prevGap);
             var intervalTxt = i === 0 ? '—' : fmtGap(intervalMs);
             prevGap = d.gap_ms || prevGap;
-            rowsHtml += '<tr>'
+            var lt = d.live_telemetry || null;
+            var spd = lt && lt.speed_kmh != null ? Math.round(lt.speed_kmh) : '—';
+            var gear = lt ? gearStr(lt.gear) : '—';
+            var rpm = lt && lt.rpm != null ? lt.rpm : '—';
+            var selectedCls = state.selectedCarId === d.car_id ? ' lt-row-selected' : '';
+            var liveCls = lt ? ' lt-row-live' : '';
+            rowsHtml += '<tr class="lt-row' + liveCls + selectedCls + '" data-car-id="' + d.car_id + '">'
                 + '<td class="lt-col-pos ' + posCls + '">' + pos + '</td>'
                 + '<td class="lt-col-driver">' + escapeHtml(d.driver_name || ('Car ' + d.car_id)) + '</td>'
                 + '<td class="lt-col-car">' + escapeHtml(d.car_model || '—') + '</td>'
@@ -139,17 +183,110 @@
                 + '<td class="lt-col-last">' + fmtLap(d.last_lap_ms) + '</td>'
                 + '<td class="lt-col-gap">' + gapTxt + '</td>'
                 + '<td class="lt-col-int">' + intervalTxt + '</td>'
-                + '<td class="lt-col-status">' + statusPill(d) + '</td>'
+                + '<td class="lt-col-spd">' + spd + '</td>'
+                + '<td class="lt-col-gear">' + gear + '</td>'
+                + '<td class="lt-col-rpm">' + rpm + '</td>'
+                + '<td class="lt-col-status">' + statusPill(d, !!lt) + '</td>'
                 + '</tr>';
         }
         tbody.innerHTML = rowsHtml;
+    }
+
+    // Track map: place a colored dot per car at its normalized lap position
+    // along the SVG path. Driver color is derived deterministically from car_id.
+    function carColor(carId) {
+        var palette = ['#22d3ee','#a78bfa','#f472b6','#facc15','#4ade80','#f97316','#60a5fa','#f87171'];
+        return palette[(carId | 0) % palette.length];
+    }
+    function renderMap(snapshot) {
+        var path = $('lt-map-path');
+        var group = $('lt-map-cars');
+        if (!path || !group || !path.getTotalLength) return;
+        var len = path.getTotalLength();
+        var drivers = (snapshot && snapshot.drivers) || [];
+        var html = '';
+        for (var i = 0; i < drivers.length; i++) {
+            var d = drivers[i];
+            if (!d.connected) continue;
+            var lt = d.live_telemetry;
+            if (!lt || lt.norm_pos == null) continue;
+            var t = Math.max(0, Math.min(1, lt.norm_pos));
+            var pt = path.getPointAtLength(t * len);
+            var color = carColor(d.car_id);
+            var sel = state.selectedCarId === d.car_id;
+            var r = sel ? 5 : 3.5;
+            var stroke = sel ? '#fff' : 'rgba(0,0,0,0.4)';
+            var label = escapeHtml(d.driver_name || ('#' + d.car_id));
+            html += '<circle cx="' + pt.x.toFixed(2) + '" cy="' + pt.y.toFixed(2) + '" r="' + r + '"'
+                  + ' fill="' + color + '" stroke="' + stroke + '" stroke-width="' + (sel ? 1.5 : 0.8) + '">'
+                  + '<title>' + label + (lt.speed_kmh != null ? ' — ' + Math.round(lt.speed_kmh) + ' km/h' : '') + '</title>'
+                  + '</circle>';
+        }
+        group.innerHTML = html;
+    }
+
+    function renderDetail(snapshot) {
+        if (state.selectedCarId == null) return;
+        var drivers = (snapshot && snapshot.drivers) || [];
+        var d = null;
+        for (var i = 0; i < drivers.length; i++) if (drivers[i].car_id === state.selectedCarId) { d = drivers[i]; break; }
+        if (!d) return;
+        $('lt-detail-name').textContent = d.driver_name || ('Car ' + d.car_id);
+        $('lt-detail-pos').textContent = d.position > 0 ? ('P' + d.position) : '';
+        $('lt-detail-empty').classList.add('hidden');
+        $('lt-detail-body').classList.remove('hidden');
+        var lt = d.live_telemetry || {};
+        $('lt-d-spd').textContent = lt.speed_kmh != null ? Math.round(lt.speed_kmh) : '—';
+        $('lt-d-gear').textContent = gearStr(lt.gear);
+        $('lt-d-rpm').textContent = lt.rpm != null ? lt.rpm : '—';
+        $('lt-d-fuel').textContent = lt.fuel != null ? lt.fuel.toFixed(1) : '—';
+        var thr = pct(lt.throttle), brk = pct(lt.brake);
+        $('lt-d-throttle').style.width = thr + '%';
+        $('lt-d-throttle-pct').textContent = thr + '%';
+        $('lt-d-brake').style.width = brk + '%';
+        $('lt-d-brake-pct').textContent = brk + '%';
+        $('lt-d-last').textContent = fmtLap(d.last_lap_ms);
+        $('lt-d-best').textContent = fmtLap(d.best_lap_ms);
+        $('lt-d-sector').textContent = lt.current_sector != null ? ('S' + (lt.current_sector + 1)) : '—';
+        $('lt-d-pit').textContent = lt.in_pit ? 'In Pit' : 'On Track';
+        $('lt-d-tyre').textContent = lt.tyre_compound || '—';
+        $('lt-d-norm').textContent = lt.norm_pos != null ? (lt.norm_pos * 100).toFixed(1) + '%' : '—';
+    }
+
+    function renderEvents() {
+        var list = $('lt-events-list');
+        var count = $('lt-events-count');
+        if (!list) return;
+        var items = state.events.slice(-EVENTS_MAX).reverse();
+        if (count) count.textContent = String(items.length);
+        if (items.length === 0) {
+            list.innerHTML = '<li class="lt-events-empty">No events yet.</li>';
+            return;
+        }
+        var html = '';
+        for (var i = 0; i < items.length; i++) {
+            var e = items[i];
+            var label = e.type || 'event';
+            var detail = '';
+            if (e.type === 'lap_completed') detail = (e.driver || '') + ' — ' + fmtLap(e.lap_ms);
+            else if (e.type === 'new_session') detail = (e.type_label || e.type) + (e.track ? ' @ ' + e.track : '');
+            else if (e.type === 'driver_connected') detail = e.driver || ('Car ' + e.car_id);
+            else if (e.type === 'driver_disconnected') detail = e.driver || ('Car ' + e.car_id);
+            else { try { detail = JSON.stringify(e); } catch (_e) {} }
+            html += '<li><span class="lt-evt-type">' + escapeHtml(label) + '</span> '
+                  + '<span class="lt-evt-detail">' + escapeHtml(detail) + '</span></li>';
+        }
+        list.innerHTML = html;
     }
 
     function applySnapshot(snap) {
         if (!snap) return;
         state.lastSnapshot = snap;
         renderHeader(snap.session);
+        renderAgents(snap);
         renderBoard(snap);
+        renderMap(snap);
+        renderDetail(snap);
         updateStaleBanner(snap.stats);
     }
 
@@ -169,18 +306,14 @@
         if (age > STALE_THRESHOLD_S) {
             banner.classList.remove('hidden');
             if (ageEl) ageEl.textContent = age.toFixed(1) + 's';
-            if (state.mode !== 'stale') {
-                // Don't overwrite mode permanently; just relabel pill.
-                var pill = $('lt-conn');
-                if (pill) {
-                    pill.classList.remove('lt-conn--ws', 'lt-conn--poll', 'lt-conn--idle');
-                    pill.classList.add('lt-conn--stale');
-                }
-                $('lt-conn-label').textContent = 'Stale (' + age.toFixed(0) + 's)';
+            var pill = $('lt-conn');
+            if (pill) {
+                pill.classList.remove('lt-conn--ws', 'lt-conn--poll', 'lt-conn--idle');
+                pill.classList.add('lt-conn--stale');
             }
+            $('lt-conn-label').textContent = 'Stale (' + age.toFixed(0) + 's)';
         } else {
             banner.classList.add('hidden');
-            // Restore pill colour based on transport
             if (state.mode === 'ws') setMode('ws', 'WS live');
             else if (state.mode === 'poll') setMode('poll', 'Polling');
         }
@@ -192,11 +325,8 @@
             if (state.lastSnapshot) updateStaleBanner(state.lastSnapshot.stats);
         }, 1000);
     }
-    function stopStaleTicker() {
-        if (state.staleTimer) { clearInterval(state.staleTimer); state.staleTimer = null; }
-    }
+    function stopStaleTicker() { if (state.staleTimer) { clearInterval(state.staleTimer); state.staleTimer = null; } }
 
-    // ---- Polling fallback ----
     function startPolling() {
         stopPolling();
         setMode('poll', 'Polling');
@@ -204,16 +334,35 @@
             fetch('/api/timing/snapshot', { credentials: 'same-origin' })
                 .then(function (r) { return r.ok ? r.json() : null; })
                 .then(function (snap) { if (snap) applySnapshot(snap); })
-                .catch(function () { /* keep trying */ });
+                .catch(function () {});
         };
         tick();
         state.pollTimer = setInterval(tick, POLL_INTERVAL_MS);
     }
-    function stopPolling() {
-        if (state.pollTimer) { clearInterval(state.pollTimer); state.pollTimer = null; }
-    }
+    function stopPolling() { if (state.pollTimer) { clearInterval(state.pollTimer); state.pollTimer = null; } }
 
-    // ---- WebSocket ----
+    function startEventsPoll() {
+        stopEventsPoll();
+        var tick = function () {
+            fetch('/api/timing/events?since=' + state.eventSeq, { credentials: 'same-origin' })
+                .then(function (r) { return r.ok ? r.json() : null; })
+                .then(function (data) {
+                    if (!data) return;
+                    var added = (data.events || []);
+                    if (added.length) {
+                        state.events = state.events.concat(added);
+                        if (state.events.length > 500) state.events = state.events.slice(-500);
+                        state.eventSeq = data.next_seq || state.eventSeq;
+                        renderEvents();
+                    }
+                })
+                .catch(function () {});
+        };
+        tick();
+        state.eventsTimer = setInterval(tick, EVENTS_POLL_MS);
+    }
+    function stopEventsPoll() { if (state.eventsTimer) { clearInterval(state.eventsTimer); state.eventsTimer = null; } }
+
     function startWebSocket() {
         if (typeof WebSocket === 'undefined') { startPolling(); return; }
         try {
@@ -222,10 +371,7 @@
             var ws = new WebSocket(url);
             state.ws = ws;
             setMode('ws', 'WS connecting…');
-            ws.addEventListener('open', function () {
-                stopPolling(); // WS now drives updates
-                setMode('ws', 'WS live');
-            });
+            ws.addEventListener('open', function () { stopPolling(); setMode('ws', 'WS live'); });
             ws.addEventListener('message', function (ev) {
                 var msg;
                 try { msg = JSON.parse(ev.data); } catch (e) { return; }
@@ -235,76 +381,73 @@
             var fall = function () {
                 state.ws = null;
                 if (!state.active) return;
-                // Fall back to polling immediately so the UI keeps updating,
-                // and keep trying to upgrade back to WS in the background.
                 startPolling();
                 clearTimeout(state.wsRetryTimer);
                 state.wsRetryTimer = setTimeout(startWebSocket, WS_RETRY_MS);
             };
             ws.addEventListener('close', fall);
             ws.addEventListener('error', function () { try { ws.close(); } catch (e) {} });
-        } catch (e) {
-            startPolling();
-        }
+        } catch (e) { startPolling(); }
+    }
+    function stopWebSocket() {
+        clearTimeout(state.wsRetryTimer); state.wsRetryTimer = null;
+        if (state.ws) { try { state.ws.close(); } catch (e) {} state.ws = null; }
     }
 
-    function stopWebSocket() {
-        clearTimeout(state.wsRetryTimer);
-        state.wsRetryTimer = null;
-        if (state.ws) {
-            try { state.ws.close(); } catch (e) {}
-            state.ws = null;
-        }
+    // Click on a row to select that driver for the detail panel.
+    function bindRowClicks() {
+        var tbody = $('lt-rows');
+        if (!tbody || tbody.dataset.bound) return;
+        tbody.dataset.bound = '1';
+        tbody.addEventListener('click', function (ev) {
+            var tr = ev.target && ev.target.closest && ev.target.closest('tr.lt-row');
+            if (!tr) return;
+            var cid = parseInt(tr.getAttribute('data-car-id'), 10);
+            if (isNaN(cid)) return;
+            state.selectedCarId = cid;
+            if (state.lastSnapshot) {
+                renderBoard(state.lastSnapshot);
+                renderMap(state.lastSnapshot);
+                renderDetail(state.lastSnapshot);
+            }
+        });
     }
 
     function activate() {
         if (state.active) return;
         state.active = true;
         setMode('idle', 'Connecting…');
+        bindRowClicks();
         startStaleTicker();
+        startEventsPoll();
         startWebSocket();
-        // Also kick off a one-shot poll so the page isn't blank for the first
-        // ~half-second while the WS handshake is in flight.
         fetch('/api/timing/snapshot', { credentials: 'same-origin' })
             .then(function (r) { return r.ok ? r.json() : null; })
             .then(function (s) { if (s && state.active) applySnapshot(s); })
             .catch(function () {});
     }
-
     function deactivate() {
         if (!state.active) return;
         state.active = false;
-        stopWebSocket();
-        stopPolling();
-        stopStaleTicker();
+        stopWebSocket(); stopPolling(); stopEventsPoll(); stopStaleTicker();
         setMode('idle', 'Idle');
     }
 
-    // Watch for the Live Timing page becoming visible. The host app toggles
-    // `.hidden` on each `.content-page` div from app.js's showPage().
     function isLiveTimingVisible() {
         var el = document.getElementById('page-live-timing');
         return !!(el && !el.classList.contains('hidden'));
     }
-
-    function maybeToggle() {
-        if (isLiveTimingVisible()) activate();
-        else deactivate();
-    }
+    function maybeToggle() { if (isLiveTimingVisible()) activate(); else deactivate(); }
 
     function init() {
         var el = document.getElementById('page-live-timing');
         if (!el) return;
         var mo = new MutationObserver(maybeToggle);
         mo.observe(el, { attributes: true, attributeFilter: ['class'] });
-        // Also re-evaluate on history navigation (the SPA uses history.pushState).
         window.addEventListener('popstate', function () { setTimeout(maybeToggle, 0); });
         maybeToggle();
     }
 
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', init);
-    } else {
-        init();
-    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+    else init();
 })();

@@ -173,3 +173,127 @@
 .lt-status--on        { color: #7be37b; border-color: rgba(123, 227, 123, 0.35); background: rgba(123, 227, 123, 0.1); }
 .lt-status--loading   { color: #ffd166; border-color: rgba(255, 209, 102, 0.35); background: rgba(255, 209, 102, 0.1); }
 .lt-status--offline   { color: #a1a1aa; border-color: rgba(161, 161, 170, 0.35); background: rgba(161, 161, 170, 0.08); }
+
+/* ---- Phase D additions: agents bar, main grid, map, driver detail, events ---- */
+
+.lt-agents-bar {
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+    background: rgba(255,255,255,0.025);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 8px;
+    padding: 8px 12px;
+}
+.lt-agents-key {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: #8a8f9c;
+    flex-shrink: 0;
+}
+.lt-agents-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.lt-agent-pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 10px; border-radius: 999px;
+    font-size: 12px; font-weight: 600;
+    border: 1px solid rgba(255,255,255,0.1);
+    background: rgba(255,255,255,0.04);
+    color: #d4d4d8;
+    white-space: nowrap;
+}
+.lt-agent-pill--live  { color: #7be37b; border-color: rgba(123,227,123,0.4); background: rgba(74,222,128,0.08); }
+.lt-agent-pill--stale { color: #ffd166; border-color: rgba(255,209,102,0.4); background: rgba(255,209,102,0.08); }
+.lt-agent-pill--idle  { color: #8a8f9c; }
+
+/* Main grid: leaderboard left, side panel right */
+.lt-main-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.6fr) minmax(280px, 1fr);
+    gap: 16px;
+    align-items: start;
+}
+@media (max-width: 1100px) { .lt-main-grid { grid-template-columns: 1fr; } }
+
+.lt-side { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+
+.lt-card {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 10px;
+    padding: 12px 14px;
+}
+.lt-card-header {
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em;
+    color: #8a8f9c; margin-bottom: 10px;
+}
+.lt-card-header > span:first-child { color: #c9c9cf; font-weight: 600; }
+.lt-card-sub { color: #8a8f9c; font-weight: 500; font-size: 11px; }
+
+/* Track map */
+.lt-map-svg {
+    width: 100%;
+    height: auto;
+    background: rgba(0,0,0,0.25);
+    border-radius: 6px;
+    display: block;
+}
+.lt-map-note { font-size: 11px; color: #8a8f9c; margin-top: 8px; line-height: 1.4; }
+
+/* Extra leaderboard columns */
+.lt-col-spd  { width: 60px; text-align: right; }
+.lt-col-gear { width: 36px; text-align: center; }
+.lt-col-rpm  { width: 70px; text-align: right; }
+.lt-board td.lt-col-spd, .lt-board td.lt-col-rpm { text-align: right; }
+.lt-board td.lt-col-gear { text-align: center; font-weight: 600; }
+
+.lt-row { cursor: pointer; }
+.lt-row-live td { background: rgba(74,222,128,0.025); }
+.lt-row-selected td { background: rgba(96,165,250,0.12) !important; }
+
+.lt-status--pit { color: #ffd166; border-color: rgba(255,209,102,0.4); background: rgba(255,209,102,0.1); }
+
+/* Driver detail */
+.lt-detail-empty {
+    color: #8a8f9c; font-size: 13px; padding: 10px 4px; font-style: italic;
+}
+.lt-gauges { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 12px; }
+.lt-gauge {
+    background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 6px; padding: 8px 10px;
+}
+.lt-gauge-key { font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: #8a8f9c; }
+.lt-gauge-val { font-size: 22px; font-weight: 700; color: #f4f4f5; font-variant-numeric: tabular-nums; }
+.lt-gauge-unit { font-size: 11px; color: #8a8f9c; margin-left: 4px; font-weight: 400; }
+
+.lt-bars { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+.lt-bar-row { display: grid; grid-template-columns: 64px 1fr 44px; align-items: center; gap: 10px; }
+.lt-bar-key { font-size: 11px; color: #8a8f9c; text-transform: uppercase; letter-spacing: 0.06em; }
+.lt-bar-track {
+    height: 8px; background: rgba(0,0,0,0.4); border-radius: 4px;
+    overflow: hidden; border: 1px solid rgba(255,255,255,0.05);
+}
+.lt-bar-fill { height: 100%; width: 0%; border-radius: 4px; transition: width 80ms linear; }
+.lt-bar-fill--throttle { background: linear-gradient(90deg, #4ade80, #22d3ee); }
+.lt-bar-fill--brake    { background: linear-gradient(90deg, #f97316, #ef4444); }
+.lt-bar-pct { font-size: 11px; color: #d4d4d8; text-align: right; font-variant-numeric: tabular-nums; }
+
+.lt-detail-grid {
+    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px 12px;
+    border-top: 1px solid rgba(255,255,255,0.06); padding-top: 10px;
+}
+.lt-detail-grid > div { display: flex; flex-direction: column; gap: 2px; }
+.lt-detail-key { font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: #8a8f9c; }
+.lt-detail-val { font-size: 14px; font-weight: 600; color: #e4e4e7; font-variant-numeric: tabular-nums; }
+
+/* Events */
+.lt-events-list {
+    list-style: none; padding: 0; margin: 0; max-height: 240px; overflow-y: auto;
+    font-size: 12px;
+}
+.lt-events-list li {
+    padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.04);
+    display: flex; gap: 8px; align-items: baseline;
+}
+.lt-events-list li:last-child { border-bottom: none; }
+.lt-evt-type { color: #60a5fa; font-weight: 600; min-width: 110px; }
+.lt-evt-detail { color: #d4d4d8; }
+.lt-events-empty { color: #8a8f9c; font-style: italic; padding: 8px 0; }
+
+.hidden { display: none !important; }

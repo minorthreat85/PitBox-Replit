@@ -151,9 +151,44 @@ class TimingEngine:
             self.drivers.values(),
             key=lambda d: (d.position if d.position > 0 else 999, d.car_id),
         )
+        driver_dicts = [asdict(d) for d in drivers_sorted]
+
+        # ---- Phase C: merge per-agent live telemetry from sim PCs ----
+        # Best-effort: keyed by case-insensitive driver name. Telemetry blocks
+        # are also returned at top level under `telemetry_agents` so the UI can
+        # render unmatched agents (e.g. spectator sims, mismatched names).
+        telemetry_agents: Dict[str, Any] = {}
+        try:
+            from controller.telemetry.store import get_store as _get_tel_store
+            tel = _get_tel_store().project_for_engine()
+            telemetry_agents = tel
+            if tel:
+                # Build lookup: nick -> agent_id (lower)
+                nick_to_aid = {}
+                for aid, block in tel.items():
+                    nick = (block.get("player_nick") or "").strip().lower()
+                    if nick:
+                        nick_to_aid.setdefault(nick, aid)
+                for d in driver_dicts:
+                    name = (d.get("driver_name") or "").strip().lower()
+                    if not name:
+                        continue
+                    aid = nick_to_aid.get(name)
+                    # Try simple variants: split on whitespace, or last token
+                    if not aid and " " in name:
+                        for tok in (name.split()[-1], name.split()[0]):
+                            aid = nick_to_aid.get(tok)
+                            if aid:
+                                break
+                    if aid:
+                        d["live_telemetry"] = tel[aid]
+        except Exception:
+            LOG.debug("telemetry merge skipped", exc_info=True)
+
         return {
             "session": asdict(self.session),
-            "drivers": [asdict(d) for d in drivers_sorted],
+            "drivers": driver_dicts,
+            "telemetry_agents": telemetry_agents,
             "stats": {
                 "running": self.is_running(),
                 "host": self.host,

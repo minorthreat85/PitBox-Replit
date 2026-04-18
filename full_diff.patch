@@ -1,0 +1,764 @@
+diff --git a/controller/static/index.html b/controller/static/index.html
+index 98f5199..ddfcba1 100644
+--- a/controller/static/index.html
++++ b/controller/static/index.html
+@@ -10,6 +10,8 @@
+     <link rel="icon" type="image/x-icon" href="/favicon.ico">
+     <link rel="stylesheet" href="/styles.css">
+     <link rel="stylesheet" href="/booking-admin.css">
++    <link rel="stylesheet" href="/live_timing.css">
++    <link rel="stylesheet" href="/server_admin.css">
+ </head>
+ <body>
+ <aside class="sidebar" id="sidebar">
+@@ -243,18 +245,73 @@
+             </div>
+         </div>
+ 
+-        <!-- Page: Live Timing — native PitBox leaderboard (Phase 4 will populate). -->
++        <!-- Page: Live Timing — native PitBox leaderboard powered by the
++             on-board timing engine. WS push with HTTP polling fallback. -->
+         <div id="page-live-timing" class="content-page hidden" data-page="live-timing">
+-            <div class="page-header">
+-                <h1 class="page-title">LIVE TIMING</h1>
+-                <p class="page-subtitle">Native leaderboard fed by PitBox's timing engine.</p>
+-            </div>
+-            <div id="live-timing-root" class="live-timing-root">
+-                <div id="live-timing-empty" class="live-timing-empty">
+-                    <p>Waiting for AC server telemetry…</p>
+-                    <p class="live-timing-empty-hint">Start a server preset and join — drivers, lap times and gaps will appear here.</p>
++            <div class="page-header lt-header-row">
++                <div>
++                    <h1 class="page-title">LIVE TIMING</h1>
++                    <p class="page-subtitle">Native leaderboard fed by PitBox's timing engine.</p>
++                </div>
++                <div id="lt-conn" class="lt-conn lt-conn--idle" title="Connection status">
++                    <span class="lt-conn-dot"></span>
++                    <span id="lt-conn-label" class="lt-conn-label">Idle</span>
+                 </div>
+             </div>
++
++            <div id="lt-stale-banner" class="lt-stale-banner hidden" role="status">
++                Stale data — no AC packets received for <span id="lt-stale-age">--</span>. The dedicated server may be stopped or the UDP plugin not configured.
++            </div>
++
++            <section class="lt-session-card" aria-label="Current session">
++                <div class="lt-session-grid">
++                    <div class="lt-session-cell">
++                        <div class="lt-session-key">Track / Layout</div>
++                        <div class="lt-session-val" id="lt-track">—</div>
++                    </div>
++                    <div class="lt-session-cell">
++                        <div class="lt-session-key">Session</div>
++                        <div class="lt-session-val" id="lt-session-type">—</div>
++                    </div>
++                    <div class="lt-session-cell">
++                        <div class="lt-session-key">Time Remaining</div>
++                        <div class="lt-session-val" id="lt-time-remaining">—</div>
++                    </div>
++                    <div class="lt-session-cell">
++                        <div class="lt-session-key">Air / Track</div>
++                        <div class="lt-session-val" id="lt-temps">—</div>
++                    </div>
++                    <div class="lt-session-cell">
++                        <div class="lt-session-key">Server</div>
++                        <div class="lt-session-val" id="lt-server-name">—</div>
++                    </div>
++                    <div class="lt-session-cell">
++                        <div class="lt-session-key">Weather</div>
++                        <div class="lt-session-val" id="lt-weather">—</div>
++                    </div>
++                </div>
++            </section>
++
++            <section class="lt-board-wrap" aria-label="Leaderboard">
++                <table class="lt-board" id="lt-board">
++                    <thead>
++                        <tr>
++                            <th class="lt-col-pos">Pos</th>
++                            <th class="lt-col-driver">Driver</th>
++                            <th class="lt-col-car">Car</th>
++                            <th class="lt-col-laps">Laps</th>
++                            <th class="lt-col-best">Best Lap</th>
++                            <th class="lt-col-last">Last Lap</th>
++                            <th class="lt-col-gap">Gap</th>
++                            <th class="lt-col-int">Interval</th>
++                            <th class="lt-col-status">Status</th>
++                        </tr>
++                    </thead>
++                    <tbody id="lt-rows">
++                        <tr class="lt-empty-row"><td colspan="9">Waiting for AC server telemetry…</td></tr>
++                    </tbody>
++                </table>
++            </section>
+         </div>
+ 
+         <!-- Page: Entry List (server-scoped) -->
+@@ -512,6 +569,7 @@
+                             <button type="button" class="sc-tab" data-tab="rules" role="tab">RULES</button>
+                             <button type="button" class="sc-tab" data-tab="conditions" role="tab">CONDITIONS</button>
+                             <button type="button" class="sc-tab" data-tab="sessions" role="tab">SESSIONS</button>
++                            <button type="button" class="sc-tab" data-tab="admin" role="tab">ADMIN</button>
+                             <button type="button" class="sc-tab" data-tab="blacklist" role="tab">BLACKLIST</button>
+                             <button type="button" class="sc-tab" data-tab="advanced" role="tab">ADVANCED</button>
+                             <button type="button" class="sc-tab" data-tab="details" role="tab">DETAILS</button>
+@@ -742,6 +800,79 @@
+                             </div>
+                         </div>
+                     </div>
++                    <div id="sc-panel-admin" class="sc-panel hidden" data-tab="admin">
++                        <p class="sc-status-intro">Live admin commands sent to the running <code>acServer.exe</code> for the selected preset. PitBox owns the server lifecycle &mdash; use the Status tab to start/stop. Grid changes are written to <code>entry_list.ini</code> and take effect on the next server start.</p>
++                        <div class="sc-admin-status-row">
++                            <span id="sc-admin-state" class="sc-status-badge sc-status-stopped">Stopped</span>
++                            <span id="sc-admin-target" class="sc-status-detail"></span>
++                            <button type="button" id="sc-admin-refresh" class="sc-header-btn">Refresh</button>
++                        </div>
++                        <div id="sc-admin-error" class="sc-admin-error hidden" role="alert"></div>
++
++                        <fieldset class="sc-admin-card" id="sc-admin-chat-card">
++                            <legend>Chat</legend>
++                            <div class="sc-admin-row">
++                                <label class="sc-admin-label">Target</label>
++                                <select id="sc-admin-chat-target" class="sc-admin-input">
++                                    <option value="">Broadcast (everyone)</option>
++                                </select>
++                            </div>
++                            <div class="sc-admin-row">
++                                <label class="sc-admin-label" for="sc-admin-chat-msg">Message</label>
++                                <input id="sc-admin-chat-msg" type="text" maxlength="255" class="sc-admin-input" placeholder="e.g. Race starts in 2 minutes" />
++                            </div>
++                            <div class="sc-admin-actions">
++                                <button type="button" id="sc-admin-chat-send" class="sc-header-btn sc-header-btn-primary">Send chat</button>
++                            </div>
++                        </fieldset>
++
++                        <fieldset class="sc-admin-card" id="sc-admin-session-card">
++                            <legend>Session</legend>
++                            <div class="sc-admin-actions">
++                                <button type="button" id="sc-admin-next-session" class="sc-header-btn">Next session</button>
++                                <button type="button" id="sc-admin-restart-session" class="sc-header-btn">Restart session</button>
++                            </div>
++                        </fieldset>
++
++                        <fieldset class="sc-admin-card" id="sc-admin-driver-card">
++                            <legend>Drivers (live)</legend>
++                            <table class="sc-admin-driver-table">
++                                <thead>
++                                    <tr><th>Car</th><th>Driver</th><th>Model</th><th>Laps</th><th>Status</th><th></th></tr>
++                                </thead>
++                                <tbody id="sc-admin-drivers"><tr><td colspan="6" class="sc-admin-empty">No live driver data.</td></tr></tbody>
++                            </table>
++                        </fieldset>
++
++                        <fieldset class="sc-admin-card" id="sc-admin-grid-card">
++                            <legend>Grid (entry_list.ini)</legend>
++                            <p class="sc-admin-hint">Reverse / swap operations rewrite <code>entry_list.ini</code> atomically. They apply on the next server start.</p>
++                            <div class="sc-admin-actions">
++                                <button type="button" id="sc-admin-grid-refresh" class="sc-header-btn">Reload grid</button>
++                                <button type="button" id="sc-admin-grid-reverse" class="sc-header-btn">Reverse grid</button>
++                            </div>
++                            <div class="sc-admin-row">
++                                <label class="sc-admin-label">Swap slots</label>
++                                <select id="sc-admin-grid-a" class="sc-admin-input"></select>
++                                <span class="sc-admin-swap-arrow">&harr;</span>
++                                <select id="sc-admin-grid-b" class="sc-admin-input"></select>
++                                <button type="button" id="sc-admin-grid-swap" class="sc-header-btn">Swap</button>
++                            </div>
++                            <table class="sc-admin-grid-table">
++                                <thead><tr><th>Slot</th><th>Driver</th><th>Model</th><th>Skin</th></tr></thead>
++                                <tbody id="sc-admin-grid"><tr><td colspan="4" class="sc-admin-empty">No grid loaded.</td></tr></tbody>
++                            </table>
++                        </fieldset>
++
++                        <fieldset class="sc-admin-card" id="sc-admin-raw-card">
++                            <legend>Raw <code>/admin</code> command</legend>
++                            <p class="sc-admin-hint">Any text command supported by acServer (e.g. <code>/ballast 3 50</code>, <code>/restrict 1 20</code>, <code>/help</code>). Sent verbatim.</p>
++                            <div class="sc-admin-row">
++                                <input id="sc-admin-raw-cmd" type="text" maxlength="255" class="sc-admin-input" placeholder="/ballast 3 50" />
++                                <button type="button" id="sc-admin-raw-send" class="sc-header-btn">Send</button>
++                            </div>
++                        </fieldset>
++                    </div>
+                     <div id="sc-panel-details" class="sc-panel hidden" data-tab="details">
+                         <p class="sc-placeholder">Full <code>server_cfg.ini</code> as returned by the API (read-only). Save changes from other tabs, then refresh.</p>
+                         <div class="sc-details-toolbar">
+@@ -926,5 +1057,7 @@
+     <div id="toast-container" class="toast-container" role="status" aria-live="polite" aria-atomic="true"></div>
+     <script src="/booking-admin.js"></script>
+     <script src="/app.js"></script>
++    <script src="/live_timing.js"></script>
++    <script src="/server_admin.js"></script>
+ </body>
+ </html>
+diff --git a/controller/static/live_timing.css b/controller/static/live_timing.css
+new file mode 100644
+index 0000000..c6c22b0
+--- /dev/null
++++ b/controller/static/live_timing.css
+@@ -0,0 +1,175 @@
++/* PitBox native live-timing leaderboard. Self-contained styles loaded only on
++   the Live Timing page. Designed to inherit the dashboard's dark theme. */
++
++#page-live-timing {
++    display: flex;
++    flex-direction: column;
++    gap: 16px;
++    padding-bottom: 24px;
++}
++
++.lt-header-row {
++    display: flex;
++    align-items: flex-start;
++    justify-content: space-between;
++    gap: 16px;
++}
++
++/* Connection pill in the page header */
++.lt-conn {
++    display: inline-flex;
++    align-items: center;
++    gap: 8px;
++    padding: 6px 12px;
++    border-radius: 999px;
++    font-size: 12px;
++    font-weight: 600;
++    letter-spacing: 0.04em;
++    text-transform: uppercase;
++    border: 1px solid rgba(255, 255, 255, 0.08);
++    background: rgba(255, 255, 255, 0.03);
++    color: #cfcfcf;
++    white-space: nowrap;
++}
++
++.lt-conn-dot {
++    width: 8px; height: 8px; border-radius: 50%;
++    background: #6c7280;
++    box-shadow: 0 0 0 0 rgba(108, 114, 128, 0.5);
++}
++
++.lt-conn--ws    { color: #7be37b; border-color: rgba(123, 227, 123, 0.35); }
++.lt-conn--ws    .lt-conn-dot { background: #4ade80; box-shadow: 0 0 6px rgba(74, 222, 128, 0.6); }
++
++.lt-conn--poll  { color: #ffd166; border-color: rgba(255, 209, 102, 0.35); }
++.lt-conn--poll  .lt-conn-dot { background: #facc15; box-shadow: 0 0 6px rgba(250, 204, 21, 0.6); }
++
++.lt-conn--stale { color: #f97373; border-color: rgba(249, 115, 115, 0.35); }
++.lt-conn--stale .lt-conn-dot { background: #ef4444; box-shadow: 0 0 6px rgba(239, 68, 68, 0.6); }
++
++.lt-conn--idle  .lt-conn-dot { background: #6c7280; }
++
++/* Stale data banner */
++.lt-stale-banner {
++    background: rgba(239, 68, 68, 0.12);
++    border: 1px solid rgba(239, 68, 68, 0.4);
++    color: #fecaca;
++    padding: 10px 14px;
++    border-radius: 8px;
++    font-size: 13px;
++}
++
++/* Session header card */
++.lt-session-card {
++    background: rgba(255, 255, 255, 0.03);
++    border: 1px solid rgba(255, 255, 255, 0.08);
++    border-radius: 10px;
++    padding: 14px 18px;
++}
++
++.lt-session-grid {
++    display: grid;
++    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
++    gap: 14px 24px;
++}
++
++.lt-session-cell { min-width: 0; }
++
++.lt-session-key {
++    font-size: 11px;
++    text-transform: uppercase;
++    letter-spacing: 0.08em;
++    color: #8a8f9c;
++    margin-bottom: 4px;
++}
++
++.lt-session-val {
++    font-size: 18px;
++    font-weight: 600;
++    color: #f4f4f5;
++    overflow: hidden;
++    text-overflow: ellipsis;
++    white-space: nowrap;
++}
++
++/* Leaderboard */
++.lt-board-wrap {
++    background: rgba(255, 255, 255, 0.02);
++    border: 1px solid rgba(255, 255, 255, 0.08);
++    border-radius: 10px;
++    overflow: hidden;
++}
++
++.lt-board {
++    width: 100%;
++    border-collapse: collapse;
++    font-variant-numeric: tabular-nums;
++    font-size: 14px;
++}
++
++.lt-board thead th {
++    text-align: left;
++    padding: 10px 12px;
++    background: rgba(255, 255, 255, 0.04);
++    color: #c9c9cf;
++    font-weight: 600;
++    font-size: 11px;
++    text-transform: uppercase;
++    letter-spacing: 0.06em;
++    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
++    position: sticky; top: 0;
++}
++
++.lt-board tbody td {
++    padding: 10px 12px;
++    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
++    color: #e4e4e7;
++}
++
++.lt-board tbody tr:hover td { background: rgba(255, 255, 255, 0.025); }
++.lt-board tbody tr:last-child td { border-bottom: none; }
++
++.lt-col-pos     { width: 56px;  text-align: center; }
++.lt-col-driver  { width: auto;  }
++.lt-col-car     { width: auto;  }
++.lt-col-laps    { width: 70px;  text-align: right; }
++.lt-col-best    { width: 110px; text-align: right; }
++.lt-col-last    { width: 110px; text-align: right; }
++.lt-col-gap     { width: 100px; text-align: right; }
++.lt-col-int     { width: 100px; text-align: right; }
++.lt-col-status  { width: 110px; }
++
++.lt-board td.lt-col-pos      { text-align: center; font-weight: 700; }
++.lt-board td.lt-col-laps,
++.lt-board td.lt-col-best,
++.lt-board td.lt-col-last,
++.lt-board td.lt-col-gap,
++.lt-board td.lt-col-int      { text-align: right; }
++
++.lt-pos-1 { color: #facc15; }    /* gold */
++.lt-pos-2 { color: #d4d4d8; }    /* silver */
++.lt-pos-3 { color: #d97706; }    /* bronze */
++
++.lt-empty-row td {
++    text-align: center;
++    color: #8a8f9c;
++    padding: 28px 12px;
++    font-style: italic;
++}
++
++.lt-best-cell { color: #a5f3a5; }
++
++/* Status pill inside the row */
++.lt-status {
++    display: inline-block;
++    padding: 2px 8px;
++    border-radius: 999px;
++    font-size: 11px;
++    font-weight: 600;
++    text-transform: uppercase;
++    letter-spacing: 0.05em;
++    border: 1px solid transparent;
++}
++.lt-status--on        { color: #7be37b; border-color: rgba(123, 227, 123, 0.35); background: rgba(123, 227, 123, 0.1); }
++.lt-status--loading   { color: #ffd166; border-color: rgba(255, 209, 102, 0.35); background: rgba(255, 209, 102, 0.1); }
++.lt-status--offline   { color: #a1a1aa; border-color: rgba(161, 161, 170, 0.35); background: rgba(161, 161, 170, 0.08); }
+diff --git a/controller/static/live_timing.js b/controller/static/live_timing.js
+new file mode 100644
+index 0000000..a4941d3
+--- /dev/null
++++ b/controller/static/live_timing.js
+@@ -0,0 +1,310 @@
++/* PitBox native Live Timing client.
++ *
++ * Activates only when the Live Timing page is visible (detected via the
++ * `.hidden` class on `#page-live-timing`). Tries WebSocket first; if the WS
++ * fails or closes for any reason, transparently falls back to HTTP polling
++ * against /api/timing/snapshot. Stale state (no AC packets for >10s) is
++ * surfaced both in the connection pill and in a banner so operators can tell
++ * at a glance whether the server is silent.
++ */
++(function () {
++    'use strict';
++
++    var POLL_INTERVAL_MS = 1000;
++    var STALE_THRESHOLD_S = 10;
++    var WS_RETRY_MS = 5000;
++
++    var state = {
++        active: false,
++        ws: null,
++        wsRetryTimer: null,
++        pollTimer: null,
++        staleTimer: null,
++        mode: 'idle', // 'idle' | 'ws' | 'poll' | 'stale'
++        lastSnapshot: null,
++    };
++
++    function $(id) { return document.getElementById(id); }
++
++    function setMode(mode, label) {
++        state.mode = mode;
++        var pill = $('lt-conn');
++        var lbl = $('lt-conn-label');
++        if (!pill || !lbl) return;
++        pill.classList.remove('lt-conn--idle', 'lt-conn--ws', 'lt-conn--poll', 'lt-conn--stale');
++        pill.classList.add('lt-conn--' + mode);
++        lbl.textContent = label;
++    }
++
++    function fmtLap(ms) {
++        if (!ms || ms <= 0) return '—';
++        var totalSec = ms / 1000;
++        var m = Math.floor(totalSec / 60);
++        var s = totalSec - (m * 60);
++        var sStr = s.toFixed(3);
++        if (s < 10) sStr = '0' + sStr;
++        return m + ':' + sStr;
++    }
++
++    function fmtGap(ms) {
++        if (ms === undefined || ms === null) return '—';
++        if (ms === 0) return '—';
++        var s = ms / 1000;
++        if (s < 60) return '+' + s.toFixed(3);
++        var m = Math.floor(s / 60);
++        var rem = s - (m * 60);
++        return '+' + m + ':' + (rem < 10 ? '0' : '') + rem.toFixed(3);
++    }
++
++    function fmtRemaining(session) {
++        if (!session) return '—';
++        if (session.session_type === 3 && session.laps > 0) {
++            // Race-by-laps: just show lap count.
++            return session.laps + ' laps';
++        }
++        var totalS = (session.time_minutes || 0) * 60;
++        if (!totalS) return '—';
++        var elapsedS = (session.elapsed_ms || 0) / 1000;
++        var remain = Math.max(0, totalS - elapsedS);
++        var m = Math.floor(remain / 60);
++        var s = Math.floor(remain - m * 60);
++        return m + ':' + (s < 10 ? '0' : '') + s;
++    }
++
++    function fmtTemps(session) {
++        if (!session) return '—';
++        if (!session.ambient_temp && !session.track_temp) return '—';
++        return session.ambient_temp + '°C / ' + session.track_temp + '°C';
++    }
++
++    function escapeHtml(s) {
++        return String(s == null ? '' : s)
++            .replace(/&/g, '&amp;').replace(/</g, '&lt;')
++            .replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
++    }
++
++    function statusPill(driver) {
++        if (!driver.connected) return '<span class="lt-status lt-status--offline">Offline</span>';
++        if (!driver.loaded) return '<span class="lt-status lt-status--loading">Loading</span>';
++        return '<span class="lt-status lt-status--on">On Track</span>';
++    }
++
++    function renderHeader(session) {
++        if (!session) return;
++        var trackTxt = session.track_name
++            ? session.track_name + (session.track_config ? ' / ' + session.track_config : '')
++            : '—';
++        $('lt-track').textContent = trackTxt;
++        $('lt-session-type').textContent = session.session_name
++            ? (session.session_type_name || session.session_name) + ' — ' + session.session_name
++            : (session.session_type_name || '—');
++        $('lt-time-remaining').textContent = fmtRemaining(session);
++        $('lt-temps').textContent = fmtTemps(session);
++        $('lt-server-name').textContent = session.server_name || '—';
++        $('lt-weather').textContent = session.weather_graph || '—';
++    }
++
++    function renderBoard(snapshot) {
++        var tbody = $('lt-rows');
++        if (!tbody) return;
++        var drivers = (snapshot && snapshot.drivers) || [];
++        var connected = drivers.filter(function (d) { return d.connected; });
++        if (connected.length === 0) {
++            tbody.innerHTML = '<tr class="lt-empty-row"><td colspan="9">Waiting for AC server telemetry…</td></tr>';
++            return;
++        }
++        // Compute interval (gap to car directly ahead) using gap-to-leader.
++        var sorted = connected.slice().sort(function (a, b) {
++            var pa = a.position > 0 ? a.position : 999;
++            var pb = b.position > 0 ? b.position : 999;
++            if (pa !== pb) return pa - pb;
++            return a.car_id - b.car_id;
++        });
++        var rowsHtml = '';
++        var prevGap = 0;
++        for (var i = 0; i < sorted.length; i++) {
++            var d = sorted[i];
++            var pos = d.position > 0 ? d.position : (i + 1);
++            var posCls = pos === 1 ? 'lt-pos-1' : (pos === 2 ? 'lt-pos-2' : (pos === 3 ? 'lt-pos-3' : ''));
++            var gapTxt = i === 0 ? '—' : fmtGap(d.gap_ms);
++            var intervalMs = i === 0 ? 0 : (d.gap_ms - prevGap);
++            var intervalTxt = i === 0 ? '—' : fmtGap(intervalMs);
++            prevGap = d.gap_ms || prevGap;
++            rowsHtml += '<tr>'
++                + '<td class="lt-col-pos ' + posCls + '">' + pos + '</td>'
++                + '<td class="lt-col-driver">' + escapeHtml(d.driver_name || ('Car ' + d.car_id)) + '</td>'
++                + '<td class="lt-col-car">' + escapeHtml(d.car_model || '—') + '</td>'
++                + '<td class="lt-col-laps">' + (d.total_laps || 0) + '</td>'
++                + '<td class="lt-col-best lt-best-cell">' + fmtLap(d.best_lap_ms) + '</td>'
++                + '<td class="lt-col-last">' + fmtLap(d.last_lap_ms) + '</td>'
++                + '<td class="lt-col-gap">' + gapTxt + '</td>'
++                + '<td class="lt-col-int">' + intervalTxt + '</td>'
++                + '<td class="lt-col-status">' + statusPill(d) + '</td>'
++                + '</tr>';
++        }
++        tbody.innerHTML = rowsHtml;
++    }
++
++    function applySnapshot(snap) {
++        if (!snap) return;
++        state.lastSnapshot = snap;
++        renderHeader(snap.session);
++        renderBoard(snap);
++        updateStaleBanner(snap.stats);
++    }
++
++    function updateStaleBanner(stats) {
++        var banner = $('lt-stale-banner');
++        var ageEl = $('lt-stale-age');
++        if (!banner || !stats) return;
++        var last = stats.last_packet_unix || 0;
++        if (!last) {
++            banner.classList.remove('hidden');
++            if (ageEl) ageEl.textContent = 'any time yet';
++            if (state.mode === 'ws') setMode('ws', 'WS connected (no data)');
++            else if (state.mode === 'poll') setMode('poll', 'Polling (no data)');
++            return;
++        }
++        var age = Math.max(0, (Date.now() / 1000) - last);
++        if (age > STALE_THRESHOLD_S) {
++            banner.classList.remove('hidden');
++            if (ageEl) ageEl.textContent = age.toFixed(1) + 's';
++            if (state.mode !== 'stale') {
++                // Don't overwrite mode permanently; just relabel pill.
++                var pill = $('lt-conn');
++                if (pill) {
++                    pill.classList.remove('lt-conn--ws', 'lt-conn--poll', 'lt-conn--idle');
++                    pill.classList.add('lt-conn--stale');
++                }
++                $('lt-conn-label').textContent = 'Stale (' + age.toFixed(0) + 's)';
++            }
++        } else {
++            banner.classList.add('hidden');
++            // Restore pill colour based on transport
++            if (state.mode === 'ws') setMode('ws', 'WS live');
++            else if (state.mode === 'poll') setMode('poll', 'Polling');
++        }
++    }
++
++    function startStaleTicker() {
++        stopStaleTicker();
++        state.staleTimer = setInterval(function () {
++            if (state.lastSnapshot) updateStaleBanner(state.lastSnapshot.stats);
++        }, 1000);
++    }
++    function stopStaleTicker() {
++        if (state.staleTimer) { clearInterval(state.staleTimer); state.staleTimer = null; }
++    }
++
++    // ---- Polling fallback ----
++    function startPolling() {
++        stopPolling();
++        setMode('poll', 'Polling');
++        var tick = function () {
++            fetch('/api/timing/snapshot', { credentials: 'same-origin' })
++                .then(function (r) { return r.ok ? r.json() : null; })
++                .then(function (snap) { if (snap) applySnapshot(snap); })
++                .catch(function () { /* keep trying */ });
++        };
++        tick();
++        state.pollTimer = setInterval(tick, POLL_INTERVAL_MS);
++    }
++    function stopPolling() {
++        if (state.pollTimer) { clearInterval(state.pollTimer); state.pollTimer = null; }
++    }
++
++    // ---- WebSocket ----
++    function startWebSocket() {
++        if (typeof WebSocket === 'undefined') { startPolling(); return; }
++        try {
++            var proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
++            var url = proto + '//' + location.host + '/ws/timing';
++            var ws = new WebSocket(url);
++            state.ws = ws;
++            setMode('ws', 'WS connecting…');
++            ws.addEventListener('open', function () {
++                stopPolling(); // WS now drives updates
++                setMode('ws', 'WS live');
++            });
++            ws.addEventListener('message', function (ev) {
++                var msg;
++                try { msg = JSON.parse(ev.data); } catch (e) { return; }
++                if (msg.type === 'snapshot') applySnapshot(msg.data);
++                else if (msg.type === 'tick' && msg.snapshot) applySnapshot(msg.snapshot);
++            });
++            var fall = function () {
++                state.ws = null;
++                if (!state.active) return;
++                // Fall back to polling immediately so the UI keeps updating,
++                // and keep trying to upgrade back to WS in the background.
++                startPolling();
++                clearTimeout(state.wsRetryTimer);
++                state.wsRetryTimer = setTimeout(startWebSocket, WS_RETRY_MS);
++            };
++            ws.addEventListener('close', fall);
++            ws.addEventListener('error', function () { try { ws.close(); } catch (e) {} });
++        } catch (e) {
++            startPolling();
++        }
++    }
++
++    function stopWebSocket() {
++        clearTimeout(state.wsRetryTimer);
++        state.wsRetryTimer = null;
++        if (state.ws) {
++            try { state.ws.close(); } catch (e) {}
++            state.ws = null;
++        }
++    }
++
++    function activate() {
++        if (state.active) return;
++        state.active = true;
++        setMode('idle', 'Connecting…');
++        startStaleTicker();
++        startWebSocket();
++        // Also kick off a one-shot poll so the page isn't blank for the first
++        // ~half-second while the WS handshake is in flight.
++        fetch('/api/timing/snapshot', { credentials: 'same-origin' })
++            .then(function (r) { return r.ok ? r.json() : null; })
++            .then(function (s) { if (s && state.active) applySnapshot(s); })
++            .catch(function () {});
++    }
++
++    function deactivate() {
++        if (!state.active) return;
++        state.active = false;
++        stopWebSocket();
++        stopPolling();
++        stopStaleTicker();
++        setMode('idle', 'Idle');
++    }
++
++    // Watch for the Live Timing page becoming visible. The host app toggles
++    // `.hidden` on each `.content-page` div from app.js's showPage().
++    function isLiveTimingVisible() {
++        var el = document.getElementById('page-live-timing');
++        return !!(el && !el.classList.contains('hidden'));
++    }
++
++    function maybeToggle() {
++        if (isLiveTimingVisible()) activate();
++        else deactivate();
++    }
++
++    function init() {
++        var el = document.getElementById('page-live-timing');
++        if (!el) return;
++        var mo = new MutationObserver(maybeToggle);
++        mo.observe(el, { attributes: true, attributeFilter: ['class'] });
++        // Also re-evaluate on history navigation (the SPA uses history.pushState).
++        window.addEventListener('popstate', function () { setTimeout(maybeToggle, 0); });
++        maybeToggle();
++    }
++
++    if (document.readyState === 'loading') {
++        document.addEventListener('DOMContentLoaded', init);
++    } else {
++        init();
++    }
++})();
+diff --git a/controller/timing/engine.py b/controller/timing/engine.py
+index ecc296e..333b5c5 100644
+--- a/controller/timing/engine.py
++++ b/controller/timing/engine.py
+@@ -253,10 +253,23 @@ class TimingEngine:
+         self._record_event("end_session", filename=str(p.filename))
+ 
+     def _on_ACSP_NEW_CONNECTION(self, p):
+-        d = self._driver(int(p.car_id))
++        car_id = int(p.car_id)
++        new_guid = str(p.driver_guid)
++        existing = self.drivers.get(car_id)
++        d = self._driver(car_id)
++        # If this slot is being taken by a different human (different
++        # GUID), wipe the previous driver's per-session stats so they
++        # don't leak. Same GUID = reconnect, keep stats.
++        if existing is not None and existing.driver_guid and existing.driver_guid != new_guid:
++            d.last_lap_ms = 0
++            d.best_lap_ms = 0
++            d.total_laps = 0
++            d.position = 0
++            d.gap_ms = 0
++            d.cuts_last_lap = 0
+         d.connected = True
+         d.driver_name = str(p.driver_name)
+-        d.driver_guid = str(p.driver_guid)
++        d.driver_guid = new_guid
+         d.car_model = str(p.car_model)
+         d.car_skin = str(p.car_skin)
+         d.loaded = False
+@@ -272,6 +285,11 @@ class TimingEngine:
+         d = self._driver(car_id)
+         d.connected = False
+         d.loaded = False
++        # Drop position so the leaderboard doesn't keep showing this
++        # driver mid-pack after they leave; lap stats are preserved so
++        # the operator can still see what they did before disconnect.
++        d.position = 0
++        d.gap_ms = 0
+         self._record_event(
+             "connection_closed",
+             car_id=car_id,
+@@ -312,18 +330,29 @@ class TimingEngine:
+         if lap_ms > 0 and (d.best_lap_ms == 0 or lap_ms < d.best_lap_ms):
+             d.best_lap_ms = lap_ms
+ 
+-        # Apply leaderboard ordering / gap-to-leader from the embedded array.
++        # Apply leaderboard ordering / gap-to-leader from the embedded
++        # array. AC sets ``has_completed_flag=False`` for cars that have
++        # never crossed the line in this session; their ``rtime`` is
++        # meaningless so we still record the position but leave gap=0
++        # rather than charting an absurd value. The leader baseline is
++        # the first car in the list with a real completed lap (so a
++        # mixed list where idx 1 hasn't yet completed still produces
++        # correct gaps for later completed entries).
+         leader_time: Optional[int] = None
+         for idx, entry in enumerate(getattr(p, "cars", []) or [], start=1):
+             rcar_id = int(entry.rcar_id)
+             rtime = int(entry.rtime)
++            has_completed = bool(getattr(entry, "has_completed_flag", True))
+             rd = self._driver(rcar_id)
+             rd.position = idx
+             rd.total_laps = max(rd.total_laps, int(entry.rlaps))
+-            if idx == 1:
++            if not has_completed:
++                rd.gap_ms = 0
++                continue
++            if leader_time is None:
+                 leader_time = rtime
+                 rd.gap_ms = 0
+-            elif leader_time is not None:
++            else:
+                 rd.gap_ms = max(0, rtime - leader_time)
+ 
+         self._record_event(

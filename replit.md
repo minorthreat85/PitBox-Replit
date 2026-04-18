@@ -1,4 +1,4 @@
-# PitBox Controller v1.5.9
+# PitBox Controller v1.5.10
 
 Professional LAN-based management system for Assetto Corsa racing lounges with up to 8 simulator PCs.
 
@@ -75,7 +75,7 @@ Config file at: `/home/runner/workspace/.config/PitBox/Controller/controller_con
 
 ## Versioning
 
-- `version.txt` is the single source of truth (currently 1.5.9)
+- `version.txt` is the single source of truth (currently 1.5.10)
 - `pitbox_common/version.py` reads `version.txt` dynamically at import
 - `version.ini` is synced from `version.txt` for Inno Setup
 - `scripts/sync_version.py` syncs version.ini and VERSION from version.txt
@@ -105,6 +105,33 @@ Publish: `.\scripts\publish_release.ps1 -Dev` uploads all installers to GitHub R
 ## Agent Update Flow (v1.6.0+)
 
 Controller is the single release authority. Operator clicks "Update PitBox" → `POST /api/update/run` → controller checks GitHub, updates itself if needed, then rolls out to all enrolled sims. Idle sims update immediately; busy sims are queued as `pending_idle` and auto-update when AC session ends. Agents no longer check GitHub autonomously.
+
+## Sim-side Telemetry Pipeline (v1.5.10+)
+
+Each Agent reads AC's shared-memory blocks (`acpmf_physics`, `acpmf_graphics`,
+`acpmf_static`) at a configurable rate (default 15 Hz) and ships frames over a
+persistent WebSocket to the Controller. The Controller merges these per-sim
+frames with the existing UDP server-timing feed for a richer Live Timing UI.
+
+- **Agent**: `agent/telemetry/sm_reader.py` (mmap parser), `agent/telemetry/sender.py`
+  (persistent WS w/ auto-reconnect). Wired into `agent/main.py`; controlled by
+  config keys `telemetry_enabled` (default true) and `telemetry_rate_hz`.
+  No-op on non-Windows / when AC isn't running.
+- **Controller**: `controller/telemetry/store.py` (per-agent latest frame +
+  staleness buckets: live <3s, stale <15s, offline ≥15s),
+  `controller/api_telemetry_ingest.py` (WS `/ws/agent-telemetry` + HTTP
+  `/api/telemetry/*`).
+- **Snapshot merge**: `controller/timing/engine.py::snapshot()` adds
+  `telemetry_agents` (top-level dict, keyed by agent_id) and `live_telemetry`
+  per matched driver (best-effort name match). Existing fields untouched.
+- **Live Timing UI**: `controller/static/index.html` + `live_timing.js`/`.css`
+  render an agents bar, expanded leaderboard (Spd/Gear/RPM live cols), SVG
+  track map (cars positioned by normalized lap distance), driver-detail panel
+  with throttle/brake bars and gauges, and a recent-events panel.
+
+PyInstaller specs include the new submodules:
+- `PitBoxAgent.spec` — `agent.telemetry.*`, `websockets.asyncio.client`
+- `PitBoxController.spec` — picked up by `collect_submodules('controller')`
 
 ## Debug Endpoints
 

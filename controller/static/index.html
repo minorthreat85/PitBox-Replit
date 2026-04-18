@@ -292,26 +292,114 @@
                 </div>
             </section>
 
-            <section class="lt-board-wrap" aria-label="Leaderboard">
-                <table class="lt-board" id="lt-board">
-                    <thead>
-                        <tr>
-                            <th class="lt-col-pos">Pos</th>
-                            <th class="lt-col-driver">Driver</th>
-                            <th class="lt-col-car">Car</th>
-                            <th class="lt-col-laps">Laps</th>
-                            <th class="lt-col-best">Best Lap</th>
-                            <th class="lt-col-last">Last Lap</th>
-                            <th class="lt-col-gap">Gap</th>
-                            <th class="lt-col-int">Interval</th>
-                            <th class="lt-col-status">Status</th>
-                        </tr>
-                    </thead>
-                    <tbody id="lt-rows">
-                        <tr class="lt-empty-row"><td colspan="9">Waiting for AC server telemetry…</td></tr>
-                    </tbody>
-                </table>
+            <!-- Sim agents (telemetry sources) connection bar -->
+            <section class="lt-agents-bar" aria-label="Sim telemetry agents">
+                <div class="lt-agents-key">Sim Agents</div>
+                <div id="lt-agents-list" class="lt-agents-list">
+                    <span class="lt-agent-pill lt-agent-pill--idle">No agents connected</span>
+                </div>
             </section>
+
+            <!-- Main grid: leaderboard (left) + map+detail (right) -->
+            <div class="lt-main-grid">
+                <section class="lt-board-wrap" aria-label="Leaderboard">
+                    <table class="lt-board" id="lt-board">
+                        <thead>
+                            <tr>
+                                <th class="lt-col-pos">Pos</th>
+                                <th class="lt-col-driver">Driver</th>
+                                <th class="lt-col-car">Car</th>
+                                <th class="lt-col-laps">Laps</th>
+                                <th class="lt-col-best">Best</th>
+                                <th class="lt-col-last">Last</th>
+                                <th class="lt-col-gap">Gap</th>
+                                <th class="lt-col-int">Int</th>
+                                <th class="lt-col-spd">Spd</th>
+                                <th class="lt-col-gear">G</th>
+                                <th class="lt-col-rpm">RPM</th>
+                                <th class="lt-col-status">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="lt-rows">
+                            <tr class="lt-empty-row"><td colspan="12">Waiting for AC server telemetry…</td></tr>
+                        </tbody>
+                    </table>
+                </section>
+
+                <aside class="lt-side">
+                    <section class="lt-card lt-map-card" aria-label="Track map">
+                        <header class="lt-card-header">
+                            <span>Track Map</span>
+                            <span id="lt-map-track-name" class="lt-card-sub">—</span>
+                        </header>
+                        <svg id="lt-map-svg" viewBox="0 0 200 120" preserveAspectRatio="xMidYMid meet" class="lt-map-svg" role="img" aria-label="Live track positions">
+                            <path id="lt-map-path"
+                                d="M 30 60 C 30 20, 170 20, 170 60 C 170 100, 30 100, 30 60 Z"
+                                fill="none" stroke="#3a3f4a" stroke-width="3" stroke-linecap="round" />
+                            <g id="lt-map-cars"></g>
+                        </svg>
+                        <div class="lt-map-note">Generic layout — positions reflect normalized lap distance from each sim's telemetry.</div>
+                    </section>
+
+                    <section class="lt-card lt-driver-card" aria-label="Selected driver detail">
+                        <header class="lt-card-header">
+                            <span id="lt-detail-name">Select a driver</span>
+                            <span id="lt-detail-pos" class="lt-card-sub"></span>
+                        </header>
+                        <div id="lt-detail-empty" class="lt-detail-empty">
+                            Click a row in the leaderboard to view live telemetry for that driver.
+                        </div>
+                        <div id="lt-detail-body" class="lt-detail-body hidden">
+                            <div class="lt-gauges">
+                                <div class="lt-gauge">
+                                    <div class="lt-gauge-key">Speed</div>
+                                    <div class="lt-gauge-val"><span id="lt-d-spd">—</span><span class="lt-gauge-unit">km/h</span></div>
+                                </div>
+                                <div class="lt-gauge">
+                                    <div class="lt-gauge-key">Gear</div>
+                                    <div class="lt-gauge-val"><span id="lt-d-gear">—</span></div>
+                                </div>
+                                <div class="lt-gauge">
+                                    <div class="lt-gauge-key">RPM</div>
+                                    <div class="lt-gauge-val"><span id="lt-d-rpm">—</span></div>
+                                </div>
+                                <div class="lt-gauge">
+                                    <div class="lt-gauge-key">Fuel</div>
+                                    <div class="lt-gauge-val"><span id="lt-d-fuel">—</span><span class="lt-gauge-unit">L</span></div>
+                                </div>
+                            </div>
+                            <div class="lt-bars">
+                                <div class="lt-bar-row"><span class="lt-bar-key">Throttle</span>
+                                    <div class="lt-bar-track"><div id="lt-d-throttle" class="lt-bar-fill lt-bar-fill--throttle"></div></div>
+                                    <span id="lt-d-throttle-pct" class="lt-bar-pct">0%</span>
+                                </div>
+                                <div class="lt-bar-row"><span class="lt-bar-key">Brake</span>
+                                    <div class="lt-bar-track"><div id="lt-d-brake" class="lt-bar-fill lt-bar-fill--brake"></div></div>
+                                    <span id="lt-d-brake-pct" class="lt-bar-pct">0%</span>
+                                </div>
+                            </div>
+                            <div class="lt-detail-grid">
+                                <div><span class="lt-detail-key">Last Lap</span><span id="lt-d-last" class="lt-detail-val">—</span></div>
+                                <div><span class="lt-detail-key">Best Lap</span><span id="lt-d-best" class="lt-detail-val">—</span></div>
+                                <div><span class="lt-detail-key">Sector</span><span id="lt-d-sector" class="lt-detail-val">—</span></div>
+                                <div><span class="lt-detail-key">Pit</span><span id="lt-d-pit" class="lt-detail-val">—</span></div>
+                                <div><span class="lt-detail-key">Tyre</span><span id="lt-d-tyre" class="lt-detail-val">—</span></div>
+                                <div><span class="lt-detail-key">Lap Pos</span><span id="lt-d-norm" class="lt-detail-val">—</span></div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="lt-card lt-events-card" aria-label="Recent events">
+                        <header class="lt-card-header">
+                            <span>Events</span>
+                            <span id="lt-events-count" class="lt-card-sub">0</span>
+                        </header>
+                        <ul id="lt-events-list" class="lt-events-list">
+                            <li class="lt-events-empty">No events yet.</li>
+                        </ul>
+                    </section>
+                </aside>
+            </div>
         </div>
 
         <!-- Page: Entry List (server-scoped) -->

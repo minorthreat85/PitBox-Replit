@@ -100,6 +100,8 @@ class AgentConfig(BaseModel):
     mumble_channel: str = Field(default="Race Control", description="Mumble channel to join on auto-connect.")
     mumble_exe_path: Optional[str] = Field(default=None, description="Full path to mumble.exe. If unset, standard install paths are tried.")
     mumble_server_password: str = Field(default="fastestlap", description="Murmur server password included in the auto-connect URL.")
+    telemetry_enabled: bool = Field(default=True, description="If true, agent reads AC shared memory and pushes live telemetry to controller via WebSocket.")
+    telemetry_rate_hz: float = Field(default=15.0, description="Telemetry frame rate (Hz). Clamped 1-60. Default 15 Hz balances UI smoothness vs LAN/CPU cost.")
 
     @field_validator('token')
     @classmethod
