@@ -84,14 +84,23 @@ class TelemetrySender:
         try:
             import websockets  # type: ignore
         except ImportError:
-            LOG.error("websockets package not available; telemetry disabled")
+            LOG.error("websockets package not available; telemetry disabled "
+                      "(install `websockets` in the agent environment)")
             return
+        try:
+            ws_version = getattr(websockets, "__version__", "?")
+        except Exception:
+            ws_version = "?"
 
         url = _http_to_ws(self.controller_url)
+        LOG.info("Telemetry sender loop starting: agent=%s url=%s rate=%.1fHz websockets=%s",
+                 self.agent_id, url, self.rate_hz, ws_version)
         backoff = RECONNECT_MIN
+        attempt = 0
         while not self._stop.is_set():
+            attempt += 1
             try:
-                LOG.debug("Connecting telemetry WS: %s", url)
+                LOG.info("Telemetry WS connect attempt #%d -> %s", attempt, url)
                 async with websockets.connect(
                     url,
                     additional_headers={
@@ -103,24 +112,32 @@ class TelemetrySender:
                     ping_timeout=20,
                     max_queue=8,
                 ) as ws:
-                    LOG.info("Telemetry WS connected: %s", url)
+                    LOG.info("Telemetry WS CONNECTED: agent=%s url=%s (attempt #%d)",
+                             self.agent_id, url, attempt)
                     backoff = RECONNECT_MIN
+                    attempt = 0
                     await self._stream(ws)
+                    LOG.info("Telemetry WS stream ended cleanly (will reconnect)")
             except asyncio.CancelledError:
                 raise
             except Exception as e:
-                LOG.debug("Telemetry WS connect/stream error: %s", e)
+                # INFO not DEBUG so operators can see *why* a connect fails.
+                LOG.info("Telemetry WS connect/stream error: %s: %s",
+                         type(e).__name__, e)
             if self._stop.is_set():
                 break
-            # Wait before reconnect, with cooperative stop
             wait = backoff
             backoff = min(RECONNECT_MAX, backoff * 1.5)
+            LOG.info("Telemetry WS reconnect in %.1fs (next backoff %.1fs)", wait, backoff)
             t0 = time.monotonic()
             while not self._stop.is_set() and time.monotonic() - t0 < wait:
                 await asyncio.sleep(0.25)
 
     async def _stream(self, ws) -> None:
         last_idle_sent = 0.0
+        last_summary = time.monotonic()
+        sent_live = 0
+        sent_idle = 0
         while not self._stop.is_set():
             t0 = time.monotonic()
             data = self._reader.read()
@@ -131,13 +148,13 @@ class TelemetrySender:
             if payload.get("available"):
                 try:
                     await ws.send(json.dumps(payload, separators=(",", ":")))
-                except Exception:
+                    sent_live += 1
+                except Exception as e:
+                    LOG.info("Telemetry WS send failed: %s: %s", type(e).__name__, e)
                     return  # outer loop reconnects
-                # Sleep to next tick at configured rate
                 elapsed = time.monotonic() - t0
                 await asyncio.sleep(max(0.0, self.interval - elapsed))
             else:
-                # AC not running -> send idle heartbeat at low cadence
                 now = time.monotonic()
                 if now - last_idle_sent >= IDLE_HEARTBEAT_SEC:
                     try:
@@ -146,10 +163,22 @@ class TelemetrySender:
                             "ts": time.time(),
                             "available": False,
                         }, separators=(",", ":")))
-                    except Exception:
+                        sent_idle += 1
+                    except Exception as e:
+                        LOG.info("Telemetry WS heartbeat send failed: %s: %s", type(e).__name__, e)
                         return
                     last_idle_sent = now
                 await asyncio.sleep(0.5)
+
+            # Periodic summary so operators can confirm frames are flowing
+            # without enabling DEBUG. Logged once every ~10s.
+            now = time.monotonic()
+            if now - last_summary >= 10.0:
+                LOG.info("Telemetry: live=%d idle=%d frames in last %.1fs",
+                         sent_live, sent_idle, now - last_summary)
+                sent_live = 0
+                sent_idle = 0
+                last_summary = now
 
 
 # Module-level convenience for parity with controller_heartbeat

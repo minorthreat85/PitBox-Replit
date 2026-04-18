@@ -30,10 +30,17 @@ LOG = logging.getLogger("pitbox.telemetry.sm")
 # AC SM is Windows-only (Local\ namespace). On non-Windows the reader is a no-op.
 IS_WINDOWS = sys.platform.startswith("win")
 
-# Mmap names (Windows global namespace prefix)
-SM_PHYSICS = "Local\\acpmf_physics"
-SM_GRAPHICS = "Local\\acpmf_graphics"
-SM_STATIC = "Local\\acpmf_static"
+# Mmap names. AC nominally exposes them in the Local\ namespace, but some
+# installs / Content Manager wrappers / older AC versions register them
+# without the namespace prefix. We try each variant in order and remember
+# the first that succeeds.
+SM_PHYSICS_NAMES = ("Local\\acpmf_physics", "acpmf_physics")
+SM_GRAPHICS_NAMES = ("Local\\acpmf_graphics", "acpmf_graphics")
+SM_STATIC_NAMES = ("Local\\acpmf_static", "acpmf_static")
+# Back-compat exports (some tests import these constants)
+SM_PHYSICS = SM_PHYSICS_NAMES[0]
+SM_GRAPHICS = SM_GRAPHICS_NAMES[0]
+SM_STATIC = SM_STATIC_NAMES[0]
 
 # Conservative max sizes (real structs are smaller; mmap will use file size)
 SM_PHYSICS_SIZE = 2048
@@ -250,22 +257,52 @@ class SharedMemoryReader:
         self._mm_graphics: Optional[mmap.mmap] = None
         self._mm_static: Optional[mmap.mmap] = None
         self._available = IS_WINDOWS
+        # Names that succeeded last time, so we don't retry every variant
+        # forever. None until first successful open.
+        self._name_physics: Optional[str] = None
+        self._name_graphics: Optional[str] = None
+        self._name_static: Optional[str] = None
+        # Track availability transitions so we log once on each change rather
+        # than every read (which fires 15× per second).
+        self._was_available: Optional[bool] = None
         if not IS_WINDOWS:
             LOG.info("AC shared memory reader inactive (non-Windows host)")
 
-    def _open(self, current: Optional[mmap.mmap], name: str, size: int) -> Optional[mmap.mmap]:
+    def _open(self, current: Optional[mmap.mmap], names: tuple, size: int,
+              cached_name_attr: str) -> Optional[mmap.mmap]:
+        """Try each name in `names`; remember the one that worked.
+
+        On Windows AC mmaps live under `Local\\` for normal installs but some
+        wrappers expose them with no prefix. We try the cached name first
+        (cheap path once AC is up) and fall through to the alternates only
+        when nothing has worked yet.
+        """
         if not self._available:
             return None
         if current is not None:
             return current
-        try:
-            # mmap.mmap with -1 fileno = use named mapping (Windows only); tagname = name
-            mm = mmap.mmap(-1, size, tagname=name, access=mmap.ACCESS_READ)
-            return mm
-        except (OSError, ValueError) as e:
-            # Mapping doesn't exist (AC not running). Quietly retry next read.
-            LOG.debug("Cannot open %s: %s", name, e)
-            return None
+        # Prefer the name that worked previously, then any others in order.
+        cached = getattr(self, cached_name_attr)
+        order = []
+        if cached:
+            order.append(cached)
+        for n in names:
+            if n != cached:
+                order.append(n)
+        last_err = None
+        for n in order:
+            try:
+                mm = mmap.mmap(-1, size, tagname=n, access=mmap.ACCESS_READ)
+                if cached != n:
+                    setattr(self, cached_name_attr, n)
+                    LOG.info("AC SM mmap opened: name=%r size=%d", n, size)
+                return mm
+            except (OSError, ValueError) as e:
+                last_err = e
+                continue
+        # Mapping doesn't exist (AC not running). Quietly retry next read.
+        LOG.debug("Cannot open any of %s: %s", names, last_err)
+        return None
 
     def read(self) -> dict:
         """
@@ -276,9 +313,9 @@ class SharedMemoryReader:
         if not self._available:
             return {"physics": None, "graphics": None, "static": None, "available": False}
 
-        self._mm_physics = self._open(self._mm_physics, SM_PHYSICS, SM_PHYSICS_SIZE)
-        self._mm_graphics = self._open(self._mm_graphics, SM_GRAPHICS, SM_GRAPHICS_SIZE)
-        self._mm_static = self._open(self._mm_static, SM_STATIC, SM_STATIC_SIZE)
+        self._mm_physics = self._open(self._mm_physics, SM_PHYSICS_NAMES, SM_PHYSICS_SIZE, "_name_physics")
+        self._mm_graphics = self._open(self._mm_graphics, SM_GRAPHICS_NAMES, SM_GRAPHICS_SIZE, "_name_graphics")
+        self._mm_static = self._open(self._mm_static, SM_STATIC_NAMES, SM_STATIC_SIZE, "_name_static")
 
         physics = None
         graphics = None
@@ -309,6 +346,22 @@ class SharedMemoryReader:
                 self._safe_close("_mm_static")
 
         available = bool(physics or graphics)
+        # One-shot transition log so operators can see in the agent log when
+        # AC starts/stops without spam at the read rate.
+        if available != self._was_available:
+            if available:
+                nick = (static.player_nick if static else "") or "(no nick yet)"
+                track = (static.track if static else "") or "(no track yet)"
+                car = (static.car_model if static else "") or "(no car yet)"
+                LOG.info(
+                    "AC SM AVAILABLE — nick=%r track=%r car=%r status=%s",
+                    nick, track, car,
+                    (graphics.status_name if graphics else "?"),
+                )
+            else:
+                LOG.info("AC SM UNAVAILABLE — physics=%s graphics=%s",
+                         self._name_physics or "?", self._name_graphics or "?")
+            self._was_available = available
         return {"physics": physics, "graphics": graphics, "static": static, "available": available}
 
     def _safe_close(self, attr: str) -> None:
