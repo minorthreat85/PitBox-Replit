@@ -19,6 +19,17 @@
     var EVENTS_POLL_MS = 2000;
     var EVENTS_MAX = 30;
 
+    // Default fallback track map (the original generic oval). Used when no
+    // per-track JSON is available under /static/track_maps/<key>.json.
+    var FALLBACK_MAP = {
+        viewBox: '0 0 200 120',
+        svg_path: 'M 30 60 C 30 20, 170 20, 170 60 C 170 100, 30 100, 30 60 Z',
+        start_offset: 0.0,
+        direction: 1,
+        scale: 1.0,
+        _fallback: true,
+    };
+
     var state = {
         active: false,
         ws: null,
@@ -31,6 +42,11 @@
         selectedCarId: null,
         eventSeq: 0,
         events: [],
+        // Per-track map state
+        trackKey: null,         // key currently loaded ('' = fallback applied)
+        trackMap: null,         // resolved map object (FALLBACK_MAP or fetched)
+        trackMapLoading: false, // a fetch is in flight
+        trackMapCache: {},      // key -> map object | null (null = known-missing)
     };
 
     function $(id) { return document.getElementById(id); }
@@ -118,6 +134,77 @@
         $('lt-weather').textContent = session.weather_graph || '—';
         var mapName = $('lt-map-track-name');
         if (mapName) mapName.textContent = trackTxt;
+        // Kick off (or refresh) the per-track map load when the track changes.
+        ensureTrackMap(session);
+    }
+
+    // ---- Per-track map registry ----
+    // Files live under /static/track_maps/<key>.json. The key is derived from
+    // the AC `track_name` (lower-cased, non-alphanum -> underscore). If a
+    // `track_config` (layout) is present we try `<track>__<config>` first and
+    // fall back to bare `<track>`. Missing files quietly fall back to the
+    // generic oval. Telemetry / norm_pos logic is unchanged — only rendering.
+    function slugify(s) {
+        return String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+    }
+    function trackKeyCandidates(session) {
+        if (!session || !session.track_name) return [];
+        var t = slugify(session.track_name);
+        if (!t) return [];
+        var c = slugify(session.track_config);
+        return c ? [t + '__' + c, t] : [t];
+    }
+    function applyTrackMap(map) {
+        state.trackMap = map || FALLBACK_MAP;
+        var svg = $('lt-map-svg');
+        var path = $('lt-map-path');
+        if (!svg || !path) return;
+        if (state.trackMap.viewBox) svg.setAttribute('viewBox', state.trackMap.viewBox);
+        if (state.trackMap.svg_path) path.setAttribute('d', state.trackMap.svg_path);
+        // Force re-render of car dots against the new geometry on next snapshot.
+        if (state.lastSnapshot) renderMap(state.lastSnapshot);
+    }
+    function ensureTrackMap(session) {
+        var candidates = trackKeyCandidates(session);
+        var key = candidates[0] || '';
+        if (key === state.trackKey) return;       // no change
+        if (state.trackMapLoading) return;        // in-flight; will resolve
+        state.trackKey = key;
+        if (!key) { applyTrackMap(FALLBACK_MAP); return; }
+        // Try each candidate in order; cache hits short-circuit.
+        var tryNext = function (idx) {
+            if (idx >= candidates.length) {
+                state.trackMapCache[key] = null;
+                applyTrackMap(FALLBACK_MAP);
+                state.trackMapLoading = false;
+                return;
+            }
+            var k = candidates[idx];
+            if (Object.prototype.hasOwnProperty.call(state.trackMapCache, k)) {
+                var cached = state.trackMapCache[k];
+                if (cached) { applyTrackMap(cached); state.trackMapLoading = false; return; }
+                tryNext(idx + 1); return;
+            }
+            fetch('/track_maps/' + encodeURIComponent(k) + '.json',
+                { credentials: 'same-origin', cache: 'no-cache' })
+                .then(function (r) { return r.ok ? r.json() : null; })
+                .then(function (data) {
+                    if (data && data.svg_path) {
+                        state.trackMapCache[k] = data;
+                        applyTrackMap(data);
+                        state.trackMapLoading = false;
+                    } else {
+                        state.trackMapCache[k] = null;
+                        tryNext(idx + 1);
+                    }
+                })
+                .catch(function () {
+                    state.trackMapCache[k] = null;
+                    tryNext(idx + 1);
+                });
+        };
+        state.trackMapLoading = true;
+        tryNext(0);
     }
 
     function renderAgents(snapshot) {
@@ -203,6 +290,9 @@
         var group = $('lt-map-cars');
         if (!path || !group || !path.getTotalLength) return;
         var len = path.getTotalLength();
+        var map = state.trackMap || FALLBACK_MAP;
+        var offset = map.start_offset || 0;
+        var dir = map.direction === -1 ? -1 : 1;
         var drivers = (snapshot && snapshot.drivers) || [];
         var html = '';
         for (var i = 0; i < drivers.length; i++) {
@@ -210,7 +300,11 @@
             if (!d.connected) continue;
             var lt = d.live_telemetry;
             if (!lt || lt.norm_pos == null) continue;
-            var t = Math.max(0, Math.min(1, lt.norm_pos));
+            // norm_pos is 0..1 from AC. Apply per-track start_offset and
+            // direction (rendering-layer transform only). Wrap into [0,1).
+            var t = (dir * lt.norm_pos) + offset;
+            t = t - Math.floor(t);
+            if (t < 0) t += 1;
             var pt = path.getPointAtLength(t * len);
             var color = carColor(d.car_id);
             var sel = state.selectedCarId === d.car_id;

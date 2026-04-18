@@ -549,6 +549,26 @@ async def serve_live_timing_js(request: Request):
     return _asset_response(path, "application/javascript", request)
 
 
+@app.get("/track_maps/{key}.json")
+async def serve_track_map(key: str, request: Request):
+    """Serve per-track SVG map metadata from controller/static/track_maps/.
+
+    Files are identified by a slugified key (alphanumeric + underscore). Used
+    by the Live Timing UI to render the real track shape with cars placed
+    along the SVG path by normalized lap distance. Missing files return 404
+    so the client can fall back to the generic oval.
+    """
+    from fastapi import HTTPException
+    # Strict whitelist on the key to prevent path traversal — only the
+    # characters our slugify() function emits are allowed.
+    if not key or not all(c.isalnum() or c == "_" for c in key):
+        raise HTTPException(status_code=400, detail="invalid track key")
+    path = STATIC_DIR / "track_maps" / f"{key}.json"
+    if not path.exists():
+        raise HTTPException(status_code=404, detail=f"track map not found: {key}")
+    return _asset_response(path, "application/json", request)
+
+
 @app.get("/server_admin.css")
 async def serve_server_admin_css(request: Request):
     """Serve native PitBox server-admin (UDP plugin) panel stylesheet."""

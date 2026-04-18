@@ -1,0 +1,10 @@
+{
+    "track": "jr_mosport_2021",
+    "display_name": "Canadian Tire Motorsport Park (Mosport)",
+    "viewBox": "0 0 1000 600",
+    "svg_path": "M 200 130 L 700 130 C 800 130 870 170 870 260 L 850 360 C 845 405 870 440 920 440 C 960 440 970 480 940 510 C 905 545 855 545 815 530 L 600 470 C 555 458 530 470 510 500 C 495 525 465 530 445 510 C 425 488 400 488 380 510 C 360 530 320 525 295 495 C 260 455 240 405 240 350 L 240 200 C 240 160 200 130 200 130 Z",
+    "start_offset": 0.0,
+    "direction": 1,
+    "scale": 1.0,
+    "notes": "Hand-traced approximation of Mosport / Canadian Tire Motorsport Park. Clockwise: front straight (top) -> T1/T2 sweep right -> T5 Moss Corner hairpin (right) -> back straight -> Esses (T8) -> T10 sweep -> S/F. Refine geometry later."
+}
