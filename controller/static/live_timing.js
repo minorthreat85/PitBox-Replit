@@ -546,53 +546,100 @@
     }
     function stopPolling() { if (state.pollTimer) { clearInterval(state.pollTimer); state.pollTimer = null; } }
 
+    // Phase 9: ONE shared event consumer for both transports (WS tick and
+    // HTTP poll). Dedupes on the canonical Phase-2 `seq` field, advances the
+    // shared cursor monotonically, trims the rolling buffer, and renders.
+    // Transports decide where events come from; this function decides what
+    // to do with them. Never reset the cursor backwards.
+    function consumeEvents(events, nextSeq) {
+        var added = false;
+        if (Array.isArray(events) && events.length) {
+            for (var i = 0; i < events.length; i++) {
+                var e = events[i];
+                if (!e || typeof e !== 'object') continue;
+                var seq = e.seq;
+                if (Number.isFinite(seq)) {
+                    if (seq <= state.eventSeq) continue;  // already seen
+                    state.eventSeq = seq;
+                }
+                state.events.push(e);
+                added = true;
+            }
+            if (state.events.length > 500) {
+                state.events = state.events.slice(-500);
+            }
+        }
+        if (Number.isFinite(nextSeq) && nextSeq > state.eventSeq) {
+            state.eventSeq = nextSeq;
+        }
+        if (added) renderEvents();
+    }
+
+    function fetchEventsOnce() {
+        // One-shot HTTP fetch — used to backfill on activate (the WS initial
+        // 'snapshot' frame does NOT carry events) and as the fallback poll body.
+        return fetch('/api/timing/events?since=' + state.eventSeq, { credentials: 'same-origin' })
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (data) {
+                if (data) consumeEvents(data.events, data.next_seq);
+            })
+            .catch(function () {});
+    }
+
     function startEventsPoll() {
+        // HTTP fallback ONLY. Started when WS is unavailable / closes; stopped
+        // the moment WS becomes healthy. Continues from the shared cursor so
+        // no duplicates after a transport switch.
         stopEventsPoll();
-        var tick = function () {
-            fetch('/api/timing/events?since=' + state.eventSeq, { credentials: 'same-origin' })
-                .then(function (r) { return r.ok ? r.json() : null; })
-                .then(function (data) {
-                    if (!data) return;
-                    var added = (data.events || []);
-                    if (added.length) {
-                        state.events = state.events.concat(added);
-                        if (state.events.length > 500) state.events = state.events.slice(-500);
-                        state.eventSeq = data.next_seq || state.eventSeq;
-                        renderEvents();
-                    }
-                })
-                .catch(function () {});
-        };
-        tick();
-        state.eventsTimer = setInterval(tick, EVENTS_POLL_MS);
+        fetchEventsOnce();
+        state.eventsTimer = setInterval(fetchEventsOnce, EVENTS_POLL_MS);
     }
     function stopEventsPoll() { if (state.eventsTimer) { clearInterval(state.eventsTimer); state.eventsTimer = null; } }
 
     function startWebSocket() {
-        if (typeof WebSocket === 'undefined') { startPolling(); return; }
+        // Phase 9: when WS is unavailable from the start, BOTH fallback loops
+        // must run — otherwise events freeze after the one-shot backfill.
+        if (typeof WebSocket === 'undefined') { startPolling(); startEventsPoll(); return; }
         try {
             var proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
             var url = proto + '//' + location.host + '/ws/timing';
             var ws = new WebSocket(url);
             state.ws = ws;
             setMode('ws', 'WS connecting…');
-            ws.addEventListener('open', function () { stopPolling(); setMode('ws', 'WS live'); });
+            ws.addEventListener('open', function () {
+                // Phase 9: WS is the primary path for snapshot AND events.
+                // Stop both HTTP loops; one-shot backfill (in activate) has
+                // already primed state.eventSeq, so WS ticks pick up cleanly.
+                stopPolling();
+                stopEventsPoll();
+                setMode('ws', 'WS live');
+            });
             ws.addEventListener('message', function (ev) {
                 var msg;
                 try { msg = JSON.parse(ev.data); } catch (e) { return; }
-                if (msg.type === 'snapshot') applySnapshot(msg.data);
-                else if (msg.type === 'tick' && msg.snapshot) applySnapshot(msg.snapshot);
+                if (msg.type === 'snapshot') {
+                    applySnapshot(msg.data);
+                    // Initial frame currently carries no events array, but
+                    // honour it if the backend ever adds one.
+                    consumeEvents(msg.events, msg.next_seq);
+                } else if (msg.type === 'tick') {
+                    if (msg.snapshot) applySnapshot(msg.snapshot);
+                    consumeEvents(msg.events, msg.next_seq);
+                }
             });
             var fall = function () {
                 state.ws = null;
                 if (!state.active) return;
+                // Phase 9: WS is unhealthy. Resume BOTH fallback loops and
+                // continue from the shared event cursor — no duplicates.
                 startPolling();
+                startEventsPoll();
                 clearTimeout(state.wsRetryTimer);
                 state.wsRetryTimer = setTimeout(startWebSocket, WS_RETRY_MS);
             };
             ws.addEventListener('close', fall);
             ws.addEventListener('error', function () { try { ws.close(); } catch (e) {} });
-        } catch (e) { startPolling(); }
+        } catch (e) { startPolling(); startEventsPoll(); }
     }
     function stopWebSocket() {
         clearTimeout(state.wsRetryTimer); state.wsRetryTimer = null;
@@ -624,7 +671,10 @@
         setMode('idle', 'Connecting…');
         bindRowClicks();
         startStaleTicker();
-        startEventsPoll();
+        // Phase 9: One-shot events backfill (the WS 'snapshot' frame doesn't
+        // carry events). After this primes state.eventSeq, WS ticks become
+        // the sole live source until WS drops.
+        fetchEventsOnce();
         startWebSocket();
         fetch('/api/timing/snapshot', { credentials: 'same-origin' })
             .then(function (r) { return r.ok ? r.json() : null; })
