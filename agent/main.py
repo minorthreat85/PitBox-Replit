@@ -142,27 +142,63 @@ def main():
 
     # Device identity and pairing (enrollment)
     device_id = getattr(config, "agent_id", None) or "sim"
+    # Local helper so EVERY branch emits the same diagnostic line for the
+    # operator to grep — `STARTUP[telemetry]` is unique on purpose.
+    def _telemetry_startup_log(stage: str, **kw):
+        bits = " ".join(f"{k}={v!r}" for k, v in kw.items())
+        logger.info("STARTUP[telemetry] %s %s", stage, bits)
+
+    def _start_telemetry_now(label: str, ctrl_url_arg: str, device_id_arg: str, token_arg: str):
+        """Wrap start_telemetry with explicit, loud logging at every step so
+        a silent failure (ImportError on packaged EXE, exception inside the
+        sender setup, telemetry_enabled=False, etc.) is impossible to miss
+        in the agent log."""
+        enabled = getattr(config, "telemetry_enabled", True)
+        rate = float(getattr(config, "telemetry_rate_hz", 15.0) or 15.0)
+        _telemetry_startup_log(
+            f"decision({label})",
+            telemetry_enabled=enabled, rate_hz=rate,
+            agent_id=device_id_arg, controller_url=ctrl_url_arg,
+            token_prefix=(token_arg[:6] + "…") if token_arg else "(none)",
+        )
+        if not enabled:
+            logger.warning("STARTUP[telemetry] DISABLED via config (telemetry_enabled=false). "
+                           "Set telemetry_enabled=true in agent_config.json to enable.")
+            return
+        try:
+            from agent.telemetry.sender import start_telemetry
+        except Exception as ie:
+            logger.error("STARTUP[telemetry] IMPORT FAILED: %s: %s — "
+                         "the packaged agent EXE is missing the telemetry module "
+                         "(check PyInstaller hiddenimports for `agent.telemetry.sender` "
+                         "and `websockets.asyncio.client`).",
+                         type(ie).__name__, ie, exc_info=True)
+            return
+        try:
+            start_telemetry(ctrl_url_arg, device_id_arg, token_arg, rate_hz=rate)
+            _telemetry_startup_log(f"started({label})", agent_id=device_id_arg)
+        except Exception as te:
+            logger.error("STARTUP[telemetry] start_telemetry() RAISED: %s: %s",
+                         type(te).__name__, te, exc_info=True)
+
     try:
         from agent.identity import get_device_id
         from agent.pairing import is_paired, get_controller_url, get_token, save_paired
         from agent.controller_heartbeat import start_heartbeat
         device_id = get_device_id()
-        if is_paired():
+        paired = is_paired()
+        _telemetry_startup_log("identity", device_id=device_id, paired=paired)
+        if paired:
             ctrl_url = get_controller_url()
             token = get_token()
             if ctrl_url and token:
                 start_heartbeat(ctrl_url, device_id, token)
                 logger.info("Paired to controller at %s", ctrl_url)
-                # Start telemetry sender (Phase A): pushes AC shared-memory frames over WS.
-                try:
-                    if getattr(config, "telemetry_enabled", True):
-                        from agent.telemetry.sender import start_telemetry
-                        start_telemetry(
-                            ctrl_url, device_id, token,
-                            rate_hz=float(getattr(config, "telemetry_rate_hz", 15.0) or 15.0),
-                        )
-                except Exception as te:
-                    logger.warning("Telemetry sender not started: %s", te)
+                _start_telemetry_now("post-pair", ctrl_url, device_id, token)
+            else:
+                logger.error("STARTUP[telemetry] paired=True but controller_url/token "
+                             "missing in pairing.json — pairing file is corrupt; "
+                             "delete it and let enrollment re-pair.")
         else:
             # Unpaired: listen for controller enrollment broadcast and auto-enroll
             from agent.enrollment_client import run_enrollment_loop
@@ -172,16 +208,7 @@ def main():
                 save_paired(url, token, device_id)
                 start_heartbeat(url, device_id, token)
                 logger.info("Enrolled and paired to controller at %s", url)
-                # Also start telemetry once we have controller credentials (Phase A).
-                try:
-                    if getattr(config, "telemetry_enabled", True):
-                        from agent.telemetry.sender import start_telemetry
-                        start_telemetry(
-                            url, device_id, token,
-                            rate_hz=float(getattr(config, "telemetry_rate_hz", 15.0) or 15.0),
-                        )
-                except Exception as te:
-                    logger.warning("Telemetry sender (post-enroll) not started: %s", te)
+                _start_telemetry_now("post-enroll", url, device_id, token)
             _enrollment_thread = threading.Thread(
                 target=run_enrollment_loop,
                 args=(
@@ -196,8 +223,12 @@ def main():
             )
             _enrollment_thread.start()
             logger.info("Enrollment mode: listening for controller broadcast (device_id=%s)", device_id)
+            logger.warning("STARTUP[telemetry] WAITING for enrollment — telemetry will NOT "
+                           "start until a controller enrolls this rig. If pairing.json was "
+                           "expected to exist, check %APPDATA%/PitBox/Agent/pairing.json.")
     except Exception as e:
-        logger.warning("Identity/pairing not started: %s", e)
+        logger.error("STARTUP[telemetry] identity/pairing setup FAILED: %s: %s",
+                     type(e).__name__, e, exc_info=True)
 
     # LAN beacon for controller discovery (agent_id + port; use device_id when paired for consistency)
     try:

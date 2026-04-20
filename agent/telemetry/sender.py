@@ -68,17 +68,23 @@ class TelemetrySender:
             pass
 
     def _thread_main(self) -> None:
+        # First line in the sender thread — proves the thread launched even
+        # if websockets is missing or the run loop crashes immediately.
+        LOG.info("STARTUP[telemetry] thread_main entered: agent=%s url=%s rate=%.1fHz",
+                 self.agent_id, self.controller_url, self.rate_hz)
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
             loop.run_until_complete(self._run_forever())
         except Exception as e:
-            LOG.warning("Telemetry sender thread exited: %s", e)
+            LOG.error("Telemetry sender thread CRASHED: %s: %s",
+                      type(e).__name__, e, exc_info=True)
         finally:
             try:
                 loop.close()
             except Exception:
                 pass
+            LOG.info("STARTUP[telemetry] thread_main exiting: agent=%s", self.agent_id)
 
     async def _run_forever(self) -> None:
         try:
