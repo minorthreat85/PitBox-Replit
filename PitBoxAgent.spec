@@ -3,8 +3,42 @@
 PyInstaller spec file for PitBox Agent
 Builds a windowless (console=False) executable for running as a Windows Service
 """
+from PyInstaller.utils.hooks import collect_submodules
 
 block_cipher = None
+
+# Belt-and-suspenders: collect EVERY submodule under `agent` (not just the
+# ones explicitly imported at top of agent/main.py). Many features —
+# pairing, enrollment_client, sim_display, update_state, hotkey,
+# server_cfg_sync, race_out, common.event_log, service.event_emitter — are
+# imported lazily inside try/except blocks during startup. If any of them
+# is missing from the frozen bundle the feature silently no-ops at runtime
+# (no ImportError visible to the user, just a warning in the agent log).
+# `collect_submodules` traverses the package tree and picks them all up.
+_agent_submodules = collect_submodules('agent')
+_pitbox_common_submodules = collect_submodules('pitbox_common')
+
+_uvicorn_imports = [
+    'uvicorn',
+    'uvicorn.lifespan.on',
+    'uvicorn.lifespan.off',
+    'uvicorn.protocols.websockets.auto',
+    'uvicorn.protocols.websockets.websockets_impl',
+    'uvicorn.protocols.http.auto',
+    'uvicorn.loops.auto',
+    'websockets',
+    'websockets.asyncio.client',
+]
+
+# Explicit safety net: telemetry sender + sm_reader are also collected by
+# collect_submodules above, but list them so a future refactor that
+# breaks the package layout still fails LOUDLY at build time, not at the
+# first telemetry frame.
+_telemetry_imports = [
+    'agent.telemetry',
+    'agent.telemetry.sm_reader',
+    'agent.telemetry.sender',
+]
 
 a = Analysis(
     ['agent/main.py'],
@@ -13,33 +47,7 @@ a = Analysis(
     datas=[
         ('examples/agent_config.Sim1.json', '.'),
     ],
-    hiddenimports=[
-        'uvicorn',
-        'uvicorn.lifespan.on',
-        'uvicorn.lifespan.off',
-        'uvicorn.protocols.websockets.auto',
-        'uvicorn.protocols.http.auto',
-        'uvicorn.loops.auto',
-        'agent',
-        'agent.auth',
-        'agent.config',
-        'agent.routes',
-        'agent.process_manager',
-        'agent.controller_heartbeat',
-        'agent.beacon',
-        'agent.kiosk_apply',
-        'agent.race_ini',
-        'agent.utils.files',
-        'agent.utils.cmpreset',
-        'agent.mumble_client',
-        'agent.identity',
-        'agent.logging_config',
-        'agent.telemetry',
-        'agent.telemetry.sm_reader',
-        'agent.telemetry.sender',
-        'websockets',
-        'websockets.asyncio.client',
-    ],
+    hiddenimports=_uvicorn_imports + _telemetry_imports + _agent_submodules + _pitbox_common_submodules,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
