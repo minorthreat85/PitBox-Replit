@@ -14,7 +14,6 @@
     'use strict';
 
     var POLL_INTERVAL_MS = 1000;
-    var STALE_THRESHOLD_S = 10;
     var WS_RETRY_MS = 5000;
     var EVENTS_POLL_MS = 2000;
     var EVENTS_MAX = 30;
@@ -410,42 +409,71 @@
         renderBoard(snap);
         renderMap(snap);
         renderDetail(snap);
-        updateStaleBanner(snap.stats);
+        updateHealth(snap);
     }
 
-    function updateStaleBanner(stats) {
+    // Phase 7: backend is the only source of truth for timing-feed health.
+    // The transport pill (lt-conn) reflects browser<->PitBox WS/poll status
+    // and is set by setMode() when transport changes — we do NOT mutate it
+    // from health any more. The new health badge (lt-health) reflects the
+    // AC timing feed independently.
+    function updateHealth(snap) {
+        var badge = $('lt-health');
+        var label = $('lt-health-label');
         var banner = $('lt-stale-banner');
-        var ageEl = $('lt-stale-age');
-        if (!banner || !stats) return;
-        var last = stats.last_packet_unix || 0;
-        if (!last) {
-            banner.classList.remove('hidden');
-            if (ageEl) ageEl.textContent = 'any time yet';
-            if (state.mode === 'ws') setMode('ws', 'WS connected (no data)');
-            else if (state.mode === 'poll') setMode('poll', 'Polling (no data)');
+        var msgEl = $('lt-stale-msg');
+        if (!badge || !label) return;
+        var h = (snap && snap.health && snap.health.timing) || null;
+        if (!h) {
+            // Older controller without health block — fall back to "unknown".
+            badge.classList.remove('lt-health--live', 'lt-health--stale', 'lt-health--offline');
+            badge.classList.add('lt-health--idle');
+            label.textContent = 'Timing: —';
+            if (banner) banner.classList.add('hidden');
             return;
         }
-        var age = Math.max(0, (Date.now() / 1000) - last);
-        if (age > STALE_THRESHOLD_S) {
-            banner.classList.remove('hidden');
-            if (ageEl) ageEl.textContent = age.toFixed(1) + 's';
-            var pill = $('lt-conn');
-            if (pill) {
-                pill.classList.remove('lt-conn--ws', 'lt-conn--poll', 'lt-conn--idle');
-                pill.classList.add('lt-conn--stale');
+        var st = h.state || 'offline';
+        badge.classList.remove('lt-health--live', 'lt-health--stale', 'lt-health--offline', 'lt-health--idle');
+        badge.classList.add('lt-health--' + st);
+        // Display-only age tick: advance the cached last_packet_age_s by the
+        // wall-clock delta since the snapshot was generated, so the counter
+        // moves between snapshots. Badge STATE remains strictly backend-driven
+        // (we never recompute live/stale/offline thresholds here).
+        var displayAge = null;
+        if (h.last_packet_age_s != null) {
+            displayAge = h.last_packet_age_s;
+            var gen = snap.generated_unix;
+            if (Number.isFinite(gen) && gen > 0) {
+                var delta = (Date.now() / 1000) - gen;
+                if (delta > 0 && delta < 3600) displayAge += delta;
             }
-            $('lt-conn-label').textContent = 'Stale (' + age.toFixed(0) + 's)';
-        } else {
+        }
+        var ageTxt = (displayAge != null) ? (' (' + displayAge.toFixed(0) + 's)') : '';
+        if (st === 'live')        label.textContent = 'Timing: Live';
+        else if (st === 'stale')  label.textContent = 'Timing: Stale' + ageTxt;
+        else                       label.textContent = 'Timing: Offline' + ageTxt;
+
+        if (!banner) return;
+        if (st === 'live') {
             banner.classList.add('hidden');
-            if (state.mode === 'ws') setMode('ws', 'WS live');
-            else if (state.mode === 'poll') setMode('poll', 'Polling');
+        } else {
+            banner.classList.remove('hidden');
+            if (h.last_packet_unix && h.last_packet_unix > 0) {
+                if (msgEl) msgEl.textContent = (st === 'stale' ? 'Timing data is stale' : 'Timing feed is offline')
+                    + ' — last AC packet ' + (displayAge != null ? displayAge.toFixed(1) + 's ago' : 'a long time ago')
+                    + '. The dedicated server may be stopped or the UDP plugin not configured.';
+            } else {
+                if (msgEl) msgEl.textContent = 'No AC packets received yet. The dedicated server may be stopped or the UDP plugin not configured.';
+            }
         }
     }
 
     function startStaleTicker() {
+        // Re-render health locally each second so the age counter updates
+        // between snapshots (snap stays cached; we just re-display it).
         stopStaleTicker();
         state.staleTimer = setInterval(function () {
-            if (state.lastSnapshot) updateStaleBanner(state.lastSnapshot.stats);
+            if (state.lastSnapshot) updateHealth(state.lastSnapshot);
         }, 1000);
     }
     function stopStaleTicker() { if (state.staleTimer) { clearInterval(state.staleTimer); state.staleTimer = null; } }

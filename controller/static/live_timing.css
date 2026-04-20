@@ -49,6 +49,36 @@
 
 .lt-conn--idle  .lt-conn-dot { background: #6c7280; }
 
+/* Phase 7: status pill group + dedicated timing-health badge.
+   The connection pill (lt-conn) shows browser transport (WS/Poll/Idle).
+   The health badge (lt-health) shows the AC timing feed (Live/Stale/Offline).
+   These are independent — a healthy WS does NOT imply a healthy timing feed. */
+.lt-status-group { display: inline-flex; align-items: center; gap: 8px; }
+
+.lt-health {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.03);
+    color: #cfcfcf;
+    white-space: nowrap;
+}
+.lt-health-dot { width: 8px; height: 8px; border-radius: 50%; background: #6c7280; }
+.lt-health--live    { color: #7be37b; border-color: rgba(123, 227, 123, 0.35); }
+.lt-health--live    .lt-health-dot { background: #4ade80; box-shadow: 0 0 6px rgba(74, 222, 128, 0.6); }
+.lt-health--stale   { color: #ffd166; border-color: rgba(255, 209, 102, 0.35); }
+.lt-health--stale   .lt-health-dot { background: #facc15; box-shadow: 0 0 6px rgba(250, 204, 21, 0.6); }
+.lt-health--offline { color: #f97373; border-color: rgba(249, 115, 115, 0.35); }
+.lt-health--offline .lt-health-dot { background: #ef4444; box-shadow: 0 0 6px rgba(239, 68, 68, 0.6); }
+.lt-health--idle    .lt-health-dot { background: #6c7280; }
+
 /* Stale data banner */
 .lt-stale-banner {
     background: rgba(239, 68, 68, 0.12);

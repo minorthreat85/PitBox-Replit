@@ -253,14 +253,20 @@
                     <h1 class="page-title">LIVE TIMING</h1>
                     <p class="page-subtitle">Native leaderboard fed by PitBox's timing engine.</p>
                 </div>
-                <div id="lt-conn" class="lt-conn lt-conn--idle" title="Connection status">
-                    <span class="lt-conn-dot"></span>
-                    <span id="lt-conn-label" class="lt-conn-label">Idle</span>
+                <div class="lt-status-group">
+                    <div id="lt-health" class="lt-health lt-health--idle" title="Timing feed health (AC packets)">
+                        <span class="lt-health-dot"></span>
+                        <span id="lt-health-label" class="lt-health-label">Timing: —</span>
+                    </div>
+                    <div id="lt-conn" class="lt-conn lt-conn--idle" title="Browser-to-PitBox transport">
+                        <span class="lt-conn-dot"></span>
+                        <span id="lt-conn-label" class="lt-conn-label">Idle</span>
+                    </div>
                 </div>
             </div>
 
             <div id="lt-stale-banner" class="lt-stale-banner hidden" role="status">
-                Stale data — no AC packets received for <span id="lt-stale-age">--</span>. The dedicated server may be stopped or the UDP plugin not configured.
+                <span id="lt-stale-msg">Stale data — no AC packets received for <span id="lt-stale-age">--</span>. The dedicated server may be stopped or the UDP plugin not configured.</span>
             </div>
 
             <section class="lt-session-card" aria-label="Current session">

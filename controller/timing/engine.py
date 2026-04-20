@@ -66,6 +66,12 @@ _RESYNC_LOOP_INTERVAL_S = 5.0
 _RESYNC_INITIAL_BACKOFF_S = 5.0
 _RESYNC_MAX_BACKOFF_S = 120.0
 
+# ---- Phase 7: timing health thresholds (seconds since last AC packet) ----
+# <= LIVE: feed is healthy; > LIVE and <= OFFLINE: stale (display warning, do
+# not yet declare offline); > OFFLINE: feed is offline (red badge, banner).
+_TIMING_HEALTH_LIVE_S = 5.0
+_TIMING_HEALTH_OFFLINE_S = 30.0
+
 
 @dataclass
 class SessionState:
@@ -261,10 +267,62 @@ class TimingEngine:
         except Exception:
             LOG.debug("telemetry merge skipped", exc_info=True)
 
+        # ---- Phase 7: explicit health model ----
+        # Backend is the only source of truth for "is the timing feed live?".
+        # The frontend must NOT do its own age math here — it just reads
+        # health.timing.state and renders a badge.
+        now = time.time()
+        last_pkt = self.last_packet_unix
+        if last_pkt <= 0.0:
+            timing_state = "offline"
+            timing_age: Optional[float] = None
+        else:
+            timing_age = max(0.0, now - last_pkt)
+            if timing_age <= _TIMING_HEALTH_LIVE_S:
+                timing_state = "live"
+            elif timing_age <= _TIMING_HEALTH_OFFLINE_S:
+                timing_state = "stale"
+            else:
+                timing_state = "offline"
+        health = {
+            "timing": {
+                "state": timing_state,
+                "last_packet_unix": last_pkt,
+                "last_packet_age_s": round(timing_age, 2) if timing_age is not None else None,
+                "stale_after_s": _TIMING_HEALTH_LIVE_S,
+                "offline_after_s": _TIMING_HEALTH_OFFLINE_S,
+            },
+            "transport": {
+                "ws_supported": True,
+            },
+        }
+
+        # Per-driver freshness derived from connected flag + global timing state
+        # + per-agent telemetry status. Operators see a single coherent picture
+        # instead of having to reconcile transport-vs-feed-vs-agent themselves.
+        for d in driver_dicts:
+            connected = bool(d.get("connected"))
+            if not connected:
+                drv_timing = "offline"
+            else:
+                drv_timing = timing_state  # follows global feed health
+            tel = d.get("live_telemetry") or None
+            if tel is None:
+                tel_state = "missing"
+            elif tel.get("stale"):
+                tel_state = "stale"
+            else:
+                tel_state = "live"
+            d["freshness"] = {
+                "timing_state": drv_timing,
+                "telemetry_state": tel_state,
+            }
+
         self._snapshot_seq += 1
         return {
             "snapshot_seq": self._snapshot_seq,
-            "generated_unix": time.time(),
+            "generated_unix": now,
+            "health": health,
             "session": asdict(self.session),
             "drivers": driver_dicts,
             "telemetry_agents": telemetry_agents,
