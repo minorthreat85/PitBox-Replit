@@ -242,6 +242,7 @@ class TimingEngine:
         self.session.proto_version = int(p.proto_version)
         self._record_event("server_version", proto_version=int(p.proto_version))
 
+
     def _on_ACSP_NEW_SESSION(self, p):
         self._apply_session_info(p)
         self.session.started_at_unix = time.time()
@@ -255,9 +256,8 @@ class TimingEngine:
             d.cuts_last_lap = 0
         self._record_event(
             "new_session",
-            name=self.session.session_name,
-            type=self.session.session_type_name,
-            track=self.session.track_name,
+            session_name=self.session.session_name,
+            session_type=self.session.session_type_name,
             layout=self.session.track_config,
         )
 
@@ -287,6 +287,7 @@ class TimingEngine:
     def _on_ACSP_END_SESSION(self, p):
         self._record_event("end_session", filename=str(p.filename))
 
+
     def _on_ACSP_NEW_CONNECTION(self, p):
         car_id = int(p.car_id)
         new_guid = str(p.driver_guid)
@@ -309,9 +310,9 @@ class TimingEngine:
         d.car_skin = str(p.car_skin)
         d.loaded = False
         self._record_event(
-            "new_connection",
+            "driver_connected",
             car_id=d.car_id,
-            driver_name=d.driver_name,
+            driver=d.driver_name,
             car_model=d.car_model,
         )
 
@@ -326,15 +327,15 @@ class TimingEngine:
         d.position = 0
         d.gap_ms = 0
         self._record_event(
-            "connection_closed",
+            "driver_disconnected",
             car_id=car_id,
-            driver_name=str(p.driver_name),
+            driver=str(p.driver_name),
         )
 
     def _on_ACSP_CLIENT_LOADED(self, p):
         d = self._driver(int(p.car_id))
         d.loaded = True
-        self._record_event("client_loaded", car_id=d.car_id, driver_name=d.driver_name)
+        self._record_event("client_loaded", car_id=d.car_id, driver=d.driver_name)
 
     def _on_ACSP_CAR_INFO(self, p):
         d = self._driver(int(p.car_id))
@@ -351,7 +352,7 @@ class TimingEngine:
         self._record_event(
             "chat",
             car_id=car_id,
-            driver_name=d.driver_name if d else "",
+            driver=d.driver_name if d else "",
             message=str(p.message),
         )
 
@@ -393,7 +394,7 @@ class TimingEngine:
         self._record_event(
             "lap_completed",
             car_id=car_id,
-            driver_name=d.driver_name,
+            driver=d.driver_name,
             lap_ms=lap_ms,
             cuts=d.cuts_last_lap,
             total_laps=d.total_laps,
@@ -405,21 +406,25 @@ class TimingEngine:
         ev_type = int(p.ev_type)
         car_id = int(p.car_id)
         d = self.drivers.get(car_id)
-        payload = {
-            "car_id": car_id,
-            "driver_name": d.driver_name if d else "",
-            "kind": _CLIENT_EVENT_NAMES.get(ev_type, "client_event"),
+        payload: dict[str, Any] = {
+            "subtype": _CLIENT_EVENT_NAMES.get(ev_type, "client_event"),
             "impact_speed": float(p.impact_speed),
         }
         if ev_type == ACUDPConst.ACSP_CE_COLLISION_WITH_CAR:
             other_id = int(p.other_car_id)
             other = self.drivers.get(other_id)
             payload["other_car_id"] = other_id
-            payload["other_driver_name"] = other.driver_name if other else ""
-        self._record_event("client_event", **payload)
+            payload["other_driver"] = other.driver_name if other else ""
+        self._record_event(
+            "client_event",
+            car_id=car_id,
+            driver=d.driver_name if d else "",
+            **payload,
+        )
 
     def _on_ACSP_ERROR(self, p):
         self._record_event("ac_error", message=str(p.message))
+
 
     def _on_ACSP_CAR_UPDATE(self, p):  # realtime telemetry; ignored by default
         return
@@ -432,10 +437,38 @@ class TimingEngine:
             self.drivers[car_id] = d
         return d
 
-    def _record_event(self, kind: str, **payload: Any) -> None:
+    def _record_event(
+        self,
+        type: str,
+        *,
+        car_id: Optional[int] = None,
+        driver: Optional[str] = None,
+        lap_ms: Optional[int] = None,
+        **payload: Any,
+    ) -> None:
+        """Append an event in the canonical timing-event schema.
+
+        Schema (one contract, used by HTTP /api/timing/events, WS /ws/timing,
+        and the Live Timing UI event renderer):
+
+            {seq, ts, type, car_id, driver, track, lap_ms, payload}
+
+        ``car_id`` / ``driver`` / ``lap_ms`` are first-class top-level fields so
+        the UI can render leaderboards and lap rows without digging into
+        ``payload``. Everything else (sub-types, AC-specific fields, etc.)
+        lives under ``payload``.
+        """
         self._event_seq += 1
-        evt = {"seq": self._event_seq, "ts": time.time(), "kind": kind}
-        evt.update(payload)
+        evt = {
+            "seq": self._event_seq,
+            "ts": time.time(),
+            "type": type,
+            "car_id": car_id,
+            "driver": driver if driver is not None else "",
+            "track": self.session.track_name or None,
+            "lap_ms": lap_ms,
+            "payload": payload,
+        }
         self.events.append(evt)
 
 

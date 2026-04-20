@@ -363,7 +363,10 @@
             var label = e.type || 'event';
             var detail = '';
             if (e.type === 'lap_completed') detail = (e.driver || '') + ' — ' + fmtLap(e.lap_ms);
-            else if (e.type === 'new_session') detail = (e.type_label || e.type) + (e.track ? ' @ ' + e.track : '');
+            else if (e.type === 'new_session') detail = ((e.payload && e.payload.session_type) || e.type) + (e.track ? ' @ ' + e.track : '');
+            else if (e.type === 'chat') detail = (e.driver || ('Car ' + e.car_id)) + ': ' + ((e.payload && e.payload.message) || '');
+            else if (e.type === 'client_event') detail = (e.driver || ('Car ' + e.car_id)) + ' — ' + ((e.payload && e.payload.subtype) || 'incident');
+            else if (e.type === 'ac_error') detail = (e.payload && e.payload.message) || '';
             else if (e.type === 'driver_connected') detail = e.driver || ('Car ' + e.car_id);
             else if (e.type === 'driver_disconnected') detail = e.driver || ('Car ' + e.car_id);
             else { try { detail = JSON.stringify(e); } catch (_e) {} }

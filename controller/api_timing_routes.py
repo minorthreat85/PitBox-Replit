@@ -78,7 +78,8 @@ async def timing_events(
 ):
     """Recent timing events newer than ``since`` (sequence number).
 
-    Each event has ``seq``, ``ts`` (unix), ``kind`` and kind-specific fields.
+    Each event uses the canonical timing-event schema:
+    ``{seq, ts, type, car_id, driver, track, lap_ms, payload}``.
     Use ``next_seq`` from the response as the next ``since`` value.
     """
     return get_engine().events_since(since, limit=limit)
