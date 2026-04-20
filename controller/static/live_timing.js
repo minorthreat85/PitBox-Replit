@@ -246,15 +246,17 @@
             return a.car_id - b.car_id;
         });
         var rowsHtml = '';
-        var prevGap = 0;
         for (var i = 0; i < sorted.length; i++) {
             var d = sorted[i];
             var pos = d.position > 0 ? d.position : (i + 1);
             var posCls = pos === 1 ? 'lt-pos-1' : (pos === 2 ? 'lt-pos-2' : (pos === 3 ? 'lt-pos-3' : ''));
-            var gapTxt = i === 0 ? '—' : fmtGap(d.gap_ms);
-            var intervalMs = i === 0 ? 0 : (d.gap_ms - prevGap);
-            var intervalTxt = i === 0 ? '—' : fmtGap(intervalMs);
-            prevGap = d.gap_ms || prevGap;
+            // Phase 5: backend is authoritative for gap/interval. Display
+            // backend-provided values only; never compute from gap_ms here.
+            // null/undefined => '—' (not yet authoritative). 0 => "0.000".
+            var gLeader = d.gap_to_leader_ms;
+            var iAhead = d.interval_to_ahead_ms;
+            var gapTxt = (gLeader == null) ? '—' : fmtGap(gLeader);
+            var intervalTxt = (iAhead == null) ? '—' : fmtGap(iAhead);
             var lt = d.live_telemetry || null;
             var spd = lt && lt.speed_kmh != null ? Math.round(lt.speed_kmh) : '—';
             var gear = lt ? gearStr(lt.gear) : '—';

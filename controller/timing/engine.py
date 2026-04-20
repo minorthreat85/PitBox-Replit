@@ -102,7 +102,11 @@ class DriverState:
     best_lap_ms: int = 0
     total_laps: int = 0
     position: int = 0
-    gap_ms: int = 0
+    gap_ms: int = 0  # legacy: cumulative-best-lap delta to leader; kept for back-compat
+    # Phase 5: authoritative gap/interval. Backend is the only source of these.
+    # ``None`` means "not authoritative yet" — UI must render '—', never compute.
+    gap_to_leader_ms: Optional[int] = None
+    interval_to_ahead_ms: Optional[int] = None
     cuts_last_lap: int = 0
     loaded: bool = False
 
@@ -192,6 +196,34 @@ class TimingEngine:
             key=lambda d: (d.position if d.position > 0 else 999, d.car_id),
         )
         driver_dicts = [asdict(d) for d in drivers_sorted]
+
+        # ---- Phase 5: backend is the authoritative source of gap/interval ----
+        # Rules (frontend MUST display these as-is, never derive):
+        #   * Driver has no completed laps -> gap_to_leader_ms = interval_to_ahead_ms = None
+        #   * Leader (first driver with completed laps): gap=0, interval=None
+        #   * Subsequent drivers with laps: gap = max(0, their_gap_ms);
+        #     interval = max(0, my_gap - prev_gap) (clamped non-negative).
+        #   * Drivers with no completed laps appear at the bottom with both = None.
+        _prev_gap: Optional[int] = None
+        _leader_seen = False
+        for d in driver_dicts:
+            laps = int(d.get("total_laps") or 0)
+            raw_gap = int(d.get("gap_ms") or 0)
+            if laps <= 0:
+                d["gap_to_leader_ms"] = None
+                d["interval_to_ahead_ms"] = None
+                continue
+            if not _leader_seen:
+                d["gap_to_leader_ms"] = 0
+                d["interval_to_ahead_ms"] = None
+                _leader_seen = True
+                _prev_gap = 0
+            else:
+                gap = max(0, raw_gap)
+                interval = max(0, gap - (_prev_gap if _prev_gap is not None else 0))
+                d["gap_to_leader_ms"] = gap
+                d["interval_to_ahead_ms"] = interval
+                _prev_gap = gap
 
         # ---- Phase C: merge per-agent live telemetry from sim PCs ----
         # Best-effort: keyed by case-insensitive driver name. Telemetry blocks
