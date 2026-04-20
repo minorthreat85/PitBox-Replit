@@ -2555,24 +2555,11 @@ async def add_agent_to_config(body: AddAgentBody, _: None = Depends(require_oper
         new_agent = AgentInfo(id=body.id, host=body.host, port=body.port, token=body.token)
         new_agents = list(config.agents) + [new_agent]
 
-    new_config = ControllerConfig(
-        ui_host=config.ui_host,
-        ui_port=config.ui_port,
-        allow_lan_ui=config.allow_lan_ui,
-        poll_interval_sec=config.poll_interval_sec,
-        agents=new_agents,
-        ac_server_root=config.ac_server_root,
-        ac_server_presets_root=config.ac_server_presets_root,
-        ac_server_cfg_path=config.ac_server_cfg_path,
-        ac_servers=config.ac_servers,
-        ac_content_root=config.ac_content_root,
-        ac_cars_path=config.ac_cars_path,
-        server_host=config.server_host,
-        global_server_password=config.global_server_password,
-        kiosk_secret=config.kiosk_secret,
-        employee_password=config.employee_password,
-        update_channel=config.update_channel,
-    )
+    # Preserve every existing field — only the agents list changes here.
+    # (Earlier this was a hand-written field list which silently dropped any
+    # config key not in the list, including timing_udp_*, mumble_*, kiosk_*,
+    # sim_ui_*, pool_*, lounge_name, default_preset, etc.)
+    new_config = config.model_copy(update={"agents": new_agents})
     save_config(Path(path), new_config)
     return {"ok": True, "agent_id": body.id, "updated": updated}
 

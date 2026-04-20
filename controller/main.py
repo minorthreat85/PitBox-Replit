@@ -316,7 +316,14 @@ async def lifespan(app: FastAPI):
         start_poller()
         start_discovery()
         try:
-            await timing_engine.start()
+            _cfg = get_config()
+            _t_host = getattr(_cfg, "timing_udp_bind_host", None)
+            _t_port = getattr(_cfg, "timing_udp_bind_port", None)
+            await timing_engine.start(host=_t_host, port=_t_port)
+            logger.info(
+                "Timing engine bind requested: host=%s port=%s (None = constants.py default)",
+                _t_host, _t_port,
+            )
         except Exception as _e:
             logger.exception("Failed to start native timing engine: %s", _e)
         ensure_events_dir()

@@ -128,6 +128,13 @@ class ControllerConfig(BaseModel):
     mumble_grpc_port: Optional[int] = Field(default=None, description="Mumble gRPC port (Mumble 1.4+ default: 50051)")
     mumble_token: Optional[str] = Field(default=None, description="Mumble gRPC bearer token (leave blank if not configured)")
     mumble_exe_path: Optional[str] = Field(default=None, description="Path to mumble.exe on sim PCs (used when pushing Mumble open on rigs)")
+    # Timing UDP listener (PitBox <- AC server UDP plugin). Defaults to
+    # 127.0.0.1:9996 (same-machine). Set timing_udp_bind_host to "0.0.0.0" and
+    # configure your AC server's UDP_PLUGIN_ADDRESS to <controller_lan_ip>:<port>
+    # to run the AC server on a different machine from the controller.
+    timing_udp_bind_host: Optional[str] = Field(default=None, description="UDP bind host for the timing engine. None = 127.0.0.1 (same-machine). Use '0.0.0.0' for LAN/cross-machine deployments.")
+    timing_udp_bind_port: Optional[int] = Field(default=None, description="UDP bind port for the timing engine. None = 9996 (PitBox default).")
+    timing_udp_advertise_address: Optional[str] = Field(default=None, description="Address auto-filled into AC server's UDP_PLUGIN_ADDRESS (host:port). None = '<TIMING_UDP_PLUGIN_HOST>:<TIMING_UDP_PLUGIN_PORT>'. Set to '<controller_lan_ip>:<port>' when AC server is on another machine.")
 
     @field_validator('agents')
     @classmethod
@@ -141,6 +148,45 @@ class ControllerConfig(BaseModel):
             raise ValueError("Agent IDs must be unique")
         
         return v
+
+    @field_validator('timing_udp_bind_port')
+    @classmethod
+    def validate_timing_udp_bind_port(cls, v: Optional[int]) -> Optional[int]:
+        """1-65535 or None. Reject 0 (would bind to ephemeral port and break AC server forwarding)."""
+        if v is None:
+            return None
+        p = int(v)
+        if p < 1 or p > 65535:
+            raise ValueError("timing_udp_bind_port must be between 1 and 65535")
+        return p
+
+    @field_validator('timing_udp_bind_host')
+    @classmethod
+    def validate_timing_udp_bind_host(cls, v: Optional[str]) -> Optional[str]:
+        """Trim; empty -> None. No DNS resolution here (would fail offline); engine.start surfaces bind errors."""
+        if v is None:
+            return None
+        s = str(v).strip()
+        return s or None
+
+    @field_validator('timing_udp_advertise_address')
+    @classmethod
+    def validate_timing_udp_advertise_address(cls, v: Optional[str]) -> Optional[str]:
+        """Expect 'host:port' when set; empty -> None. Light validation only."""
+        if v is None:
+            return None
+        s = str(v).strip()
+        if not s:
+            return None
+        if ":" not in s:
+            raise ValueError("timing_udp_advertise_address must be in the form 'host:port' (e.g. '192.168.1.200:9996')")
+        host_part, _, port_part = s.rpartition(":")
+        if not host_part or not port_part.isdigit():
+            raise ValueError("timing_udp_advertise_address must be in the form 'host:port' with a numeric port")
+        port_i = int(port_part)
+        if port_i < 1 or port_i > 65535:
+            raise ValueError("timing_udp_advertise_address port must be between 1 and 65535")
+        return s
 
     @field_validator('sim_ui_port')
     @classmethod

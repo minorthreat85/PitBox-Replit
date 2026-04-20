@@ -567,7 +567,12 @@ def _ensure_timing_plugin_defaults(server_cfg: dict[str, dict[str, str]]) -> boo
         sect["UDP_PLUGIN_LOCAL_PORT"] = str(TIMING_UDP_PLUGIN_LOCAL_PORT)
         changed = True
     if not str(sect.get("UDP_PLUGIN_ADDRESS", "")).strip():
-        sect["UDP_PLUGIN_ADDRESS"] = TIMING_UDP_PLUGIN_ADDRESS
+        try:
+            from controller.config import get_config as _get_cfg
+            _adv = (getattr(_get_cfg(), "timing_udp_advertise_address", None) or "").strip()
+        except Exception:
+            _adv = ""
+        sect["UDP_PLUGIN_ADDRESS"] = _adv or TIMING_UDP_PLUGIN_ADDRESS
         changed = True
     return changed
 
