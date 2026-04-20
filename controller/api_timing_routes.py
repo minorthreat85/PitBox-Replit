@@ -22,7 +22,10 @@ from typing import Any, Dict
 
 from fastapi import APIRouter, Depends, Query, WebSocket, WebSocketDisconnect
 
-from controller.operator_auth import require_operator_if_password_configured
+from controller.operator_auth import (
+    is_ws_authorized_for_operator,
+    require_operator_if_password_configured,
+)
 from controller.timing.engine import get_engine
 
 
@@ -94,10 +97,24 @@ _WS_PUSH_INTERVAL_S = 0.5
 
 @ws_router.websocket("/ws/timing")
 async def ws_timing(ws: WebSocket) -> None:
-    """Push snapshots + incremental events while the connection is open."""
-    # Note: we deliberately do NOT enforce ``employee_password`` here yet; the
-    # WS lives on the LAN behind the same network boundary as the HTTP API.
-    # If/when password auth is added to WebSockets project-wide, gate this here.
+    """Push snapshots + incremental events while the connection is open.
+
+    Phase 10: the WS handshake is gated by the SAME effective policy as the
+    timing HTTP routes (``require_operator_if_password_configured``):
+
+    - if ``employee_password`` is unset  -> open to all LAN clients
+    - if ``employee_password`` is set    -> requires ``pitbox_employee=1`` cookie
+
+    Decision is made via the shared helper ``is_ws_authorized_for_operator``
+    so HTTP and WS can never drift out of policy.
+    """
+    if not is_ws_authorized_for_operator(ws):
+        # Reject BEFORE accept so Starlette returns HTTP 403 during the
+        # handshake — the client never enters the WebSocket protocol state.
+        client = ws.client.host if ws.client else "?"
+        LOG.warning("Unauthorized timing WS attempt from %s: missing/invalid operator cookie", client)
+        await ws.close(code=1008)  # 1008 = policy violation
+        return
     await ws.accept()
     eng = get_engine()
     last_seq = 0

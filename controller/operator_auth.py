@@ -6,7 +6,7 @@ When employee_password is set, a valid session cookie is required from every cli
 """
 from __future__ import annotations
 
-from fastapi import HTTPException, Request, status
+from fastapi import HTTPException, Request, WebSocket, status
 
 from controller.config import get_config
 
@@ -79,6 +79,27 @@ async def require_operator_if_password_configured(request: Request) -> None:
     """
     if get_employee_password_optional() is not None:
         await require_operator(request)
+
+
+def is_ws_authorized_for_operator(ws: WebSocket) -> bool:
+    """
+    Phase 10: shared access-control rule for WebSockets, identical in policy
+    to ``require_operator_if_password_configured`` used by HTTP routes.
+
+    - employee_password unset  -> open to all LAN clients (parity with HTTP)
+    - employee_password set    -> require ``pitbox_employee=1`` cookie
+
+    Returns True if the WS handshake should proceed, False otherwise. Caller
+    is responsible for the framework-level rejection (e.g. ``await ws.close``
+    BEFORE ``accept`` so Starlette returns HTTP 403 during the handshake).
+
+    A boolean (rather than HTTPException) is used because raising HTTPException
+    inside a WebSocket route does not produce a clean HTTP-level rejection in
+    Starlette: the socket is already in an upgraded protocol state.
+    """
+    if get_employee_password_optional() is None:
+        return True
+    return ws.cookies.get(EMPLOYEE_COOKIE) == "1"
 
 
 async def require_employee(request: Request) -> None:
