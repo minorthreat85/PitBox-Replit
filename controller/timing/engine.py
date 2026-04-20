@@ -119,6 +119,10 @@ class TimingEngine:
         self.drivers: Dict[int, DriverState] = {}
         self.events: Deque[Dict[str, Any]] = deque(maxlen=_MAX_EVENTS)
         self._event_seq = 0
+        # Phase 6: monotonic snapshot ordering. Every call to snapshot()
+        # increments this; clients drop frames with seq <= last seen so
+        # an out-of-order WS tick / HTTP poll cannot rewind the UI.
+        self._snapshot_seq = 0
         self._transport: Optional[asyncio.DatagramTransport] = None
         self._protocol: Optional["_TimingProtocol"] = None
         self._lock = asyncio.Lock()
@@ -257,7 +261,10 @@ class TimingEngine:
         except Exception:
             LOG.debug("telemetry merge skipped", exc_info=True)
 
+        self._snapshot_seq += 1
         return {
+            "snapshot_seq": self._snapshot_seq,
+            "generated_unix": time.time(),
             "session": asdict(self.session),
             "drivers": driver_dicts,
             "telemetry_agents": telemetry_agents,

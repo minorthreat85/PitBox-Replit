@@ -41,6 +41,13 @@
         lastSnapshot: null,
         selectedCarId: null,
         eventSeq: 0,
+        // Phase 6: monotonic snapshot ordering. Drop any frame whose
+        // snapshot_seq is <= the last one we rendered, no matter whether it
+        // arrived via WS tick, WS initial, or HTTP poll. Backends without
+        // this field (older controllers) are detected by snapshot_seq == null
+        // and fall back to "always accept" behaviour.
+        lastSnapshotSeq: 0,
+        lastSnapshotGenUnix: 0,
         events: [],
         // Per-track map state
         trackKey: null,         // key currently loaded ('' = fallback applied)
@@ -380,6 +387,23 @@
 
     function applySnapshot(snap) {
         if (!snap) return;
+        // Phase 6: ignore stale/out-of-order frames. A WS tick that races a
+        // poll response (or vice-versa) must not rewind position/lap data.
+        // Restart-safe: if the backend's generated_unix moves forward while
+        // its snapshot_seq regresses (controller process restarted), rebase
+        // the watermark instead of dead-locking the UI.
+        var seq = snap.snapshot_seq;
+        var genUnix = snap.generated_unix;
+        if (Number.isFinite(seq)) {
+            var lastGen = state.lastSnapshotGenUnix || 0;
+            var restarted = Number.isFinite(genUnix)
+                && lastGen > 0
+                && genUnix > lastGen
+                && seq < state.lastSnapshotSeq;
+            if (!restarted && seq <= state.lastSnapshotSeq) return;
+            state.lastSnapshotSeq = seq;
+        }
+        if (Number.isFinite(genUnix)) state.lastSnapshotGenUnix = genUnix;
         state.lastSnapshot = snap;
         renderHeader(snap.session);
         renderAgents(snap);
