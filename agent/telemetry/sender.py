@@ -185,11 +185,41 @@ class TelemetrySender:
 _sender: Optional[TelemetrySender] = None
 
 
+_ACTIVE: Optional["TelemetrySender"] = None
+
+
+def get_active_status() -> dict:
+    """Diagnostic snapshot of the running telemetry sender (or absence thereof).
+
+    Surfaced via the agent's /version endpoint so the controller can tell at a
+    glance, for each rig, whether the new telemetry code is even installed and
+    whether its background thread is alive.
+    """
+    s = _ACTIVE
+    try:
+        import websockets  # type: ignore
+        ws_present = True
+        ws_version = getattr(websockets, "__version__", "?")
+    except Exception:
+        ws_present = False
+        ws_version = None
+    return {
+        "started": s is not None,
+        "thread_alive": bool(s and s._thread and s._thread.is_alive()),
+        "controller_url": s.controller_url if s else None,
+        "agent_id": s.agent_id if s else None,
+        "rate_hz": s.rate_hz if s else None,
+        "websockets_present": ws_present,
+        "websockets_version": ws_version,
+    }
+
+
 def start_telemetry(controller_url: str, agent_id: str, token: str, rate_hz: float = 15.0) -> None:
-    global _sender
+    global _sender, _ACTIVE
     if _sender is not None:
         return
     _sender = TelemetrySender(controller_url, agent_id, token, rate_hz=rate_hz)
+    _ACTIVE = _sender
     _sender.start()
 
 

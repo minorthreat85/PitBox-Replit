@@ -219,9 +219,22 @@ async def ping():
 
 @router.get("/version")
 async def get_version():
-    """Return agent version (no auth required - used by controller health checks)."""
+    """Return agent version + telemetry status (no auth — used by controller diagnostics).
+
+    Telemetry block lets the controller's /api/telemetry/debug confirm, per rig,
+    that the new telemetry-capable agent is actually installed and that the
+    background sender thread is alive. If the rig is still on the old binary
+    the response will simply lack the `telemetry` key, which is itself the
+    diagnostic.
+    """
     from pitbox_common.version import __version__
-    return {"version": __version__}
+    out = {"version": __version__}
+    try:
+        from agent.telemetry.sender import get_active_status
+        out["telemetry"] = get_active_status()
+    except Exception as e:
+        out["telemetry"] = {"error": f"{type(e).__name__}: {e}"}
+    return out
 
 
 @router.get("/status", dependencies=[Depends(verify_token)])

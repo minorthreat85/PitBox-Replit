@@ -202,18 +202,42 @@ async def telemetry_debug():
       - hints:    short text suggestions for the operator based on observed state
     """
     out: dict = {"now": time.time()}
-    # Registry side
+    # Registry side — also probe each rig's /version (no auth) so we can see,
+    # per rig, whether the new telemetry-capable agent binary is actually
+    # installed and whether its background sender thread is alive. This is
+    # what makes "they didn't redeploy the agent" visible from one URL.
     try:
+        import httpx
         from controller.enrolled_rigs import get_all_ordered as _rigs
         rigs = []
-        for r in (_rigs() or []):
-            rigs.append({
-                "agent_id": r.get("agent_id"),
-                "display_name": r.get("display_name"),
-                "host": r.get("host"),
-                "port": r.get("port"),
-                "hostname": r.get("hostname"),
-            })
+        rig_list = list(_rigs() or [])
+
+        async def _probe(rig: dict) -> dict:
+            host, port = rig.get("host"), rig.get("port")
+            url = f"http://{host}:{port}/version"
+            entry = {
+                "agent_id": rig.get("agent_id"),
+                "display_name": rig.get("display_name"),
+                "host": host,
+                "port": port,
+                "hostname": rig.get("hostname"),
+            }
+            try:
+                async with httpx.AsyncClient(timeout=1.5) as client:
+                    r = await client.get(url)
+                    if r.status_code == 200:
+                        try:
+                            entry["agent_version"] = r.json()
+                        except Exception:
+                            entry["agent_version"] = {"raw": r.text[:200]}
+                    else:
+                        entry["agent_version"] = {"http_status": r.status_code}
+            except Exception as e:
+                entry["agent_version"] = {"unreachable": f"{type(e).__name__}: {e}"}
+            return entry
+
+        if rig_list:
+            rigs = list(await asyncio.gather(*[_probe(r) for r in rig_list]))
         out["registry"] = rigs
     except Exception as e:
         out["registry"] = {"error": f"{type(e).__name__}: {e}"}
@@ -276,6 +300,40 @@ async def telemetry_debug():
 
     # Operator hints
     hints: list = []
+    # Version-skew hint: if any rig's /version response lacks the `telemetry`
+    # block, the rig is still on the old (pre-v1.5.10) agent binary — that
+    # explains zero connection attempts more clearly than anything else.
+    if isinstance(out.get("registry"), list):
+        old_rigs: list = []
+        unreachable: list = []
+        for r in out["registry"]:
+            av = r.get("agent_version") or {}
+            if "unreachable" in av:
+                unreachable.append(r.get("display_name") or r.get("agent_id"))
+            elif "telemetry" not in av and "error" not in av:
+                old_rigs.append(
+                    f"{r.get('display_name') or r.get('agent_id')} "
+                    f"(version={av.get('version', '?')})"
+                )
+        if old_rigs:
+            hints.append(
+                "These rigs are running an OLD agent binary that has no telemetry "
+                "support — they need the v1.5.11 agent installed: " + ", ".join(old_rigs))
+        if unreachable:
+            hints.append(
+                "These rigs did not respond to /version — agent service stopped, "
+                "wrong host/port, or firewall: " + ", ".join(unreachable))
+        for r in out["registry"]:
+            tel = (r.get("agent_version") or {}).get("telemetry") or {}
+            if tel and tel.get("started") and not tel.get("thread_alive"):
+                hints.append(
+                    f"{r.get('display_name') or r.get('agent_id')}: telemetry sender "
+                    "started but background thread is DEAD — check the agent log for "
+                    "an exception in the sender thread.")
+            elif tel and not tel.get("websockets_present"):
+                hints.append(
+                    f"{r.get('display_name') or r.get('agent_id')}: the websockets "
+                    "package is missing from the agent build — rebuild the agent EXE.")
     if out["recent_rejects"]:
         last = out["recent_rejects"][-1]
         hints.append(
