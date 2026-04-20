@@ -51,6 +51,21 @@ _CLIENT_EVENT_NAMES = {
 
 _MAX_EVENTS = 200
 
+# ---- Phase 4: startup + stale-state resync constants ----
+# How long after engine.start() before we start nudging the AC server. Gives
+# the server a chance to send its initial NEW_SESSION/CAR_INFO packets on its
+# own (typical: <1 s on Win, sometimes 5-10 s on cold start).
+_RESYNC_STARTUP_GRACE_S = 10.0
+# How long without ANY packet before we treat the feed as stale and try to
+# nudge the server back to life.
+_RESYNC_STALE_AFTER_S = 30.0
+# Polling cadence for the resync supervisor itself.
+_RESYNC_LOOP_INTERVAL_S = 5.0
+# Backoff bounds: first attempt waits INITIAL, then doubles up to MAX. Reset
+# to INITIAL on first healthy packet after a stale period.
+_RESYNC_INITIAL_BACKOFF_S = 5.0
+_RESYNC_MAX_BACKOFF_S = 120.0
+
 
 @dataclass
 class SessionState:
@@ -108,6 +123,15 @@ class TimingEngine:
         self.last_packet_unix: float = 0.0
         self.packets_received: int = 0
         self.unknown_packets: int = 0
+        # Phase 4: resync supervisor state
+        self._started_at_unix: float = 0.0
+        self._resync_task: Optional[asyncio.Task] = None
+        self._resync_next_attempt_unix: float = 0.0
+        self._resync_backoff_s: float = _RESYNC_INITIAL_BACKOFF_S
+        self._resync_attempts: int = 0
+        self._resync_successes: int = 0
+        self._last_resync_reason: str = ""
+        self._last_seen_healthy: bool = False
 
     # ---- lifecycle ----
     async def start(self, host: Optional[str] = None, port: Optional[int] = None) -> None:
@@ -131,9 +155,25 @@ class TimingEngine:
             return
         self._transport = transport
         self._protocol = protocol
+        self._started_at_unix = time.time()
         LOG.info("Timing engine listening on udp://%s:%s", self.host, self.port)
+        # Kick off the resync supervisor (Phase 4). Best-effort: any failure
+        # in the supervisor is logged but never tears down the listener.
+        try:
+            self._resync_task = asyncio.create_task(
+                self._resync_loop(), name="pitbox-timing-resync"
+            )
+        except Exception:
+            LOG.exception("Failed to start timing resync supervisor")
 
     async def stop(self) -> None:
+        if self._resync_task is not None:
+            self._resync_task.cancel()
+            try:
+                await self._resync_task
+            except (asyncio.CancelledError, Exception):
+                pass
+            self._resync_task = None
         if self._transport is not None:
             try:
                 self._transport.close()
@@ -197,6 +237,13 @@ class TimingEngine:
                 "unknown_packets": self.unknown_packets,
                 "last_packet_unix": self.last_packet_unix,
                 "event_seq": self._event_seq,
+                "resync": {
+                    "attempts": self._resync_attempts,
+                    "successes": self._resync_successes,
+                    "next_attempt_unix": self._resync_next_attempt_unix,
+                    "backoff_s": self._resync_backoff_s,
+                    "last_reason": self._last_resync_reason,
+                },
             },
         }
 
@@ -436,6 +483,149 @@ class TimingEngine:
             d = DriverState(car_id=car_id)
             self.drivers[car_id] = d
         return d
+
+    # ---- Phase 4: startup + stale-state resync ----
+    def _resync_diagnose(self, now: float) -> Optional[str]:
+        """Decide whether the engine needs to nudge AC server for state.
+
+        Returns a short human-readable reason string when a resync is
+        warranted, or None when the feed is healthy enough to leave alone.
+
+        Trigger conditions (in priority order):
+          1. ``cold_start``  — never received a packet AND startup grace
+             elapsed (engine just came up, server may have started before us
+             so we missed NEW_SESSION / NEW_CONNECTION packets).
+          2. ``stale_feed``  — received packets at some point but nothing in
+             the last ``_RESYNC_STALE_AFTER_S`` seconds (transient AC server
+             stall, network blip, etc.).
+        """
+        if self._started_at_unix == 0.0:
+            return None  # not started yet
+        if self.last_packet_unix == 0.0:
+            if (now - self._started_at_unix) >= _RESYNC_STARTUP_GRACE_S:
+                return "cold_start"
+            return None
+        # We've seen packets at some point.
+        if (now - self.last_packet_unix) >= _RESYNC_STALE_AFTER_S:
+            return "stale_feed"
+        return None
+
+    async def _resync_loop(self) -> None:
+        """Bounded-backoff supervisor that nudges AC for SESSION_INFO/CAR_INFO.
+
+        Runs as a background task while the listener is up. On each tick:
+          * Healthy feed -> reset backoff to initial, no action.
+          * Cold start / stale feed -> if backoff timer elapsed, send
+            ``request_session_info`` and (for each known car) ``request_car_info``
+            to every running AC server, then double the backoff up to
+            ``_RESYNC_MAX_BACKOFF_S``.
+
+        Each iteration is wrapped in its own try/except so an unexpected
+        failure (one bad probe, a transient import error) cannot permanently
+        disable the supervisor — only an explicit cancellation stops it.
+        """
+        while True:
+            try:
+                await asyncio.sleep(_RESYNC_LOOP_INTERVAL_S)
+            except asyncio.CancelledError:
+                raise
+            try:
+                now = time.time()
+                reason = self._resync_diagnose(now)
+
+                if reason is None:
+                    if not self._last_seen_healthy:
+                        LOG.info("Timing feed healthy; resync backoff reset.")
+                    self._last_seen_healthy = True
+                    self._resync_backoff_s = _RESYNC_INITIAL_BACKOFF_S
+                    self._resync_next_attempt_unix = 0.0
+                    self._last_resync_reason = ""
+                    continue
+
+                self._last_seen_healthy = False
+                self._last_resync_reason = reason
+
+                if now < self._resync_next_attempt_unix:
+                    continue  # waiting out the current backoff window
+
+                ok = await self._fire_resync_probes(reason)
+                self._resync_attempts += 1
+                if ok:
+                    self._resync_successes += 1
+                self._resync_next_attempt_unix = now + self._resync_backoff_s
+                self._resync_backoff_s = min(
+                    self._resync_backoff_s * 2.0, _RESYNC_MAX_BACKOFF_S
+                )
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                # Per-iteration backstop: log and keep the supervisor alive.
+                LOG.exception(
+                    "Timing resync iteration failed; supervisor continues running"
+                )
+
+    async def _fire_resync_probes(self, reason: str) -> bool:
+        """Send SESSION_INFO + per-car CAR_INFO to every running AC server.
+
+        Returns True if at least one probe was dispatched. Lazy-imports to
+        avoid a circular dependency between timing.engine and the API layer.
+        """
+        # Lazy imports to avoid circular dependency at module load time.
+        try:
+            from controller.api_server_config_routes import _get_running_servers_list
+            from controller.server_control import get_adapter
+        except Exception:
+            LOG.debug("resync probe skipped: server-control adapter unavailable", exc_info=True)
+            return False
+
+        try:
+            running = _get_running_servers_list() or []
+        except Exception:
+            LOG.exception("resync probe: could not list running AC servers")
+            return False
+        if not running:
+            LOG.info(
+                "Timing resync (%s): no running AC servers; will retry after %.0fs backoff",
+                reason, self._resync_backoff_s,
+            )
+            return False
+
+        adapter = get_adapter()
+        any_ok = False
+        for entry in running:
+            sid = entry.get("server_id") if isinstance(entry, dict) else None
+            if not sid:
+                continue
+            try:
+                adapter.request_session_info(sid)
+                any_ok = True
+                LOG.info(
+                    "Timing resync (%s): sent GET_SESSION_INFO to server '%s' (backoff=%.0fs)",
+                    reason, sid, self._resync_backoff_s,
+                )
+            except Exception as exc:
+                # On send failure, force a re-read of server_cfg.ini next time
+                # in case the cached UDP_PLUGIN_LOCAL_PORT is now wrong.
+                try:
+                    adapter.invalidate_target(sid)
+                except Exception:
+                    pass
+                LOG.warning(
+                    "Timing resync (%s): GET_SESSION_INFO to '%s' failed: %s",
+                    reason, sid, exc,
+                )
+                continue
+            # Also re-request known cars so we don't have ghost driver rows
+            # after a reconnect storm or mid-session start.
+            for car_id in list(self.drivers.keys()):
+                try:
+                    adapter.request_car_info(sid, int(car_id))
+                except Exception as exc:
+                    LOG.debug(
+                        "Timing resync: GET_CAR_INFO car_id=%s on '%s' failed: %s",
+                        car_id, sid, exc,
+                    )
+        return any_ok
 
     def _record_event(
         self,
