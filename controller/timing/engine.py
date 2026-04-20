@@ -108,7 +108,11 @@ class DriverState:
     best_lap_ms: int = 0
     total_laps: int = 0
     position: int = 0
-    gap_ms: int = 0  # legacy: cumulative-best-lap delta to leader; kept for back-compat
+    # Internal: raw delta-to-leader (ms) populated from AC LAP_COMPLETED.
+    # NOT exposed to the UI directly — it is the input from which Phase 5
+    # computes the authoritative gap_to_leader_ms / interval_to_ahead_ms in
+    # snapshot(). Do not read this in the frontend.
+    gap_ms: int = 0
     # Phase 5: authoritative gap/interval. Backend is the only source of these.
     # ``None`` means "not authoritative yet" — UI must render '—', never compute.
     gap_to_leader_ms: Optional[int] = None
@@ -131,7 +135,9 @@ class TimingEngine:
         self._snapshot_seq = 0
         self._transport: Optional[asyncio.DatagramTransport] = None
         self._protocol: Optional["_TimingProtocol"] = None
-        self._lock = asyncio.Lock()
+        # NOTE: no async lock is needed. The engine runs entirely on a single
+        # asyncio loop; UDP datagram_received and snapshot()/events_since() all
+        # execute on that one thread, so mutations are inherently serialised.
         self.host = TIMING_UDP_PLUGIN_HOST
         self.port = TIMING_UDP_PLUGIN_PORT
         self.last_packet_unix: float = 0.0
@@ -242,12 +248,12 @@ class TimingEngine:
         telemetry_agents: Dict[str, Any] = {}
         try:
             from controller.telemetry.store import get_store as _get_tel_store
-            tel = _get_tel_store().project_for_engine()
-            telemetry_agents = tel
-            if tel:
+            agents_by_id = _get_tel_store().project_for_engine()
+            telemetry_agents = agents_by_id
+            if agents_by_id:
                 # Build lookup: nick -> agent_id (lower)
-                nick_to_aid = {}
-                for aid, block in tel.items():
+                nick_to_aid: Dict[str, str] = {}
+                for aid, block in agents_by_id.items():
                     nick = (block.get("player_nick") or "").strip().lower()
                     if nick:
                         nick_to_aid.setdefault(nick, aid)
@@ -263,7 +269,7 @@ class TimingEngine:
                             if aid:
                                 break
                     if aid:
-                        d["live_telemetry"] = tel[aid]
+                        d["live_telemetry"] = agents_by_id[aid]
         except Exception:
             LOG.debug("telemetry merge skipped", exc_info=True)
 
@@ -306,10 +312,10 @@ class TimingEngine:
                 drv_timing = "offline"
             else:
                 drv_timing = timing_state  # follows global feed health
-            tel = d.get("live_telemetry") or None
-            if tel is None:
+            drv_tel = d.get("live_telemetry") or None
+            if drv_tel is None:
                 tel_state = "missing"
-            elif tel.get("stale"):
+            elif drv_tel.get("stale"):
                 tel_state = "stale"
             else:
                 tel_state = "live"

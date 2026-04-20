@@ -9,9 +9,14 @@ Two routers are exported:
   ``WS /ws/timing`` for push updates. Operators can choose to consume the WS
   feed or fall back to plain polling against the HTTP routes.
 
-All HTTP endpoints are gated by ``require_operator_if_password_configured`` so
-behaviour matches the rest of the API: open on the LAN by default, gated when
-``employee_password`` is configured.
+Auth (Phase 10): ALL endpoints — HTTP + WebSocket — are gated by the same
+policy: open on the LAN when ``employee_password`` is unset; require the
+``pitbox_employee=1`` cookie when set. HTTP routes use the FastAPI dependency
+``require_operator_if_password_configured``; the WS route uses the shared
+helper ``is_ws_authorized_for_operator`` so HTTP and WS can never drift.
+
+For canonical request/response shapes (snapshot, events, WS frames) see
+``docs/TIMING_API.md``.
 """
 from __future__ import annotations
 

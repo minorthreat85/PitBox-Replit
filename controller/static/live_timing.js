@@ -7,8 +7,15 @@
  * Activates only when the Live Timing page is visible (detected via the
  * `.hidden` class on `#page-live-timing`). Tries WebSocket first; if the WS
  * fails or closes, transparently falls back to HTTP polling against
- * /api/timing/snapshot. Stale state (no AC packets for >10s) is surfaced
- * both in the connection pill and in a banner.
+ * /api/timing/snapshot for the leaderboard and /api/timing/events for the
+ * event feed (Phase 9: WS is primary for both, HTTP runs only as fallback).
+ *
+ * Two independent indicators (Phase 7):
+ *   - `lt-conn`   : transport status (WS live / Polling / Idle).
+ *   - `lt-health` : AC timing-feed status driven entirely by backend
+ *                   `health.timing.state` (live / stale / offline).
+ *                   Thresholds: <=5s live, <=30s stale, >30s offline.
+ *                   The frontend NEVER recomputes these thresholds.
  */
 (function () {
     'use strict';
@@ -258,7 +265,8 @@
             var posCls = pos === 1 ? 'lt-pos-1' : (pos === 2 ? 'lt-pos-2' : (pos === 3 ? 'lt-pos-3' : ''));
             // Phase 5: backend is authoritative for gap/interval. Display
             // backend-provided values only; never compute from gap_ms here.
-            // null/undefined => '—' (not yet authoritative). 0 => "0.000".
+            // null/undefined => '—' (not yet authoritative).
+            // 0              => '—' (leader / no meaningful gap; see fmtGap).
             var gLeader = d.gap_to_leader_ms;
             var iAhead = d.interval_to_ahead_ms;
             var gapTxt = (gLeader == null) ? '—' : fmtGap(gLeader);
