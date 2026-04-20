@@ -327,12 +327,53 @@
         group.innerHTML = html;
     }
 
-    function renderDetail(snapshot) {
-        if (state.selectedCarId == null) return;
+    // Phase 8: detail panel must NEVER show ghost data for a driver that is
+    // no longer in the snapshot. Selection identity is the stable `car_id`.
+    // Resolution is fresh-on-every-render — we never cache a driver object.
+    function findSelectedDriver(snapshot) {
+        if (state.selectedCarId == null) return null;
         var drivers = (snapshot && snapshot.drivers) || [];
-        var d = null;
-        for (var i = 0; i < drivers.length; i++) if (drivers[i].car_id === state.selectedCarId) { d = drivers[i]; break; }
-        if (!d) return;
+        for (var i = 0; i < drivers.length; i++) {
+            if (drivers[i].car_id === state.selectedCarId) return drivers[i];
+        }
+        return null;
+    }
+
+    function renderDetailEmpty(message) {
+        var nameEl = $('lt-detail-name');
+        var posEl = $('lt-detail-pos');
+        var emptyEl = $('lt-detail-empty');
+        var bodyEl = $('lt-detail-body');
+        if (nameEl) nameEl.textContent = 'Select a driver';
+        if (posEl) posEl.textContent = '';
+        if (emptyEl) {
+            emptyEl.textContent = message;
+            emptyEl.classList.remove('hidden');
+        }
+        if (bodyEl) bodyEl.classList.add('hidden');
+    }
+
+    function renderDetail(snapshot) {
+        var drivers = (snapshot && snapshot.drivers) || [];
+        // Empty state #1: no live timing data at all.
+        if (drivers.length === 0) {
+            renderDetailEmpty('No live timing data available.');
+            return;
+        }
+        // Empty state #2: nothing selected yet.
+        if (state.selectedCarId == null) {
+            renderDetailEmpty('Click a row in the leaderboard to view live telemetry for that driver.');
+            return;
+        }
+        var d = findSelectedDriver(snapshot);
+        // Empty state #3: previously-selected driver is gone (disconnected,
+        // session reset, etc.). Show explicit message; selection is already
+        // cleared by applySnapshot so this state is transient.
+        if (!d) {
+            renderDetailEmpty('Selected driver is no longer available.');
+            return;
+        }
+        // Valid selected driver — render fresh values.
         $('lt-detail-name').textContent = d.driver_name || ('Car ' + d.car_id);
         $('lt-detail-pos').textContent = d.position > 0 ? ('P' + d.position) : '';
         $('lt-detail-empty').classList.add('hidden');
@@ -404,6 +445,19 @@
         }
         if (Number.isFinite(genUnix)) state.lastSnapshotGenUnix = genUnix;
         state.lastSnapshot = snap;
+        // Phase 8: validate selection against the latest snapshot exactly
+        // once per apply, before any render runs. If the selected car_id is
+        // gone (disconnected, session reset, empty snapshot), clear it so
+        // every renderer below sees a consistent "nothing selected" state
+        // and no stale DOM survives.
+        if (state.selectedCarId != null) {
+            var drivers = snap.drivers || [];
+            var stillThere = false;
+            for (var i = 0; i < drivers.length; i++) {
+                if (drivers[i].car_id === state.selectedCarId) { stillThere = true; break; }
+            }
+            if (!stillThere) state.selectedCarId = null;
+        }
         renderHeader(snap.session);
         renderAgents(snap);
         renderBoard(snap);
