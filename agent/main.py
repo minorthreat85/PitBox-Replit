@@ -112,7 +112,45 @@ def main():
     setup_logging(DEFAULT_LOG_DIR, debug=args.debug)
     import logging
     logger = logging.getLogger(__name__)
-    
+
+    # STARTUP[deps] — definitive proof of *what is actually inside this EXE*.
+    # Logs version + critical-dep import status before any pairing/telemetry
+    # decision runs. If telemetry later reports "websockets package not
+    # available" but THIS line says websockets_ok=True, the bug is elsewhere
+    # (e.g. import shadowing). If THIS line says websockets_ok=False, the
+    # PyInstaller bundle is broken — rebuild with collect_all('websockets').
+    try:
+        from pitbox_common.version import get_version as _gv
+        _agent_ver = _gv()
+    except Exception as _ve:
+        _agent_ver = f"<unknown:{type(_ve).__name__}>"
+    try:
+        import websockets as _ws_check
+        _ws_ok = True
+        _ws_ver = getattr(_ws_check, "__version__", "?")
+        # Probe the lazy-resolved client attribute too — bare `import
+        # websockets` succeeds even when only the empty top-level package
+        # was bundled; only attribute access exposes the missing children.
+        try:
+            _ = _ws_check.connect  # noqa: F841 - just touch the attribute
+            _ws_connect_ok = True
+        except Exception as _ce:
+            _ws_connect_ok = False
+            _ws_ver = f"{_ws_ver} (connect missing: {type(_ce).__name__}: {_ce})"
+    except Exception as _we:
+        _ws_ok = False
+        _ws_connect_ok = False
+        _ws_ver = f"<import failed: {type(_we).__name__}: {_we}>"
+    logger.info(
+        "STARTUP[deps] agent_version=%s frozen=%s websockets_ok=%s websockets.connect_ok=%s websockets_version=%s exe=%s",
+        _agent_ver,
+        getattr(sys, "frozen", False),
+        _ws_ok,
+        _ws_connect_ok,
+        _ws_ver,
+        sys.executable,
+    )
+
     # Load config
     try:
         config = load_config(args.config)
