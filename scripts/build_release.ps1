@@ -143,6 +143,42 @@ if ($LASTEXITCODE -ne 0) {
     }
 }
 
+# CRITICAL: Install ALL runtime requirements into the build venv.
+# Previously this script only installed pyinstaller + zeroc-ice, which
+# meant `collect_all('websockets')` in PitBoxAgent.spec returned empty
+# tuples whenever the venv hadn't been hand-prepared, silently shipping
+# an EXE without websockets and breaking telemetry at runtime
+# (`STARTUP[deps] websockets_ok=False`). Installing requirements.txt up
+# front guarantees every dep referenced by the .spec files is present at
+# Analysis time. --upgrade so a stale venv from a previous version still
+# picks up new pins (e.g. websockets==13.1).
+if (Test-Path "requirements.txt") {
+    Write-Host ""
+    Write-Host "Installing runtime requirements (requirements.txt)..." -ForegroundColor Green
+    & $buildPython -m pip install -r requirements.txt --upgrade --quiet
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "ERROR: Failed to install requirements.txt. Build cannot continue — bundled EXE would be missing dependencies." -ForegroundColor Red
+        exit 1
+    }
+    Write-Host "  requirements.txt installed." -ForegroundColor Gray
+} else {
+    Write-Host "WARNING: requirements.txt not found — bundled EXE may be missing runtime deps (e.g. websockets)." -ForegroundColor Yellow
+}
+
+# Belt-and-suspenders: explicitly verify the deps the .spec files
+# `collect_all` on. If any are missing now, fail LOUDLY rather than
+# producing a broken EXE that fails silently at runtime on the sims.
+$_required = @('websockets')
+foreach ($_pkg in $_required) {
+    & $buildPython -c "import $_pkg" 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "ERROR: required package '$_pkg' is not importable in the build venv." -ForegroundColor Red
+        Write-Host "       Run: $buildPython -m pip install $_pkg" -ForegroundColor Yellow
+        exit 1
+    }
+}
+Write-Host "  Verified critical build deps: $($_required -join ', ')" -ForegroundColor Gray
+
 # Ensure zeroc-ice is installed (required for Mumble ICE integration + PyInstaller bundling)
 Write-Host ""
 Write-Host "Installing zeroc-ice for Mumble ICE integration..." -ForegroundColor Green
