@@ -6,11 +6,19 @@ Builds a windowless (console=False) executable for running as a Windows Service
 
 import os
 import sys
-from PyInstaller.utils.hooks import collect_submodules
+from PyInstaller.utils.hooks import collect_submodules, collect_all
 
 block_cipher = None
 
 _controller_submodules = collect_submodules('controller')
+_pitbox_common_submodules = collect_submodules('pitbox_common')
+
+# See PitBoxAgent.spec for full rationale: websockets 13.1's lazy
+# `__getattr__` resolution means a bare hidden import only ships the empty
+# top-level package. Controller serves the live-timing WebSocket and the
+# `/ws/agent-telemetry` ingress, both of which depend on the real
+# websockets.legacy.client / websockets.server modules being present.
+_ws_datas, _ws_binaries, _ws_hiddenimports = collect_all('websockets')
 _ice_imports = [
     'Ice',
     'IcePy',
@@ -25,7 +33,6 @@ _uvicorn_imports = [
     'uvicorn.protocols.websockets.websockets_impl',
     'uvicorn.protocols.http.auto',
     'uvicorn.loops.auto',
-    'websockets',
 ]
 
 # Belt-and-suspenders: explicitly list the vendored timing/server-control
@@ -98,9 +105,9 @@ if _ice_slice_src:
 a = Analysis(
     ['controller/main.py'],
     pathex=[],
-    binaries=_ice_binaries,
-    datas=_datas,
-    hiddenimports=_uvicorn_imports + _pitbox_imports + _controller_submodules + _ice_imports,
+    binaries=_ice_binaries + _ws_binaries,
+    datas=_datas + _ws_datas,
+    hiddenimports=_uvicorn_imports + _pitbox_imports + _controller_submodules + _pitbox_common_submodules + _ice_imports + _ws_hiddenimports,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

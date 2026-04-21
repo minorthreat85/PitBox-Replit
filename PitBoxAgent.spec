@@ -3,7 +3,7 @@
 PyInstaller spec file for PitBox Agent
 Builds a windowless (console=False) executable for running as a Windows Service
 """
-from PyInstaller.utils.hooks import collect_submodules
+from PyInstaller.utils.hooks import collect_submodules, collect_all
 
 block_cipher = None
 
@@ -18,6 +18,17 @@ block_cipher = None
 _agent_submodules = collect_submodules('agent')
 _pitbox_common_submodules = collect_submodules('pitbox_common')
 
+# CRITICAL: websockets 13.1 uses lazy `__getattr__` in its top-level
+# __init__.py to resolve `websockets.connect` to either
+# `websockets.asyncio.client` or `websockets.legacy.client` at runtime.
+# Listing 'websockets' as a hidden import is NOT enough — PyInstaller will
+# only ship the empty top-level package and the agent will log
+# "websockets package not available; telemetry disabled" at runtime, even
+# though the package is installed in the build venv. We must `collect_all`
+# to bring in every submodule (legacy.client, asyncio.client, sync.client,
+# extensions, ...). Validated against websockets==13.1 (see requirements.txt).
+_ws_datas, _ws_binaries, _ws_hiddenimports = collect_all('websockets')
+
 _uvicorn_imports = [
     'uvicorn',
     'uvicorn.lifespan.on',
@@ -26,11 +37,6 @@ _uvicorn_imports = [
     'uvicorn.protocols.websockets.websockets_impl',
     'uvicorn.protocols.http.auto',
     'uvicorn.loops.auto',
-    'websockets',
-    # Note: do NOT add 'websockets.asyncio.client' — that path only exists
-    # in newer websockets layouts; we pin 13.1, where the public API is
-    # `websockets.connect` (legacy module). PyInstaller previously logged
-    # an ERROR resolving the missing submodule.
 ]
 
 # Explicit safety net: telemetry sender + sm_reader are also collected by
@@ -46,14 +52,14 @@ _telemetry_imports = [
 a = Analysis(
     ['agent/main.py'],
     pathex=[],
-    binaries=[],
+    binaries=_ws_binaries,
     datas=[
         ('examples/agent_config.Sim1.json', '.'),
         # version.txt MUST sit at the bundle root — see PitBoxController.spec
         # for the same reasoning. Otherwise the agent reports v0.0.0.
         ('version.txt', '.'),
-    ],
-    hiddenimports=_uvicorn_imports + _telemetry_imports + _agent_submodules + _pitbox_common_submodules,
+    ] + _ws_datas,
+    hiddenimports=_uvicorn_imports + _telemetry_imports + _agent_submodules + _pitbox_common_submodules + _ws_hiddenimports,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
