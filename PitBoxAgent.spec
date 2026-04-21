@@ -27,7 +27,10 @@ _uvicorn_imports = [
     'uvicorn.protocols.http.auto',
     'uvicorn.loops.auto',
     'websockets',
-    'websockets.asyncio.client',
+    # Note: do NOT add 'websockets.asyncio.client' — that path only exists
+    # in newer websockets layouts; we pin 13.1, where the public API is
+    # `websockets.connect` (legacy module). PyInstaller previously logged
+    # an ERROR resolving the missing submodule.
 ]
 
 # Explicit safety net: telemetry sender + sm_reader are also collected by
