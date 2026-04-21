@@ -46,6 +46,9 @@ a = Analysis(
     binaries=[],
     datas=[
         ('examples/agent_config.Sim1.json', '.'),
+        # version.txt MUST sit at the bundle root — see PitBoxController.spec
+        # for the same reasoning. Otherwise the agent reports v0.0.0.
+        ('version.txt', '.'),
     ],
     hiddenimports=_uvicorn_imports + _telemetry_imports + _agent_submodules + _pitbox_common_submodules,
     hookspath=[],

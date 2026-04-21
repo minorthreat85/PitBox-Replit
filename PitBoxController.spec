@@ -86,6 +86,11 @@ _datas = [
     ('controller/static', 'static'),
     ('controller/MumbleServer.ice', 'controller'),
     ('examples/controller_config.json', '.'),
+    # version.txt MUST sit at the bundle root because pitbox_common.version
+    # resolves it via `Path(__file__).resolve().parent.parent / "version.txt"`,
+    # which in a frozen build lands at sys._MEIPASS. Without this entry the
+    # EXE reports version "0.0.0" (the FileNotFoundError fallback).
+    ('version.txt', '.'),
 ]
 if _ice_slice_src:
     _datas.append((_ice_slice_src, 'slice'))
