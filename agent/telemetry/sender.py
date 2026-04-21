@@ -109,7 +109,7 @@ class TelemetrySender:
                 LOG.info("Telemetry WS connect attempt #%d -> %s", attempt, url)
                 async with websockets.connect(
                     url,
-                    additional_headers={
+                    extra_headers={
                         "X-Agent-Id": self.agent_id,
                         "X-Agent-Token": self.token,
                     },
