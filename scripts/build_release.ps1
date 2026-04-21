@@ -157,12 +157,12 @@ if (Test-Path "requirements.txt") {
     Write-Host "Installing runtime requirements (requirements.txt)..." -ForegroundColor Green
     & $buildPython -m pip install -r requirements.txt --upgrade --quiet
     if ($LASTEXITCODE -ne 0) {
-        Write-Host "ERROR: Failed to install requirements.txt. Build cannot continue — bundled EXE would be missing dependencies." -ForegroundColor Red
+        Write-Host "ERROR: Failed to install requirements.txt. Build cannot continue -- bundled EXE would be missing dependencies." -ForegroundColor Red
         exit 1
     }
     Write-Host "  requirements.txt installed." -ForegroundColor Gray
 } else {
-    Write-Host "WARNING: requirements.txt not found — bundled EXE may be missing runtime deps (e.g. websockets)." -ForegroundColor Yellow
+    Write-Host "WARNING: requirements.txt not found -- bundled EXE may be missing runtime deps (e.g. websockets)." -ForegroundColor Yellow
 }
 
 # Belt-and-suspenders: explicitly verify the deps the .spec files
