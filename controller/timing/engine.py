@@ -787,8 +787,8 @@ def get_engine() -> TimingEngine:
     return _ENGINE
 
 
-async def start() -> None:
-    await get_engine().start()
+async def start(host: Optional[str] = None, port: Optional[int] = None) -> None:
+    await get_engine().start(host=host, port=port)
 
 
 async def stop() -> None:

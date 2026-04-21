@@ -66,19 +66,29 @@ except Exception as _mumble_err:
     import logging as _ml
     _ml.getLogger(__name__).warning("Mumble integration unavailable: %s", _mumble_err)
 
-# Logging: always write to AppData logs dir. Create canonical dirs early.
+# Logging: always write to AppData logs dir with rotation. Create canonical dirs early.
 if not getattr(logging, "_pitbox_initialized", False):
     try:
+        from logging.handlers import RotatingFileHandler
         from pitbox_common.runtime_paths import controller_dir, controller_data_dir, controller_logs_dir
         for d in (controller_dir(), controller_data_dir(), controller_logs_dir()):
             os.makedirs(d, exist_ok=True)
         log_dir = str(controller_logs_dir())
         log_file = os.path.join(log_dir, "controller.log")
-        logging.basicConfig(
-            filename=log_file,
-            level=logging.INFO,
-            format="%(asctime)s - %(levelname)s - [PITBOX] - %(message)s",
+        _handler = RotatingFileHandler(
+            log_file,
+            maxBytes=10 * 1024 * 1024,  # 10 MB per file
+            backupCount=5,               # keep 5 backups (~60 MB total)
+            encoding="utf-8",
         )
+        _handler.setFormatter(logging.Formatter(
+            "%(asctime)s - %(levelname)s - [PITBOX] - %(message)s"
+        ))
+        _root = logging.getLogger()
+        _root.setLevel(logging.INFO)
+        _root.addHandler(_handler)
+        # Keep uvicorn access logs out of the rotating file (very chatty).
+        logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
     except Exception:
         logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - [PITBOX] - %(message)s")
     setattr(logging, "_pitbox_initialized", True)
