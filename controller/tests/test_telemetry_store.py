@@ -1,8 +1,57 @@
 """Tests for the per-agent telemetry store."""
 import asyncio
+import math
 import time
 
-from controller.telemetry.store import TelemetryStore, STALE_AFTER_SEC, OFFLINE_AFTER_SEC
+from controller.telemetry.store import (
+    TelemetryStore,
+    STALE_AFTER_SEC,
+    OFFLINE_AFTER_SEC,
+    _sanitize_norm_pos,
+    _bad_norm_pos_logged,
+)
+
+
+def test_sanitize_norm_pos_accepts_valid_range():
+    assert _sanitize_norm_pos(0.0) == 0.0
+    assert _sanitize_norm_pos(0.5) == 0.5
+    assert _sanitize_norm_pos(1.0) == 1.0
+    # tiny float slop is clamped, not rejected
+    assert _sanitize_norm_pos(1.0001) == 1.0
+    assert _sanitize_norm_pos(-0.0005) == 0.0
+
+
+def test_sanitize_norm_pos_rejects_garbage():
+    # The actual symptom from the bug report — `3.99e+28` was reaching the
+    # UI as `3.99e+28%`. It MUST be dropped to None here.
+    assert _sanitize_norm_pos(3.99e28) is None
+    assert _sanitize_norm_pos(1.5) is None
+    assert _sanitize_norm_pos(-1.0) is None
+    assert _sanitize_norm_pos(float("nan")) is None
+    assert _sanitize_norm_pos(float("inf")) is None
+    assert _sanitize_norm_pos(float("-inf")) is None
+    assert _sanitize_norm_pos(None) is None
+    assert _sanitize_norm_pos("garbage") is None
+
+
+def test_project_for_engine_drops_invalid_norm_pos():
+    """End-to-end: a frame with a bonkers normalized_car_position is
+    projected with norm_pos=None, NEVER the raw garbage value."""
+    _bad_norm_pos_logged.clear()
+    s = TelemetryStore()
+    asyncio.run(s.update("BadSim", {
+        "ts": time.time(), "available": True,
+        "physics": {"speed_kmh": 50.0, "rpms": 3000, "gear": 2, "gas": 0.3, "brake": 0.0, "fuel": 10.0},
+        "graphics": {"is_in_pit": 0, "i_current_time_ms": 1000, "completed_laps": 0,
+                     "normalized_car_position": 3.99e28,  # the actual bug value
+                     "coord_x": 0, "coord_y": 0, "coord_z": 0,
+                     "status_name": "LIVE", "session_name": "RACE", "tyre_compound": "Hard",
+                     "current_sector_index": 0, "i_last_time_ms": 0, "i_best_time_ms": 0,
+                     "last_sector_time_ms": 0},
+        "static": {"player_nick": "x", "car_model": "y", "track": "z"},
+    }))
+    proj = s.project_for_engine()
+    assert proj["BadSim"]["norm_pos"] is None
 
 
 def _run(coro):

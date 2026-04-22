@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 import time
 from typing import Any, Dict, List, Optional
 
@@ -28,6 +29,46 @@ LOG = logging.getLogger("pitbox.telemetry.store")
 
 STALE_AFTER_SEC = 3.0
 OFFLINE_AFTER_SEC = 15.0
+
+# Tolerate a tiny bit of float slop on either end; AC occasionally reports
+# values like 1.0000003 right at the start/finish line.
+_NORM_POS_EPS = 1e-3
+
+
+def _sanitize_norm_pos(raw: Any) -> Optional[float]:
+    """Return a clean 0..1 float, or None if the value is unusable.
+
+    AC's shared memory occasionally hands us garbage for
+    `normalized_car_position` — uninitialized memory before the first lap,
+    NaN/inf during session transitions, or wildly out-of-range values like
+    3.99e+28 when a car is in the pit before the lap counter resets. The UI
+    must NEVER display those — they show up as nonsense percentages and
+    place dots at random points along the track path. We log the *first*
+    bad value per agent (rate-limited via _bad_norm_pos_logged) and pass
+    None to the UI thereafter.
+    """
+    if raw is None:
+        return None
+    try:
+        v = float(raw)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(v):
+        return None
+    if v < -_NORM_POS_EPS or v > 1.0 + _NORM_POS_EPS:
+        return None
+    # Clamp tiny float slop into the canonical [0,1] range so downstream
+    # `getPointAtLength(t * len)` never wraps unexpectedly.
+    if v < 0.0:
+        return 0.0
+    if v > 1.0:
+        return 1.0
+    return v
+
+
+# Per-agent latch so we only log the first bad norm_pos we see — protects
+# against ~15 Hz log spam if AC keeps sending nonsense for a whole session.
+_bad_norm_pos_logged: set[str] = set()
 
 
 class TelemetryStore:
@@ -95,6 +136,15 @@ class TelemetryStore:
             phys = f.get("physics") or {}
             grx = f.get("graphics") or {}
             stat = f.get("static") or {}
+            raw_np = grx.get("normalized_car_position")
+            np_clean = _sanitize_norm_pos(raw_np)
+            if np_clean is None and raw_np is not None and aid not in _bad_norm_pos_logged:
+                LOG.warning(
+                    "telemetry: dropping invalid norm_pos for agent %s (raw=%r); "
+                    "subsequent bad values from this agent will be silently dropped.",
+                    aid, raw_np,
+                )
+                _bad_norm_pos_logged.add(aid)
             out[aid] = {
                 "agent_id": aid,
                 "stale": age > STALE_AFTER_SEC,
@@ -112,7 +162,7 @@ class TelemetryStore:
                 "last_lap_ms": grx.get("i_last_time_ms"),
                 "best_lap_ms": grx.get("i_best_time_ms"),
                 "completed_laps": grx.get("completed_laps"),
-                "norm_pos": grx.get("normalized_car_position"),
+                "norm_pos": np_clean,
                 "coord": [grx.get("coord_x"), grx.get("coord_y"), grx.get("coord_z")],
                 "tyre_compound": grx.get("tyre_compound"),
                 "session_status": grx.get("status_name"),

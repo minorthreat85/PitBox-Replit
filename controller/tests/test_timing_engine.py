@@ -287,3 +287,30 @@ class TestResyncProbeBoundedness(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+def test_compute_map_key_strips_csp_path():
+    from controller.timing.engine import _compute_map_key
+    # The actual bug input from the report.
+    assert _compute_map_key("CSP/3749/.../JR_ROAD_ATLANTA_2022", "FULL") == "jr_road_atlanta_2022__full"
+    assert _compute_map_key("csp/3749/x/y/jr_road_atlanta_2022", "full") == "jr_road_atlanta_2022__full"
+
+
+def test_compute_map_key_simple_cases():
+    from controller.timing.engine import _compute_map_key
+    assert _compute_map_key("jr_mosport_2021", "") == "jr_mosport_2021"
+    assert _compute_map_key("ks_silverstone", "gp") == "ks_silverstone__gp"
+    assert _compute_map_key("", "") == ""
+    assert _compute_map_key(None, None) == ""
+
+
+def test_snapshot_includes_map_key():
+    from controller.timing.engine import TimingEngine
+    eng = TimingEngine()
+    eng.session.track_name = "csp/3749/x/jr_road_atlanta_2022"
+    eng.session.track_config = "FULL"
+    snap = eng.snapshot()
+    assert snap["session"]["map_key"] == "jr_road_atlanta_2022__full"
+    # backwards compat: raw fields still present, untouched
+    assert snap["session"]["track_name"] == "csp/3749/x/jr_road_atlanta_2022"
+    assert snap["session"]["track_config"] == "FULL"
+

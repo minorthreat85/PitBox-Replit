@@ -15,6 +15,7 @@ from __future__ import annotations
 import asyncio
 import io
 import logging
+import re
 import time
 from collections import deque
 from dataclasses import dataclass, field, asdict
@@ -325,11 +326,23 @@ class TimingEngine:
             }
 
         self._snapshot_seq += 1
+        # Canonical, frontend-safe map key. The raw `track_name` from AC can be
+        # a CSP-style virtual path like
+        # "csp/3749/.../jr_road_atlanta_2022", which would slugify into
+        # garbage like "csp_3749_..._jr_road_atlanta_2022" and never match a
+        # `/track_maps/<key>.json`. We strip the path segment first (reusing
+        # `_normalize_track_id_from_preset`), then slugify with the EXACT
+        # same rule the build-time generator and the JS frontend use:
+        # lower → [^a-z0-9]+ → _ → strip _.
+        session_dict = asdict(self.session)
+        session_dict["map_key"] = _compute_map_key(
+            self.session.track_name, self.session.track_config
+        )
         return {
             "snapshot_seq": self._snapshot_seq,
             "generated_unix": now,
             "health": health,
-            "session": asdict(self.session),
+            "session": session_dict,
             "drivers": driver_dicts,
             "telemetry_agents": telemetry_agents,
             "stats": {
@@ -774,6 +787,44 @@ class _TimingProtocol(asyncio.DatagramProtocol):
 
     def error_received(self, exc: Exception) -> None:
         LOG.warning("Timing engine UDP error: %s", exc)
+
+
+# ---- canonical track-map key helper ----
+# Mirrors `slugify` in controller/static/live_timing.js AND
+# scripts/generate_track_maps.py so all three layers agree on the
+# `/track_maps/<key>.json` filename.
+_SLUG_RE = re.compile(r"[^a-z0-9]+")
+
+
+def _slugify(s: str) -> str:
+    return _SLUG_RE.sub("_", str(s or "").lower()).strip("_")
+
+
+def _compute_map_key(track_name: str, track_config: str) -> str:
+    """Return canonical `<track>__<layout>` (or just `<track>`) key, or "".
+
+    The AC server sometimes reports `track_name` as a CSP virtual path like
+    'csp/3749/.../jr_road_atlanta_2022'. We import the existing preset
+    normalizer that already knows how to strip those prefixes; if it isn't
+    available for any reason we fall back to taking the last path segment
+    ourselves so we still emit a key the frontend can use.
+    """
+    raw = (track_name or "").strip().replace("\\", "/")
+    base: Optional[str] = None
+    try:
+        from controller.server_preset_helpers import (
+            _normalize_track_id_from_preset,
+        )
+        base = _normalize_track_id_from_preset(raw) or None
+    except Exception:  # pragma: no cover - defensive only
+        LOG.debug("preset normalizer unavailable for map_key", exc_info=True)
+    if not base:
+        base = raw.split("/")[-1] if "/" in raw else raw
+    t = _slugify(base)
+    if not t:
+        return ""
+    c = _slugify(track_config)
+    return f"{t}__{c}" if c else t
 
 
 # ---- module singleton ----

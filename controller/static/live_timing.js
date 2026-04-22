@@ -152,16 +152,29 @@
     }
 
     // ---- Per-track map registry ----
-    // Files live under /static/track_maps/<key>.json. The key is derived from
-    // the AC `track_name` (lower-cased, non-alphanum -> underscore). If a
-    // `track_config` (layout) is present we try `<track>__<config>` first and
-    // fall back to bare `<track>`. Missing files quietly fall back to the
-    // generic oval. Telemetry / norm_pos logic is unchanged — only rendering.
+    // Files live under /static/track_maps/<key>.json. The PREFERRED key is
+    // `session.map_key`, computed canonically by the backend (it strips
+    // CSP-style virtual paths like 'csp/3749/.../jr_road_atlanta_2022'
+    // before slugifying). Older controllers may omit `map_key`, so we keep a
+    // defensive legacy fallback that slugifies `track_name` / `track_config`
+    // ourselves — but the primary path must NOT depend on raw AC strings,
+    // since they sometimes contain path separators that break the lookup.
+    // Missing files quietly fall back to the generic oval.
     function slugify(s) {
         return String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
     }
     function trackKeyCandidates(session) {
-        if (!session || !session.track_name) return [];
+        if (!session) return [];
+        // Primary: backend-canonical key. Already final form, do not re-slugify.
+        var primary = (typeof session.map_key === 'string') ? session.map_key.trim() : '';
+        if (primary) {
+            // Try `<track>__<layout>` then bare `<track>` for the same fallback
+            // chain the build-time generator emits.
+            var idx = primary.indexOf('__');
+            return idx > 0 ? [primary, primary.slice(0, idx)] : [primary];
+        }
+        // Legacy fallback (older controller without map_key). Best-effort.
+        if (!session.track_name) return [];
         var t = slugify(session.track_name);
         if (!t) return [];
         var c = slugify(session.track_config);
@@ -315,10 +328,16 @@
             var d = drivers[i];
             if (!d.connected) continue;
             var lt = d.live_telemetry;
-            if (!lt || lt.norm_pos == null) continue;
+            if (!lt) continue;
+            // Defense in depth: backend already drops invalid norm_pos to
+            // null, but if any garbage slips through (NaN / inf / out of
+            // range) we MUST NOT render it — wrapping a huge number into
+            // [0,1) places dots at random points along the track path.
+            var np = lt.norm_pos;
+            if (np == null || typeof np !== 'number' || !isFinite(np) || np < 0 || np > 1) continue;
             // norm_pos is 0..1 from AC. Apply per-track start_offset and
             // direction (rendering-layer transform only). Wrap into [0,1).
-            var t = (dir * lt.norm_pos) + offset;
+            var t = (dir * np) + offset;
             t = t - Math.floor(t);
             if (t < 0) t += 1;
             var pt = path.getPointAtLength(t * len);
@@ -401,7 +420,11 @@
         $('lt-d-sector').textContent = lt.current_sector != null ? ('S' + (lt.current_sector + 1)) : '—';
         $('lt-d-pit').textContent = lt.in_pit ? 'In Pit' : 'On Track';
         $('lt-d-tyre').textContent = lt.tyre_compound || '—';
-        $('lt-d-norm').textContent = lt.norm_pos != null ? (lt.norm_pos * 100).toFixed(1) + '%' : '—';
+        // Same guard as the map renderer: never let an invalid norm_pos
+        // bubble up as `3.99e+28%` in the detail panel.
+        var dnp = lt.norm_pos;
+        var dnpOk = (typeof dnp === 'number' && isFinite(dnp) && dnp >= 0 && dnp <= 1);
+        $('lt-d-norm').textContent = dnpOk ? (dnp * 100).toFixed(1) + '%' : '—';
     }
 
     function renderEvents() {
