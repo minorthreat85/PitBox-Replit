@@ -409,6 +409,16 @@ class TimingEngine:
     def _on_ACSP_NEW_SESSION(self, p):
         self._apply_session_info(p)
         self.session.started_at_unix = time.time()
+        # Log canonical map_key exactly once per session start so operators
+        # can confirm it matches a JSON in controller/static/track_maps/.
+        # Fires on every NEW_SESSION (Practice -> Quali -> Race), never
+        # per-packet or per-snapshot.
+        mk = _compute_map_key(self.session.track_name, self.session.track_config)
+        LOG.info(
+            "session map_key resolved: track_name=%r track_config=%r session=%r -> map_key=%r",
+            self.session.track_name, self.session.track_config,
+            self.session.session_name, mk,
+        )
         # Reset per-session driver lap totals; keep identities.
         for d in self.drivers.values():
             d.last_lap_ms = 0

@@ -152,33 +152,30 @@
     }
 
     // ---- Per-track map registry ----
-    // Files live under /static/track_maps/<key>.json. The PREFERRED key is
-    // `session.map_key`, computed canonically by the backend (it strips
+    // Files live under /static/track_maps/<key>.json.
+    //
+    // SINGLE SOURCE OF TRUTH: `session.map_key`, computed canonically by the
+    // backend (`_compute_map_key` in controller/timing/engine.py — strips
     // CSP-style virtual paths like 'csp/3749/.../jr_road_atlanta_2022'
-    // before slugifying). Older controllers may omit `map_key`, so we keep a
-    // defensive legacy fallback that slugifies `track_name` / `track_config`
-    // ourselves — but the primary path must NOT depend on raw AC strings,
-    // since they sometimes contain path separators that break the lookup.
-    // Missing files quietly fall back to the generic oval.
-    function slugify(s) {
-        return String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
-    }
+    // before slugifying with the same rule the build-time generator uses).
+    //
+    // We DO NOT slugify raw `track_name` / `track_config` on the frontend.
+    // That path used to produce broken keys when AC reports CSP virtual
+    // paths and was the cause of the persistent oval-fallback bug.
+    //
+    // Fallback to the generic oval happens only when:
+    //   * session.map_key is missing/empty, OR
+    //   * the bare `<track>` JSON is missing (we try `<track>__<layout>`
+    //     first if the key contains `__`, then bare `<track>`), OR
+    //   * the fetch returns 404.
     function trackKeyCandidates(session) {
         if (!session) return [];
-        // Primary: backend-canonical key. Already final form, do not re-slugify.
         var primary = (typeof session.map_key === 'string') ? session.map_key.trim() : '';
-        if (primary) {
-            // Try `<track>__<layout>` then bare `<track>` for the same fallback
-            // chain the build-time generator emits.
-            var idx = primary.indexOf('__');
-            return idx > 0 ? [primary, primary.slice(0, idx)] : [primary];
-        }
-        // Legacy fallback (older controller without map_key). Best-effort.
-        if (!session.track_name) return [];
-        var t = slugify(session.track_name);
-        if (!t) return [];
-        var c = slugify(session.track_config);
-        return c ? [t + '__' + c, t] : [t];
+        if (!primary) return [];
+        // Try `<track>__<layout>` then bare `<track>` for the same fallback
+        // chain the build-time generator emits.
+        var idx = primary.indexOf('__');
+        return idx > 0 ? [primary, primary.slice(0, idx)] : [primary];
     }
     function applyTrackMap(map) {
         state.trackMap = map || FALLBACK_MAP;
@@ -196,6 +193,11 @@
         if (key === state.trackKey) return;       // no change
         if (state.trackMapLoading) return;        // in-flight; will resolve
         state.trackKey = key;
+        // Operator-facing diagnostic: confirm what key we're trying.
+        try {
+            console.log('[live-timing] map_key:', session && session.map_key,
+                '-> candidates:', candidates);
+        } catch (_e) { /* noop */ }
         if (!key) { applyTrackMap(FALLBACK_MAP); return; }
         // Try each candidate in order; cache hits short-circuit.
         var tryNext = function (idx) {
