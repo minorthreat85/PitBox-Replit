@@ -128,6 +128,31 @@ frames with the existing UDP server-timing feed for a richer Live Timing UI.
   render an agents bar, expanded leaderboard (Spd/Gear/RPM live cols), SVG
   track map (cars positioned by normalized lap distance), driver-detail panel
   with throttle/brake bars and gauges, and a recent-events panel.
+- **Track-map JSON files**: `controller/static/track_maps/<key>.json` where
+  `<key> = slugify(track_name) + "__" + slugify(track_config)` (or just
+  `slugify(track_name)` for tracks without layouts). Contract:
+  `{viewBox, svg_path, start_offset, direction, scale}`. Cars are placed
+  along `svg_path` with `getPointAtLength()`.
+
+### Automated Track-Map Generation (build-time)
+
+`scripts/generate_track_maps.py` walks an Assetto Corsa `content/tracks/` tree,
+runs `scripts/track_map_generator.py` against every `map.png`, and writes
+JSON files into `controller/static/track_maps/`. Pipeline: load PNG → binary
+mask → largest connected component → skeletonize → prune dead-end branches
+(removes pit lane / escape roads) → walk closed cycle → Ramer–Douglas–Peucker
+simplify → emit `M x y L x y ... Z`. Hand-traced JSONs (no `generated_by`
+field) are never overwritten unless `--force` is passed.
+
+This is a BUILD-TIME tool only. Its deps (`numpy`, `scikit-image`) live in
+`requirements-tools.txt` and are NOT included in either PyInstaller spec.
+
+Typical usage on the dev / main PC:
+```
+pip install -r requirements-tools.txt
+python -m scripts.generate_track_maps --ac-root "C:\Program Files (x86)\Steam\steamapps\common\assettocorsa"
+```
+Tests: `python -m unittest scripts.tests.test_track_map_generator`.
 
 PyInstaller specs include the new submodules:
 - `PitBoxAgent.spec` — `agent.telemetry.*`, `websockets.asyncio.client`

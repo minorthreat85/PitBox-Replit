@@ -1,0 +1,9 @@
+# Build-time tools only. NEVER bundled into the PitBoxController/PitBoxAgent EXEs.
+# Install with:  python -m pip install -r requirements-tools.txt
+#
+# Used by:
+#   scripts/generate_track_maps.py   (offline track-map JSON generation)
+
+numpy>=1.26
+scikit-image>=0.22
+pillow>=10
