@@ -18,10 +18,11 @@ keeps us robust to AC version changes that append new fields at the end.
 """
 from __future__ import annotations
 
+import ctypes
 import logging
-import mmap
 import struct
 import sys
+from ctypes import wintypes
 from dataclasses import dataclass, asdict
 from typing import Optional
 
@@ -29,6 +30,112 @@ LOG = logging.getLogger("pitbox.telemetry.sm")
 
 # AC SM is Windows-only (Local\ namespace). On non-Windows the reader is a no-op.
 IS_WINDOWS = sys.platform.startswith("win")
+
+# ---- Win32 shared-memory bindings -------------------------------------------
+# CRITICAL: We must NEVER create the AC shared-memory mappings ourselves.
+#
+# Earlier versions of this module called `mmap.mmap(-1, size, tagname=name,
+# access=mmap.ACCESS_READ)`. On Windows, when the named mapping does not yet
+# exist (i.e. AC isn't running yet), that call CREATES a brand-new 2048-byte
+# read-only anonymous mapping with that exact tagname, backed by the page
+# file. When AC then starts and CSP's `SharedMemoryWriter::writeStatic` calls
+# `CreateFileMapping` with the proper struct size and write access, it gets
+# back ERROR_ALREADY_EXISTS plus a handle to OUR tiny read-only mapping --
+# which crashes AC at session load with the stack:
+#     AC\sharedmemorywriter.cpp(240): writeStatic
+#     AC\sharedmemorywriter.cpp(435): update
+#     d:\dev\csp\csp.cpp ...
+#     AC\acs.cpp(477): wWinMain
+#
+# The fix is to use `OpenFileMappingW` (which only opens an EXISTING mapping
+# and returns NULL otherwise) followed by `MapViewOfFile`. This is the same
+# idiom used by every other AC SM consumer (CrewChief, SimHub, SRS).
+if IS_WINDOWS:
+    _kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+
+    _OpenFileMappingW = _kernel32.OpenFileMappingW
+    _OpenFileMappingW.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.LPCWSTR]
+    _OpenFileMappingW.restype = wintypes.HANDLE
+
+    _MapViewOfFile = _kernel32.MapViewOfFile
+    _MapViewOfFile.argtypes = [
+        wintypes.HANDLE, wintypes.DWORD, wintypes.DWORD, wintypes.DWORD, ctypes.c_size_t,
+    ]
+    _MapViewOfFile.restype = wintypes.LPVOID
+
+    _UnmapViewOfFile = _kernel32.UnmapViewOfFile
+    _UnmapViewOfFile.argtypes = [wintypes.LPVOID]
+    _UnmapViewOfFile.restype = wintypes.BOOL
+
+    _CloseHandle = _kernel32.CloseHandle
+    _CloseHandle.argtypes = [wintypes.HANDLE]
+    _CloseHandle.restype = wintypes.BOOL
+
+    _FILE_MAP_READ = 0x0004
+else:
+    _kernel32 = None
+    _OpenFileMappingW = _MapViewOfFile = _UnmapViewOfFile = _CloseHandle = None
+    _FILE_MAP_READ = 0x0004
+
+
+class _SharedView:
+    """RAII-ish wrapper around an OpenFileMapping + MapViewOfFile pair.
+
+    `read(size)` returns up to `size` bytes from offset 0. `close()` releases
+    the view and the mapping handle. Designed to be a drop-in replacement for
+    the subset of `mmap.mmap` we previously used.
+    """
+    __slots__ = ("handle", "addr", "size", "name")
+
+    def __init__(self, handle: int, addr: int, size: int, name: str) -> None:
+        self.handle = handle
+        self.addr = addr
+        self.size = size
+        self.name = name
+
+    def read(self, n: int) -> bytes:
+        if not self.addr:
+            return b""
+        n = min(n, self.size)
+        return ctypes.string_at(self.addr, n)
+
+    def close(self) -> None:
+        if self.addr and _UnmapViewOfFile is not None:
+            try:
+                _UnmapViewOfFile(ctypes.c_void_p(self.addr))
+            except Exception:
+                pass
+            self.addr = 0
+        if self.handle and _CloseHandle is not None:
+            try:
+                _CloseHandle(self.handle)
+            except Exception:
+                pass
+            self.handle = 0
+
+
+def _open_existing_mapping(name: str, size: int) -> Optional[_SharedView]:
+    """Attach (read-only) to a named shared-memory mapping that already exists.
+
+    Returns None if the mapping does not exist (AC is not running). Never
+    creates a new mapping.
+    """
+    if not IS_WINDOWS or _OpenFileMappingW is None:
+        return None
+    handle = _OpenFileMappingW(_FILE_MAP_READ, False, name)
+    if not handle:
+        # ERROR_FILE_NOT_FOUND (2) is the normal "AC isn't running" case.
+        return None
+    addr = _MapViewOfFile(handle, _FILE_MAP_READ, 0, 0, size)
+    if not addr:
+        err = getattr(ctypes, "get_last_error", lambda: 0)()
+        try:
+            _CloseHandle(handle)
+        except Exception:
+            pass
+        LOG.debug("MapViewOfFile failed for %r: WinError %d", name, err)
+        return None
+    return _SharedView(handle, addr, size, name)
 
 # Mmap names. AC nominally exposes them in the Local\ namespace, but some
 # installs / Content Manager wrappers / older AC versions register them
@@ -253,9 +360,9 @@ class SharedMemoryReader:
     """
 
     def __init__(self) -> None:
-        self._mm_physics: Optional[mmap.mmap] = None
-        self._mm_graphics: Optional[mmap.mmap] = None
-        self._mm_static: Optional[mmap.mmap] = None
+        self._mm_physics: Optional[_SharedView] = None
+        self._mm_graphics: Optional[_SharedView] = None
+        self._mm_static: Optional[_SharedView] = None
         self._available = IS_WINDOWS
         # Names that succeeded last time, so we don't retry every variant
         # forever. None until first successful open.
@@ -268,20 +375,22 @@ class SharedMemoryReader:
         if not IS_WINDOWS:
             LOG.info("AC shared memory reader inactive (non-Windows host)")
 
-    def _open(self, current: Optional[mmap.mmap], names: tuple, size: int,
-              cached_name_attr: str) -> Optional[mmap.mmap]:
-        """Try each name in `names`; remember the one that worked.
+    def _open(self, current: Optional[_SharedView], names: tuple, size: int,
+              cached_name_attr: str) -> Optional[_SharedView]:
+        """Attach (read-only) to the first existing AC mapping in `names`.
 
         On Windows AC mmaps live under `Local\\` for normal installs but some
         wrappers expose them with no prefix. We try the cached name first
         (cheap path once AC is up) and fall through to the alternates only
         when nothing has worked yet.
+
+        Uses OpenFileMappingW so we NEVER create the mapping if AC hasn't
+        yet -- creating it would corrupt CSP's writeStatic on session load.
         """
         if not self._available:
             return None
         if current is not None:
             return current
-        # Prefer the name that worked previously, then any others in order.
         cached = getattr(self, cached_name_attr)
         order = []
         if cached:
@@ -289,19 +398,14 @@ class SharedMemoryReader:
         for n in names:
             if n != cached:
                 order.append(n)
-        last_err = None
         for n in order:
-            try:
-                mm = mmap.mmap(-1, size, tagname=n, access=mmap.ACCESS_READ)
+            view = _open_existing_mapping(n, size)
+            if view is not None:
                 if cached != n:
                     setattr(self, cached_name_attr, n)
-                    LOG.info("AC SM mmap opened: name=%r size=%d", n, size)
-                return mm
-            except (OSError, ValueError) as e:
-                last_err = e
-                continue
+                    LOG.info("AC SM mapping attached (read-only): name=%r size=%d", n, size)
+                return view
         # Mapping doesn't exist (AC not running). Quietly retry next read.
-        LOG.debug("Cannot open any of %s: %s", names, last_err)
         return None
 
     def read(self) -> dict:
@@ -323,26 +427,23 @@ class SharedMemoryReader:
 
         if self._mm_physics is not None:
             try:
-                self._mm_physics.seek(0)
                 physics = parse_physics(self._mm_physics.read(_PHYSICS_SIZE))
             except (ValueError, OSError) as e:
-                LOG.debug("physics read failed, dropping mmap: %s", e)
+                LOG.debug("physics read failed, dropping mapping: %s", e)
                 self._safe_close("_mm_physics")
 
         if self._mm_graphics is not None:
             try:
-                self._mm_graphics.seek(0)
                 graphics = parse_graphics(self._mm_graphics.read(_GRAPHICS_SIZE))
             except (ValueError, OSError) as e:
-                LOG.debug("graphics read failed, dropping mmap: %s", e)
+                LOG.debug("graphics read failed, dropping mapping: %s", e)
                 self._safe_close("_mm_graphics")
 
         if self._mm_static is not None:
             try:
-                self._mm_static.seek(0)
                 static = parse_static(self._mm_static.read(_STATIC_SIZE))
             except (ValueError, OSError) as e:
-                LOG.debug("static read failed, dropping mmap: %s", e)
+                LOG.debug("static read failed, dropping mapping: %s", e)
                 self._safe_close("_mm_static")
 
         available = bool(physics or graphics)
