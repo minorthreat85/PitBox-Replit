@@ -1005,29 +1005,16 @@
       countdownEl.classList.toggle('hidden', !(state && state.enabled && sec > 0));
     }
     // Sync the global flag and live-patch any rendered Remove buttons so the
-    // operator sees them enable/disable the moment enrollment toggles.
+    // operator sees them appear/disappear the moment enrollment toggles.
+    // We hide rather than disable so the destructive control simply doesn't
+    // exist outside an explicit enrollment window. The button's `disabled`
+    // state (e.g. preset-locked) is left untouched — orthogonal to visibility.
     var enrollOn = !!(state && state.enabled);
     currentEnrollmentEnabled = enrollOn;
     try {
       var btns = document.querySelectorAll('.btn-card-remove[data-requires-enrollment="1"]');
       for (var i = 0; i < btns.length; i++) {
-        var b = btns[i];
-        // Touch only buttons whose disable provenance we own. Buttons
-        // disabled for other reasons (preset lock, etc.) keep their state
-        // and title untouched; the next sim-card re-render will reconcile.
-        if (enrollOn) {
-          if (b.dataset.enrollmentDisabled === '1') {
-            b.disabled = false;
-            b.removeAttribute('data-enrollment-disabled');
-            b.title = 'Remove this sim from controller (unpair)';
-          }
-        } else {
-          if (!b.disabled) {
-            b.disabled = true;
-            b.dataset.enrollmentDisabled = '1';
-            b.title = 'Enable Enrollment Mode to remove sims';
-          }
-        }
+        btns[i].hidden = !enrollOn;
       }
     } catch (e) { /* DOM not ready yet — first render will pick up the flag. */ }
   }
@@ -5520,20 +5507,13 @@
             '</div>' +
             (isTestCard ? '' : ('<div class="sim-card-action-row-2">' +
               (function () {
+                // Remove button is only RENDERED VISIBLE in enrollment mode so a
+                // sim card cannot be deleted by accident. Backend also gates
+                // DELETE /api/agents/{id} on enrollment_is_enabled() — the
+                // hidden attribute here is purely UI affordance.
                 var enrollOn = !!currentEnrollmentEnabled;
-                // Provenance: only mark the button as enrollment-disabled when
-                // enrollment is the SOLE reason it's disabled. If a preset
-                // lock is also disabling it, do NOT mark it — otherwise the
-                // live-patch in updateEnrollmentUI() would wrongly re-enable
-                // a preset-locked button when enrollment toggles on.
-                var presetLocked = !!presetDis;
-                var enrollOnlyDisable = !enrollOn && !presetLocked;
-                var enrollMark = enrollOnlyDisable ? ' data-enrollment-disabled="1"' : '';
-                var disAttr = presetDis || (!enrollOn ? ' disabled' : '');
-                var titleTxt = enrollOn
-                  ? 'Remove this sim from controller (unpair)'
-                  : 'Enable Enrollment Mode to remove sims';
-                return '<button type="button" class="btn-secondary btn-card-remove" data-agent-id="' + agentId + '" data-requires-enrollment="1"' + enrollMark + ' title="' + titleTxt + '"' + disAttr + '>Remove</button>';
+                var hiddenAttr = enrollOn ? '' : ' hidden';
+                return '<button type="button" class="btn-secondary btn-card-remove" data-agent-id="' + agentId + '" data-requires-enrollment="1" title="Remove this sim from controller (unpair)"' + presetDis + hiddenAttr + '>Remove</button>';
               })() +
             '</div>')) +
           '</div>' +
