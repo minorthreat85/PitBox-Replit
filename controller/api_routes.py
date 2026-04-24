@@ -411,7 +411,13 @@ async def pair_unenroll(agent_id: str = Depends(require_agent)):
 
 @router.delete("/agents/{agent_id}")
 async def remove_agent(agent_id: str, _: None = Depends(require_operator)):
-    """Remove a rig from the controller (admin). Sim card will disappear from UI. agent_id can be display name (e.g. Sim5) or device_id."""
+    """Remove a rig from the controller (admin). Sim card will disappear from UI. agent_id can be display name (e.g. Sim5) or device_id.
+
+    Sim removal is gated on enrollment mode being active so rigs can't be
+    removed by accident outside an explicit pair/unpair window.
+    """
+    if not enrollment_is_enabled():
+        raise HTTPException(status_code=403, detail="Enrollment mode must be enabled to remove a sim")
     canonical = _canonical_agent_id(agent_id)
     if not canonical:
         raise HTTPException(status_code=404, detail="Unknown agent_id")

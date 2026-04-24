@@ -1004,6 +1004,32 @@
       countdownEl.textContent = formatCountdown(sec);
       countdownEl.classList.toggle('hidden', !(state && state.enabled && sec > 0));
     }
+    // Sync the global flag and live-patch any rendered Remove buttons so the
+    // operator sees them enable/disable the moment enrollment toggles.
+    var enrollOn = !!(state && state.enabled);
+    currentEnrollmentEnabled = enrollOn;
+    try {
+      var btns = document.querySelectorAll('.btn-card-remove[data-requires-enrollment="1"]');
+      for (var i = 0; i < btns.length; i++) {
+        var b = btns[i];
+        // Touch only buttons whose disable provenance we own. Buttons
+        // disabled for other reasons (preset lock, etc.) keep their state
+        // and title untouched; the next sim-card re-render will reconcile.
+        if (enrollOn) {
+          if (b.dataset.enrollmentDisabled === '1') {
+            b.disabled = false;
+            b.removeAttribute('data-enrollment-disabled');
+            b.title = 'Remove this sim from controller (unpair)';
+          }
+        } else {
+          if (!b.disabled) {
+            b.disabled = true;
+            b.dataset.enrollmentDisabled = '1';
+            b.title = 'Enable Enrollment Mode to remove sims';
+          }
+        }
+      }
+    } catch (e) { /* DOM not ready yet — first render will pick up the flag. */ }
   }
   function fetchEnrollment() {
     if (launchBusy) return;
@@ -4578,6 +4604,7 @@
     shifting_presets: []
   };
   var lastSimCardsAgentIds = null;  /* only re-render grid when agent list changes (keeps dropdowns open) */
+  var currentEnrollmentEnabled = false;  /* live mirror of /api/enrollment.enabled — gates Remove buttons. */
 
   /* Extract all src= values from an HTML string — used to compare thumb content without triggering image reloads */
   function thumbSrcKey(html) {
@@ -5492,7 +5519,22 @@
               '<button type="button" class="btn-danger btn-card-end" data-agent-id="' + agentId + '"' + presetDis + '>End Session</button>' +
             '</div>' +
             (isTestCard ? '' : ('<div class="sim-card-action-row-2">' +
-              '<button type="button" class="btn-secondary btn-card-remove" data-agent-id="' + agentId + '" title="Remove this sim from controller (unpair)"' + presetDis + '>Remove</button>' +
+              (function () {
+                var enrollOn = !!currentEnrollmentEnabled;
+                // Provenance: only mark the button as enrollment-disabled when
+                // enrollment is the SOLE reason it's disabled. If a preset
+                // lock is also disabling it, do NOT mark it — otherwise the
+                // live-patch in updateEnrollmentUI() would wrongly re-enable
+                // a preset-locked button when enrollment toggles on.
+                var presetLocked = !!presetDis;
+                var enrollOnlyDisable = !enrollOn && !presetLocked;
+                var enrollMark = enrollOnlyDisable ? ' data-enrollment-disabled="1"' : '';
+                var disAttr = presetDis || (!enrollOn ? ' disabled' : '');
+                var titleTxt = enrollOn
+                  ? 'Remove this sim from controller (unpair)'
+                  : 'Enable Enrollment Mode to remove sims';
+                return '<button type="button" class="btn-secondary btn-card-remove" data-agent-id="' + agentId + '" data-requires-enrollment="1"' + enrollMark + ' title="' + titleTxt + '"' + disAttr + '>Remove</button>';
+              })() +
             '</div>')) +
           '</div>' +
         '</div>'
@@ -6338,6 +6380,13 @@
       e.stopPropagation();
       var id = removeBtn.getAttribute('data-agent-id');
       if (!id) return;
+      // Belt-and-suspenders: even if the button somehow gets clicked while
+      // disabled (keyboard, devtools, race with poll), refuse without an
+      // active enrollment window. Backend enforces the same rule.
+      if (!currentEnrollmentEnabled) {
+        showToast('Enable Enrollment Mode to remove a sim.', 'warning');
+        return;
+      }
       ensureOperatorOrRedirect().then(function (ok) {
         if (!ok) return;
         if (!confirm('Remove this sim from the controller? It will need to re-enroll to appear again.')) return;
