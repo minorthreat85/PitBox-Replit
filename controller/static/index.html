@@ -1190,9 +1190,68 @@
 
         // Close drawer when any nav link is tapped (so the user actually
         // sees the page they navigated to instead of the still-open menu).
+        // Also acts as a routing fallback for the mobile drawer path: if
+        // app.js's nav-link click handler didn't fire (script error, race,
+        // etc.) we push state and dispatch popstate so applyRoute() still
+        // runs. Idempotent because we only act when location.pathname is
+        // still the old path. Scoped to the mobile drawer (only fires when
+        // body.mobile-nav-open is set) so desktop routing stays purely
+        // app.js-driven.
         sidebar.addEventListener('click', function (ev) {
             var a = ev.target.closest && ev.target.closest('a');
-            if (a) setOpen(false);
+            if (!a) return;
+            // Only intervene when the mobile drawer is the entry point.
+            var wasMobileNav = isOpen();
+            setOpen(false);
+            if (!wasMobileNav) return;
+            var route = a.getAttribute('data-route');
+            if (!route) return;
+            // Defer one tick so app.js's own handler gets first crack.
+            setTimeout(function () {
+                if (location.pathname === route) return;  // app.js handled it
+                // Push state then dispatch popstate. PopStateEvent ctor isn't
+                // available in some older mobile WebViews, so fall back to a
+                // plain Event. If nothing applies the route after this,
+                // hard-navigate -- always works.
+                try {
+                    history.pushState(null, '', route);
+                } catch (err) {
+                    location.href = route;
+                    return;
+                }
+                var evt;
+                try { evt = new PopStateEvent('popstate'); }
+                catch (e1) {
+                    try { evt = new Event('popstate'); }
+                    catch (e2) { evt = null; }
+                }
+                if (evt) window.dispatchEvent(evt);
+                // Final safety net: if the page didn't actually swap (no
+                // popstate listener wired), force a hard navigation so the
+                // user isn't stuck on the previous page.
+                setTimeout(function () {
+                    if (location.pathname === route) {
+                        var visible = document.querySelector(
+                            '.content-page:not(.hidden)');
+                        var routesPageId = ({
+                            '/garage': 'dashboard', '/sims': 'rigs',
+                            '/presets': 'presets',
+                            '/server-config': 'server-config',
+                            '/entry-list': 'entry-list',
+                            '/bookings': 'bookings', '/schedule': 'bookings',
+                            '/checkin': 'bookings', '/analytics': 'bookings',
+                            '/live-timing': 'live-timing',
+                            '/content': 'content',
+                            '/system-logs': 'system-logs',
+                            '/settings': 'settings', '/mumble': 'mumble',
+                        })[route];
+                        if (visible && routesPageId &&
+                            visible.getAttribute('data-page') !== routesPageId) {
+                            location.href = route;
+                        }
+                    }
+                }, 60);
+            }, 0);
         });
 
         // ESC closes the drawer.
