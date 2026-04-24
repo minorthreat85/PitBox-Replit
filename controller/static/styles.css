@@ -3781,7 +3781,13 @@ button:disabled {
     flex-direction: column;
     gap: 10px;
     max-width: 380px;
+    /* Empty container must never absorb taps; individual toasts re-enable
+       pointer-events so they remain clickable. Without this the (often empty)
+       container blocks the hamburger / sidebar links on mobile, where the
+       responsive rule below stretches it full-width. */
+    pointer-events: none;
 }
+.toast-container > * { pointer-events: auto; }
 
 .toast {
     background: var(--bg-panel);
@@ -3939,8 +3945,11 @@ button:disabled {
     /* Modals: nearly full-bleed on phones */
     .modal-content { width: 94vw; max-width: 94vw; max-height: 90vh; overflow-y: auto; }
 
-    /* Toasts shouldn't pin-out off-screen */
-    .toast-container { left: 12px; right: 12px; bottom: 12px; }
+    /* Toasts shouldn't pin-out off-screen. Reset top so the container is
+       bottom-anchored only (otherwise top:20px + bottom:12px stretches it
+       full-viewport-height and -- before pointer-events:none -- it absorbed
+       every tap on the page). */
+    .toast-container { top: auto; left: 12px; right: 12px; bottom: 12px; }
 
     /* Live Timing leaderboard / cards stack */
     .lt-grid,
