@@ -1,4 +1,4 @@
-# PitBox Controller v1.5.10
+# PitBox Controller v1.6.0
 
 Professional LAN-based management system for Assetto Corsa racing lounges with up to 8 simulator PCs.
 
