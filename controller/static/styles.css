@@ -3822,10 +3822,144 @@ button:disabled {
     }
 }
 
+/* ============================================================
+   Mobile shell -- off-canvas sidebar drawer (<= 768px)
+   ============================================================
+   The desktop layout is body{display:flex} with a fixed 260px
+   sidebar to the left of .main-content. On phones we:
+     * Switch body to block layout so .main-content is full-width.
+     * Pin .sidebar to the viewport and translate it off-canvas.
+     * Add a hamburger button (.mobile-nav-toggle) inside the
+       page header strip and a backdrop (.mobile-nav-backdrop).
+     * Toggling body.mobile-nav-open slides the drawer in and
+       reveals the backdrop. JS handles the toggle + close-on-
+       nav-link-click / backdrop tap / Escape.
+*/
+.mobile-nav-toggle {
+    display: none; /* shown via @media below */
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    height: 40px;
+    padding: 0 12px;
+    background: var(--bg-panel);
+    border: 1px solid var(--border-gray);
+    border-radius: var(--radius-md, 8px);
+    color: var(--text-white);
+    font-family: inherit;
+    font-size: 0.85rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    cursor: pointer;
+}
+.mobile-nav-toggle:hover { background: rgba(255,255,255,0.08); }
+.mobile-nav-toggle:focus-visible {
+    outline: 2px solid var(--color-red-primary);
+    outline-offset: 2px;
+}
+.mobile-nav-toggle svg { width: 20px; height: 20px; display: block; }
+.mobile-nav-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.55);
+    z-index: 90;
+    -webkit-tap-highlight-color: transparent;
+}
+
 @media (max-width: 768px) {
-    .sidebar:not(.sidebar--collapsed) { width: 260px; min-width: 260px; }
-    .stats-row { grid-template-columns: 1fr; }
+    body { display: block; }
+
+    .sidebar {
+        position: fixed;
+        top: 0;
+        bottom: 0;
+        left: 0;
+        width: min(84vw, 320px);
+        min-width: 0;
+        z-index: 100;
+        transform: translateX(-100%);
+        transition: transform 0.22s ease;
+        box-shadow: 4px 0 18px rgba(0,0,0,0.55);
+        will-change: transform;
+        overflow-y: auto;
+    }
+    /* Override the desktop rule that pins width:260px regardless. */
+    .sidebar:not(.sidebar--collapsed) { width: min(84vw, 320px); min-width: 0; }
+
+    body.mobile-nav-open .sidebar { transform: translateX(0); }
+    body.mobile-nav-open .mobile-nav-backdrop { display: block; }
+    body.mobile-nav-open { overflow: hidden; } /* prevent background scroll */
+
+    .main-content {
+        width: 100%;
+        min-height: 100vh;
+        padding: 14px 14px 24px;
+    }
+
+    .mobile-nav-toggle { display: inline-flex; }
+
+    /* Touch-friendly nav rows */
+    .sidebar-nav { padding: 16px 12px; gap: 6px; }
+    .sidebar-nav .nav-link,
+    .nav-link { padding: 14px 16px; font-size: 0.95rem; }
+    .sidebar-header { padding: 18px 16px; }
+    .sidebar-logo { font-size: 1.2rem; }
+
+    /* Page headers / titles */
+    .page-title { font-size: 1.2rem; }
+    .page-header { margin-bottom: 16px; }
+    .cc-title { font-size: 1.2rem; }
+    .cc-subtitle { font-size: 0.82rem; }
+
+    /* Garage / dashboard cards stack and breathe on mobile */
+    .cc-header { flex-direction: column; align-items: stretch; gap: 10px; }
+    .cc-header-right {
+        width: 100%;
+        flex-wrap: wrap;
+        gap: 10px;
+        justify-content: flex-start;
+    }
+    .cc-select { flex: 1 1 160px; min-width: 0; }
+    .cc-kpi-row { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+    .cc-kpi-tile { padding: 12px; }
+    .cc-kpi-value { font-size: 1.05rem; }
+    .cc-main-row { grid-template-columns: 1fr; }
+    .cc-control-buttons .cc-btn { flex: 1 1 100px; min-width: 0; }
+
+    /* Stats / dashboards */
+    .stats-row { grid-template-columns: 1fr; gap: 12px; }
     .rig-selector-grid { grid-template-columns: repeat(2, 1fr); }
+
+    /* Tables -- always horizontally scrollable, never break the page */
+    .dashboard-sim-list { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .dashboard-table { min-width: 640px; }
+
+    /* Modals: nearly full-bleed on phones */
+    .modal-content { width: 94vw; max-width: 94vw; max-height: 90vh; overflow-y: auto; }
+
+    /* Toasts shouldn't pin-out off-screen */
+    .toast-container { left: 12px; right: 12px; bottom: 12px; }
+
+    /* Live Timing leaderboard / cards stack */
+    .lt-grid,
+    .lt-cards-row { grid-template-columns: 1fr !important; }
+    .lt-header-row { flex-wrap: wrap; gap: 8px; }
+
+    /* Booking admin filter bars wrap */
+    .ba-filters,
+    .ba-toolbar { flex-wrap: wrap; gap: 8px; }
+
+    /* Server config two-column already breaks via its own 900px query;
+       just make sure the preset sidebar doesn't pin itself open here. */
+    .sc-presets-sidebar { max-width: 100%; }
+}
+
+@media (max-width: 480px) {
+    .cc-kpi-row { grid-template-columns: 1fr; }
+    .rig-selector-grid { grid-template-columns: 1fr; }
+    .main-content { padding: 12px 12px 24px; }
 }
 
 /* ========== Command Center Dashboard ========== */

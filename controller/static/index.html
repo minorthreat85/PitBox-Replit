@@ -34,8 +34,22 @@
         </div>
     </aside>
 
+    <!-- Mobile drawer backdrop (visible only when body.mobile-nav-open) -->
+    <div id="mobile-nav-backdrop" class="mobile-nav-backdrop" aria-hidden="true"></div>
+
     <!-- Main content -->
     <main class="main-content">
+        <!-- Mobile-only nav toggle. Hidden on desktop via CSS. -->
+        <button type="button" id="mobile-nav-toggle" class="mobile-nav-toggle"
+                aria-label="Open navigation menu" aria-controls="sidebar" aria-expanded="false">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <line x1="3" y1="6" x2="21" y2="6"/>
+                <line x1="3" y1="12" x2="21" y2="12"/>
+                <line x1="3" y1="18" x2="21" y2="18"/>
+            </svg>
+            <span>Menu</span>
+        </button>
         <!-- Page: Garage -->
         <div id="page-dashboard" class="content-page hidden" data-page="dashboard">
             <div id="command-center-dashboard" class="command-center-dashboard">
@@ -1153,5 +1167,46 @@
     <script src="/app.js"></script>
     <script src="/live_timing.js"></script>
     <script src="/server_admin.js"></script>
+    <script>
+    // Mobile drawer toggle. Inline so it's available before any page JS runs
+    // and so it works even if app.js fails to load. CSS handles all the
+    // visual states; this script only flips body.mobile-nav-open.
+    (function () {
+        var body = document.body;
+        var toggle = document.getElementById('mobile-nav-toggle');
+        var backdrop = document.getElementById('mobile-nav-backdrop');
+        var sidebar = document.getElementById('sidebar');
+        if (!toggle || !backdrop || !sidebar) return;
+
+        function setOpen(open) {
+            body.classList.toggle('mobile-nav-open', open);
+            toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+            backdrop.setAttribute('aria-hidden', open ? 'false' : 'true');
+        }
+        function isOpen() { return body.classList.contains('mobile-nav-open'); }
+
+        toggle.addEventListener('click', function () { setOpen(!isOpen()); });
+        backdrop.addEventListener('click', function () { setOpen(false); });
+
+        // Close drawer when any nav link is tapped (so the user actually
+        // sees the page they navigated to instead of the still-open menu).
+        sidebar.addEventListener('click', function (ev) {
+            var a = ev.target.closest && ev.target.closest('a');
+            if (a) setOpen(false);
+        });
+
+        // ESC closes the drawer.
+        document.addEventListener('keydown', function (ev) {
+            if (ev.key === 'Escape' && isOpen()) setOpen(false);
+        });
+
+        // If the viewport grows back past the mobile breakpoint, force the
+        // drawer state off so we don't leave body.overflow:hidden in place.
+        var mql = window.matchMedia('(min-width: 769px)');
+        function handleMql(e) { if (e.matches) setOpen(false); }
+        if (mql.addEventListener) mql.addEventListener('change', handleMql);
+        else if (mql.addListener) mql.addListener(handleMql); // older Safari
+    })();
+    </script>
 </body>
 </html>
