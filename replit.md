@@ -1,4 +1,4 @@
-# PitBox Controller v1.6.0
+# PitBox Controller v1.6.1
 
 Professional LAN-based management system for Assetto Corsa racing lounges with up to 8 simulator PCs.
 
@@ -120,7 +120,13 @@ frames with the existing UDP server-timing feed for a richer Live Timing UI.
 - **Controller**: `controller/telemetry/store.py` (per-agent latest frame +
   staleness buckets: live <3s, stale <15s, offline ≥15s),
   `controller/api_telemetry_ingest.py` (WS `/ws/agent-telemetry` + HTTP
-  `/api/telemetry/*`).
+  `/api/telemetry/*`). The WS handler **always overwrites the agent's `ts`
+  with server receive time** before storing — agent wall-clock skew
+  (Windows Time service unsynced after a fresh install, etc.) used to push
+  every frame past the 15 s offline cutoff and hide the agent from the
+  SIM AGENTS bar even at full 15 Hz. The original agent timestamp is
+  preserved as `agent_ts`, and skew >5 s logs a one-time WARN per agent
+  (v1.6.1 fix).
 - **Snapshot merge**: `controller/timing/engine.py::snapshot()` adds
   `telemetry_agents` (top-level dict, keyed by agent_id) and `live_telemetry`
   per matched driver (best-effort name match). Existing fields untouched.
