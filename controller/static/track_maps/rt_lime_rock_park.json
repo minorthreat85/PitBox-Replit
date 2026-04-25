@@ -1,0 +1,10 @@
+{
+    "track": "rt_lime_rock_park",
+    "display_name": "Lime Rock Park",
+    "viewBox": "0 0 1000 600",
+    "svg_path": "M 270 470 L 720 470 C 830 470 880 410 880 330 C 880 250 850 195 800 175 C 760 160 730 180 700 205 L 660 240 C 630 265 590 260 575 230 L 540 165 C 510 125 460 115 410 145 C 360 175 320 225 290 295 C 240 365 240 430 270 470 Z",
+    "start_offset": 0.0,
+    "direction": 1,
+    "scale": 1.0,
+    "notes": "Hand-traced approximation of Lime Rock Park. Bare track key catches all variants (no_chicane, chicane, etc.). Clockwise: front straight (Sam Posey, bottom) -> Big Bend (T1, sweeping right at east end) -> No Name Straight (top, heading west) -> The Hook (T3, right) -> uphill -> Downhill (T4, left) -> West Bend (T5, right) -> back to S/F. For accurate geometry, run scripts/generate_track_maps.py against the AC content folder; that path overwrites this file (provided --force is passed) with the auto-generated layout from the track's map.png."
+}
