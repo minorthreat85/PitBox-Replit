@@ -43,6 +43,13 @@ ws_router = APIRouter()
 _RECENT_REJECTS_MAX = 32
 _recent_rejects: list = []
 
+# Per-agent latch so we only WARN once when significant clock skew is detected
+# (avoid log spam at 15 Hz). Skew larger than this threshold triggers the warning
+# and would, without the server-side ts override below, cause every frame to be
+# filtered as "offline" by the engine even at full rate.
+_CLOCK_SKEW_WARN_S = 5.0
+_clock_skew_logged: set = set()
+
 
 def _record_reject(agent_id: Optional[str], client: str, reason: str) -> None:
     _recent_rejects.append({
@@ -123,6 +130,32 @@ async def agent_telemetry_ws(websocket: WebSocket) -> None:
                 continue
             # Trust the header agent_id over the body to prevent spoofing
             frame["agent_id"] = aid
+            # Use server-side receive time for staleness — never trust the
+            # agent's wall clock. Sim PCs commonly have minor clock skew
+            # (e.g. Windows Time service hasn't synced after a fresh install).
+            # A 16+ second skew would cause every frame to be filtered as
+            # "offline" by project_for_engine() even at full 15 Hz rate, so
+            # the agent would never appear in the SIM AGENTS bar despite a
+            # healthy WebSocket. Preserve the original agent ts as
+            # `agent_ts` for diagnostics.
+            agent_ts = frame.get("ts")
+            now_ts = time.time()
+            frame["ts"] = now_ts
+            if agent_ts is not None:
+                frame["agent_ts"] = agent_ts
+                if aid not in _clock_skew_logged:
+                    try:
+                        skew_s = now_ts - float(agent_ts)
+                        if abs(skew_s) > _CLOCK_SKEW_WARN_S:
+                            LOG.warning(
+                                "Telemetry: agent %s has clock skew of %+.1fs vs controller "
+                                "(server now=%.2f, agent ts=%.2f). Server-side ts is being used "
+                                "for staleness; consider syncing the agent PC's clock (NTP).",
+                                aid, skew_s, now_ts, float(agent_ts),
+                            )
+                            _clock_skew_logged.add(aid)
+                    except (TypeError, ValueError):
+                        pass
             await store.update(aid, frame)
             frames += 1
             summary_frames += 1
