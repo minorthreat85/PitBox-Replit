@@ -1,0 +1,10 @@
+{
+    "track": "tsukuba_circuit",
+    "display_name": "Tsukuba Circuit",
+    "viewBox": "0 0 1000 600",
+    "svg_path": "M 200 470 L 700 470 C 820 470 880 410 880 320 C 880 230 820 175 720 175 L 600 175 C 540 175 510 215 540 270 L 600 340 C 620 370 600 400 560 400 L 480 400 C 440 400 420 370 440 340 L 480 285 C 510 235 460 200 400 200 L 320 200 C 240 200 200 255 200 345 Z",
+    "start_offset": 0.0,
+    "direction": 1,
+    "scale": 1.0,
+    "notes": "Hand-traced approximation of Tsukuba Circuit (TC2000). Clockwise: front straight (south) -> First Hairpin (T1, right) -> short link -> S-curves and Dunlop area (right-left-right wiggle in the middle) -> infield esses -> back straight -> Final Corner (sweeping right) -> S/F. For accurate geometry, run scripts/generate_track_maps.py against the AC content folder."
+}
